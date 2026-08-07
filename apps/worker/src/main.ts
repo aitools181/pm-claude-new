@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { Worker, Queue, QueueEvents } from "bullmq";
 import { Redis } from "ioredis";
 import { runIdempotent, type ScopedJob } from "./job-runner.js";
@@ -42,9 +43,20 @@ worker.on("failed", async (job, err) => {
 worker.on("completed", (job) => console.log(`[worker] completed ${job.id} (${job.name})`));
 console.log("[worker] listening:", QUEUE);
 
+/** Health probe: the worker has no HTTP surface of its own, so expose a minimal one. */
+const HEALTH_PORT = Number(process.env.WORKER_HEALTH_PORT ?? 4100);
+const healthServer = createServer((req, res) => {
+  if (req.url !== "/healthz") { res.writeHead(404).end(); return; }
+  const ready = connection.status === "ready" && !worker.closing;
+  res.writeHead(ready ? 200 : 503, { "content-type": "application/json" });
+  res.end(JSON.stringify({ status: ready ? "ok" : "unavailable", service: "worker", redis: connection.status, time: new Date().toISOString() }));
+});
+healthServer.listen(HEALTH_PORT, "0.0.0.0", () => console.log(`[worker] health on :${HEALTH_PORT}/healthz`));
+
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, async () => {
     console.log(`[worker] ${sig}, draining...`);
+    healthServer.close();
     await worker.close(); await events.close(); await connection.quit();
     process.exit(0);
   });

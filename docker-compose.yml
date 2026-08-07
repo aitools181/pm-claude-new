@@ -48,6 +48,13 @@ services:
     # Apply the schema to the DB on boot (idempotent), then start the API.
     command: sh -c "echo BOOT:env DATABASE_URL=$${DATABASE_URL:+set} REDIS_URL=$${REDIS_URL:+set} SESSION_SECRET=$${SESSION_SECRET:+set} && echo BOOT:migrating && (pnpm --filter @pm/db exec drizzle-kit migrate || echo BOOT:MIGRATE_FAILED) && echo BOOT:starting-api && node /app/apps/api/dist/main.js; echo BOOT:API_EXITED code=$$?"
     expose: ["4000"]
+    healthcheck:
+      # node has global fetch on 20+, so no curl/wget dependency is needed.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -58,6 +65,13 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://pm:pm_password@postgres:5432/pm_platform
+      WORKER_HEALTH_PORT: "4100"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     depends_on:
       redis: { condition: service_healthy }
 
@@ -68,7 +82,15 @@ services:
       INTERNAL_API_URL: http://api:4000    # Next server-side proxy target
       API_URL: http://api:4000             # server components
     expose: ["3000"]
-    depends_on: [api]
+    healthcheck:
+      # /healthz, not /api/health: next.config rewrites /api/* to the API service.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      api: { condition: service_healthy }
 
   maintenance:
     build: { context: ., dockerfile: apps/maintenance/Dockerfile }

@@ -8,5 +8,6 @@ To change it, edit `packages/shared/src/version.ts` (`APP_VERSION`) and the root
 
 | Version | Date | Summary |
 |---------|------|---------|
+| 5.2 | 2026-08-07 | Container health checks for api, web and worker, so the reverse proxy only routes traffic once a container is actually ready. Adds `/healthz` on web and a health listener on the worker. |
 | 5.1 | 2026-08-07 | SMTP email delivery: instance mail settings in the platform console, password encrypted at rest, connection test with recorded result, and real delivery for invitations, password resets and verification (log adapter fallback). |
 | 5.0 | 2026-08-07 | Platform console (instance admin, org suspension, module entitlements, platform flags, audit) and Plans & pricing (catalogue, editable prices, limits, plan-gated modules, public pricing page). Includes build fixes and core-flow repairs (default workspace on setup, workspace creation UI, multi-organization). |
