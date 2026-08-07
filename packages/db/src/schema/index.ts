@@ -53,3 +53,6 @@ export * from "./productivity.js";
 export * from "./ai-agents.js";
 
 export * from "./ux.js";
+export * from "./platform.js";
+export * from "./plans.js";
+export * from "./mail.js";

@@ -61,9 +61,11 @@ import { CommunicationsModule } from "./communications/communications.module.js"
 import { ProductivityModule } from "./productivity/productivity.module.js";
 import { AiAgentsModule } from "./ai-agents/ai-agents.module.js";
 import { UxModule } from "./ux/ux.module.js";
+import { PlatformAdminModule } from "./platform/platform-admin.module.js";
+import { PlansModule } from "./plans/plans.module.js";
 
 @Module({
-  imports: [
+  imports: [PlatformAdminModule, PlansModule, 
     LoggerModule.forRoot({
       pinoHttp: {
         genReqId: (req, res) => {

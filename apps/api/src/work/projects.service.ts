@@ -1,15 +1,17 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject, Optional } from "@nestjs/common";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
+import { PlansService } from "../plans/plans.service.js";
 import { canAccessProject } from "../collab/access.js";
 
 @Injectable()
 export class ProjectsService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(@Inject(DB) private readonly db: Database, @Optional() private readonly plans?: PlansService) {}
 
   async create(organizationId: string, userId: string, input: { workspaceId: string; name: string; keyPrefix: string; privacy?: "workspace" | "private" }) {
+    if (this.plans) await this.plans.assertWithinLimit(organizationId, "projects");
     const prefix = input.keyPrefix.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
     if (!prefix) throw new AppError("VALIDATION", "Key prefix must contain letters or digits");
     return this.db.transaction(async (tx) => {

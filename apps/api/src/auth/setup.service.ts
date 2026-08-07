@@ -35,6 +35,12 @@ export class SetupService {
       });
       await seedOrgDefaults(tx as unknown as Database, org.id, user.id);
       await tx.insert(schema.userRoleAssignments).values({ organizationId: org.id, userId: user.id, roleKey: "organization_admin", scopeType: "organization" });
+      // Every org needs at least one workspace, otherwise projects cannot be created from the UI.
+      // The first account is the instance owner (platform administrator).
+      await tx.insert(schema.platformAdmins).values({ userId: user.id, note: "instance owner (first-run setup)" }).onConflictDoNothing();
+      await tx.insert(schema.auditEvents).values({ scopeType: "instance", organizationId: null, actorUserId: user.id, action: "platform.admin_bootstrapped", targetType: "user", targetId: user.id });
+      const [ws] = await tx.insert(schema.workspaces).values({ organizationId: org.id, name: "General", createdBy: user.id }).returning();
+      await tx.insert(schema.workspaceMembers).values({ organizationId: org.id, workspaceId: ws.id, userId: user.id, createdBy: user.id });
       return { userId: user.id, organizationId: org.id };
     });
   }
