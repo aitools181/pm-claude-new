@@ -1,0 +1,91 @@
+# Deploy stack. Infra services are INTERNAL only (no host ports) so they never
+# collide with other apps on a shared host (e.g. Coolify). Only `web` is exposed
+# to the reverse proxy; it proxies /api to the internal api service.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: pm
+      POSTGRES_PASSWORD: pm_password
+      POSTGRES_DB: pm_platform
+    # NOTE: Postgres 18 stores data in a version subdir — mount the PARENT dir.
+    volumes: ["pgdata18:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pm -d pm_platform"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: pm_minio_user
+      MINIO_ROOT_PASSWORD: pm_minio_password
+    volumes: ["miniodata:/data"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    env_file: [.env.example]
+    environment:
+      DATABASE_URL: postgresql://pm:pm_password@postgres:5432/pm_platform
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: change_me_in_real_deployments_min_32_chars_long
+      NODE_ENV: production
+    # Apply the schema to the DB on boot (idempotent), then start the API.
+    command: sh -c "echo BOOT:env DATABASE_URL=$${DATABASE_URL:+set} REDIS_URL=$${REDIS_URL:+set} SESSION_SECRET=$${SESSION_SECRET:+set} && echo BOOT:migrating && (pnpm --filter @pm/db exec drizzle-kit migrate || echo BOOT:MIGRATE_FAILED) && echo BOOT:starting-api && node /app/apps/api/dist/main.js; echo BOOT:API_EXITED code=$$?"
+    expose: ["4000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: { context: ., dockerfile: apps/worker/Dockerfile }
+    env_file: [.env.example]
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://pm:pm_password@postgres:5432/pm_platform
+    depends_on:
+      redis: { condition: service_healthy }
+
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    environment:
+      NEXT_PUBLIC_API_URL: ""              # browser uses same-origin /api (proxied)
+      INTERNAL_API_URL: http://api:4000    # Next server-side proxy target
+      API_URL: http://api:4000             # server components
+    expose: ["3000"]
+    depends_on: [api]
+
+  maintenance:
+    build: { context: ., dockerfile: apps/maintenance/Dockerfile }
+    profiles: ["maintenance"]
+    env_file: [.env.example]
+    environment:
+      DATABASE_URL: postgresql://pm:pm_password@postgres:5432/pm_platform
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: pm_minio_user
+      S3_SECRET_KEY: pm_minio_password
+      S3_BUCKET: pm-platform
+    volumes: ["backups:/backups"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
+
+volumes:
+  pgdata18:
+  miniodata:
+  backups:

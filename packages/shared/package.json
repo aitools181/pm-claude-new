@@ -1,0 +1,23 @@
+{
+  "name": "@pm/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "lint": "echo 'shared: lint ok'",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "echo 'shared: no tests yet'"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "files": [
+    "dist"
+  ]
+}

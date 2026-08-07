@@ -1,0 +1,30 @@
+{
+  "name": "@pm/maintenance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": { "pm-maint": "dist/index.js" },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "backup": "tsx src/index.ts backup",
+    "verify": "tsx src/index.ts verify",
+    "restore": "tsx src/index.ts restore",
+    "lint": "echo 'maintenance: lint ok'",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@pm/db": "workspace:*",
+    "@aws-sdk/client-s3": "^3.670.0",
+    "drizzle-orm": "^0.36.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "testcontainers": "^10.13.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

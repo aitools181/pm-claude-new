@@ -1,0 +1,26 @@
+{
+  "name": "pm-platform",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Self-contained project management platform: Asana-like UX, Jira-class configurability, ClickUp-style optional modules",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20 <21"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:generate": "pnpm --filter @pm/db generate",
+    "db:migrate": "pnpm --filter @pm/db migrate",
+    "verify:f29-f42": "node scripts/verify-f29-f42.cjs",
+    "verify:asana-screenshots": "node scripts/verify-asana-screenshot-parity.cjs"
+  },
+  "devDependencies": {
+    "@types/node": "20",
+    "turbo": "^2.1.0",
+    "typescript": "^5.6.0"
+  }
+}

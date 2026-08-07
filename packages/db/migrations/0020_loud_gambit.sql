@@ -1,0 +1,3 @@
+CREATE INDEX IF NOT EXISTS "work_items_keyset_idx" ON "work_items" USING btree ("organization_id","created_at","id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "work_items_board_idx" ON "work_items" USING btree ("organization_id","owning_project_id","status_category");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "work_items_recycle_idx" ON "work_items" USING btree ("organization_id","deleted_at");
