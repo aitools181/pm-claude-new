@@ -1,8 +1,43 @@
+# ---- dependencies ----
 node_modules/
+.pnpm-store/
+
+# ---- build output ----
 dist/
+build/
+out/
 .next/
 .turbo/
-*.log
-.env
-.env.local
+*.tsbuildinfo
+
+# ---- test / coverage ----
 coverage/
+.vitest/
+*.lcov
+
+# ---- logs ----
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+
+# ---- env / secrets (keep .env.example) ----
+.env
+.env.*
+!.env.example
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# ---- process / audit artifacts (not part of the app) ----
+AUDIT_VERIFICATION.md
+FINAL_IMPLEMENTATION_VERIFICATION.md
+FINAL_DELIVERY_GUJARATI.md
+PM_PLATFORM_UI_UX_FEATURE_GAP_AUDIT_GUJARATI.md
+verification-f29-f42.json
+SHA256SUMS

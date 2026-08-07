@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, ApiError } from "../../lib/api";
 import { AuthAside } from "../../components/AuthAside";
 import { Callout } from "../../components/ui/Callout";
 
-export default function VerifyEmailPage() {
+function VerifyEmailPageInner() {
   const token = useSearchParams().get("token") ?? "";
   const [state, setState] = useState<"loading" | "done" | "error">("loading");
   const [message, setMessage] = useState("Verifying your email…");
@@ -20,4 +20,8 @@ export default function VerifyEmailPage() {
     <Callout tone={state === "error" ? "danger" : "info"}>{message}</Callout>
     {state !== "loading" && <a className="btn btn-primary btn-block" style={{ marginTop: 16 }} href={state === "done" ? "/home" : "/login"}>{state === "done" ? "Continue" : "Back to sign in"}</a>}
   </div></div></div>;
+}
+
+export default function VerifyEmailPage() {
+  return <Suspense fallback={null}><VerifyEmailPageInner /></Suspense>;
 }

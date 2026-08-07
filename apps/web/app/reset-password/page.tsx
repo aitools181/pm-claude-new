@@ -1,12 +1,12 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { api, ApiError } from "../../lib/api";
 import { AuthAside } from "../../components/AuthAside";
 import { Field, Input } from "../../components/ui/Field";
 import { Callout } from "../../components/ui/Callout";
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageInner() {
   const token = useSearchParams().get("token") ?? "";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -31,4 +31,8 @@ export default function ResetPasswordPage() {
         <Field label="Confirm password"><Input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></Field>
         <button className="btn btn-primary btn-block" disabled={busy || !token || password.length < 10 || password !== confirm}>{busy ? "Updating…" : "Update password"}</button></form>}
   </div></div></div>;
+}
+
+export default function ResetPasswordPage() {
+  return <Suspense fallback={null}><ResetPasswordPageInner /></Suspense>;
 }

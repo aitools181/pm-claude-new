@@ -64,7 +64,7 @@ export class ScenariosService {
     return { scenario, changes, runs, warnings, proposals };
   }
 
-  async addChange(org: string, userId: string, id: string, input: { workItemId: string; field: string; afterValue: unknown; selectedForCommit?: boolean }) {
+  async addChange(org: string, userId: string, id: string, input: { workItemId: string; field: string; afterValue?: unknown; selectedForCommit?: boolean }) {
     await this.enabled(org);
     const scenario = await this.scenario(org, id);
     if (scenario.status !== "draft") throw new AppError("CONFLICT", "Only draft scenarios can be edited");

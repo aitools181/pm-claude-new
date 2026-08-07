@@ -135,7 +135,7 @@ export class EnterpriseIdentityService {
         } else {
           await tx.update(schema.users).set({ email: entry.email.toLowerCase(), displayName: entry.displayName, isActive: entry.active !== false, updatedBy: userId }).where(eq(schema.users.id, userIdForEntry));
           await tx.update(schema.organizationMemberships).set({ status: entry.active === false ? "inactive" : "active", updatedBy: userId }).where(and(eq(schema.organizationMemberships.organizationId, org), eq(schema.organizationMemberships.userId, userIdForEntry)));
-          await tx.update(schema.externalIdentities).set({ email: entry.email.toLowerCase(), attributes: entry.attributes ?? {}, status: entry.active === false ? "inactive" : "active", lastSeenAt: new Date(), updatedAt: new Date() }).where(eq(schema.externalIdentities.id, current.id));
+          await tx.update(schema.externalIdentities).set({ email: entry.email.toLowerCase(), attributes: entry.attributes ?? {}, status: entry.active === false ? "inactive" : "active", lastSeenAt: new Date(), updatedAt: new Date() }).where(eq(schema.externalIdentities.id, current!.id));
           summary.updated++;
         }
         if (entry.active === false && userIdForEntry) {
