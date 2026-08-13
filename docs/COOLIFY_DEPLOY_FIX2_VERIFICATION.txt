@@ -1,0 +1,260 @@
+== verify-f29-f42 ==
+{
+  "sourceFiles": 555,
+  "tablesChecked": 96,
+  "passed": 65,
+  "failed": 0
+}
+== verify-asana-screenshot-parity ==
+PASS dual shell
+PASS asana topbar
+PASS home widgets
+PASS inbox bookmarks
+PASS project share
+PASS project customize
+PASS list custom columns
+PASS list grouping
+PASS list options
+PASS add subtask
+PASS task duplicate
+PASS task dependencies
+PASS task tags
+PASS task files
+PASS task follow-up
+PASS task merge duplicate
+PASS board
+PASS calendar
+PASS timeline
+PASS gantt
+PASS dashboard
+PASS files
+PASS theme combinations
+PASS custom accent
+PASS workspace settings
+
+25/25 screenshot-parity source checks passed.
+== verify-ui-standards ==
+PASS 94 UI-standard checks
+  ✓ CSS order is design tokens → globals → extracted static → UI standards
+  ✓ Foundation: 4px spacing base
+  ✓ Foundation: 32px desktop gutter
+  ✓ Foundation: 40px compact control
+  ✓ Foundation: 48px preferred/touch control
+  ✓ Foundation: 8px default radius
+  ✓ Foundation: 20px default icon
+  ✓ Foundation: 1440px standard container
+  ✓ Foundation: shared visible focus ring
+  ✓ Foundation: reduced-motion support
+  ✓ Foundation: forced-colors support
+  ✓ Foundation: 20px tablet gutter
+  ✓ Foundation: 16px mobile gutter
+  ✓ Icon buttons use the same focus token as other controls
+  ✓ Legacy globals contains one top-level :root alias block
+  ✓ globals.css contains no literal authored colors
+  ✓ ui-standards.css contains no literal authored colors
+  ✓ Literal CSS color values are centralized in design-tokens.css
+  ✓ Legacy duplicate control rule retired: .btn{border-radius:6px;height:34px
+  ✓ Legacy duplicate control rule retired: .icon-btn { width:34px
+  ✓ Legacy duplicate control rule retired: select.input {
+  ✓ ui-static.css contains no literal authored colors
+  ✓ Extracted route-static CSS is present
+  ✓ Extracted route spacing uses token scale instead of raw px
+  ✓ Shared UI module exists: Button.tsx
+  ✓ Shared UI module exists: Callout.tsx
+  ✓ Shared UI module exists: Choice.tsx
+  ✓ Shared UI module exists: Display.tsx
+  ✓ Shared UI module exists: Field.tsx
+  ✓ Shared UI module exists: Toast.tsx
+  ✓ Shared UI module exists: useModalDialog.ts
+  ✓ Shared UI module exists: AppDialog.tsx
+  ✓ Shared UI module exists: Dialog.tsx
+  ✓ Shared UI module exists: Tabs.tsx
+  ✓ Shared UI module exists: Accordion.tsx
+  ✓ Shared UI module exists: Toggle.tsx
+  ✓ Shared UI module exists: Pagination.tsx
+  ✓ Shared UI module exists: Slider.tsx
+  ✓ Shared UI module exists: AspectRatio.tsx
+  ✓ Shared UI module exists: Composite.tsx
+  ✓ Shared UI module exists: Overlay.tsx
+  ✓ Shared UI module exists: InputGroup.tsx
+  ✓ Shared UI module exists: InputOTP.tsx
+  ✓ Shared UI module exists: Menu.tsx
+  ✓ Shared UI module exists: Combobox.tsx
+  ✓ Shared UI module exists: DatePicker.tsx
+  ✓ Shared UI module exists: DataTable.tsx
+  ✓ Shared UI module exists: Carousel.tsx
+  ✓ Shared UI module exists: Message.tsx
+  ✓ Shared UI module exists: Attachment.tsx
+  ✓ Shared UI module exists: Chart.tsx
+  ✓ Shared UI module exists: Questionnaire.tsx
+  ✓ Shared UI module exists: Command.tsx
+  ✓ Shared UI module exists: Resizable.tsx
+  ✓ Shared UI module exists: Sidebar.tsx
+  ✓ Shared UI module exists: RuntimeStyle.tsx
+  ✓ Shared UI module exists: index.ts
+  ✓ All 64 supplied component contracts have a shared implementation
+  ✓ UI barrel exports Composite
+  ✓ UI barrel exports Overlay
+  ✓ UI barrel exports InputGroup
+  ✓ UI barrel exports InputOTP
+  ✓ UI barrel exports Menu
+  ✓ UI barrel exports Combobox
+  ✓ UI barrel exports DatePicker
+  ✓ UI barrel exports DataTable
+  ✓ UI barrel exports Carousel
+  ✓ UI barrel exports Message
+  ✓ UI barrel exports Attachment
+  ✓ UI barrel exports Chart
+  ✓ UI barrel exports Questionnaire
+  ✓ UI barrel exports Command
+  ✓ UI barrel exports Resizable
+  ✓ UI barrel exports Sidebar
+  ✓ UI barrel exports RuntimeStyle
+  ✓ Field connects label, helper/error and invalid state
+  ✓ Toast has severity-aware live-region semantics
+  ✓ Toast queue is capped
+  ✓ Error toasts persist by default
+  ✓ Product-owned prompt/confirm service is mounted
+  ✓ Product dialogs use shared modal focus behavior
+  ✓ Application shell has skip link and main target
+  ✓ My Tasks uses shared keyboard-operable Tabs
+  ✓ Custom accent cannot replace focus token
+  ✓ Theme/project color data is centralized outside TSX
+  ✓ No static JSX style objects remain
+  ✓ No dynamic JSX style attributes remain; runtime values use the controlled CSS-variable bridge
+  ✓ No hard-coded hex colors remain in TSX
+  ✓ No raw text-like <input> remains outside shared UI primitives
+  ✓ No raw <select> remains outside shared UI primitives
+  ✓ No raw <textarea> remains outside shared UI primitives
+  ✓ No browser prompt() workflows remain
+  ✓ No browser confirm() workflows remain
+  ✓ Every modal-backdrop implementation uses shared dialog/modal behavior
+
+Allowed dynamic/specialized implementation notes:
+  ! 241 raw <button> and 36 raw <input> tags remain including shared primitive internals and specialized checkbox/radio/range/color/file controls. Generic .btn and text/select/textarea workflows were migrated; all raw controls are covered by the shared normalization layer.
+
+UI standards verification passed.
+== verify-production-readiness ==
+PASS 41 production-readiness source checks
+  ✓ Workflow editor has no duplicate JSX className attributes
+  ✓ AppDialog form ref is typed as HTMLFormElement without unsafe ref casts
+  ✓ Shared Input/Textarea/Select primitives forward native refs correctly
+  ✓ TypeScript/TSX transpile syntax (555 files)
+  ✓ Automation authoring verifies rule ownership
+  ✓ Automation run-step reads are organization-scoped
+  ✓ Automation controller passes organization scope to run-step reads
+  ✓ Next proxies both REST and Socket.IO same-origin paths
+  ✓ Web API client defaults to same-origin credentialed requests
+  ✓ Realtime client has same-origin Socket.IO path with polling/websocket fallback
+  ✓ API CORS is credential-aware and allow-list driven
+  ✓ Realtime gateway no longer allows arbitrary origins
+  ✓ Container API health uses readiness and migration failures are fatal
+  ✓ Fresh deployment creates a private MinIO bucket
+  ✓ Compose requires POSTGRES_PASSWORD
+  ✓ Compose requires MINIO_ROOT_USER
+  ✓ Compose requires MINIO_ROOT_PASSWORD
+  ✓ Compose requires SESSION_SECRET
+  ✓ Deterministic install in apps/api/Dockerfile
+  ✓ Deterministic install in apps/web/Dockerfile
+  ✓ Deterministic install in apps/worker/Dockerfile
+  ✓ Deterministic install in apps/maintenance/Dockerfile
+  ✓ Object storage validates/creates its configured bucket
+  ✓ Readiness probes database, Redis and object storage
+  ✓ Middleware covers every top-level authenticated app route (35)
+  ✓ Login does not forge a client-side session sentinel
+  ✓ User menu provides server logout and realtime cleanup
+  ✓ Break-glass session cookie is Secure in production
+  ✓ No click-only non-interactive div/span/tr/article remains
+  ✓ No button contains a nested interactive control
+  ✓ No misleading raw buttons without an action remain
+  ✓ API and download clients surface network failures and centralize 401 recovery
+  ✓ Worker idempotency lock is acquired before prior-result check/effect
+  ✓ Worker executes real retention domain jobs
+  ✓ API has a real BullMQ producer wired into AppModule
+  ✓ Production AI cannot silently use a mock and has configurable real HTTP provider
+  ✓ Integration health checks perform real provider/health endpoint probes
+  ✓ Scheduled report delivery uses the real mail boundary, not a log-only success
+  ✓ Outbound webhooks use real HTTP delivery with private-address SSRF guard
+  ✓ All 504 statically-resolvable frontend API calls map to 623 backend routes
+  ✓ All 31 configured AdvancedModuleHub endpoints map to backend routes
+
+Notes:
+  ! Full semantic typecheck/build, Docker integration tests and browser Playwright/axe runs require the project dependencies, Node 20 and Docker. This verifier proves source/static contracts only.
+
+Production-readiness source verification passed.
+== verify-asana-missing-features ==
+PASS 01 Display language selector + persisted locale
+PASS 02 Personal first day of week + calendar consumption
+PASS 03 Notification pop-up duration + toast consumption
+PASS 04 Default landing destination applied after login
+PASS 05 Show row numbers preference + list consumption
+PASS 06 Color-blind mode + non-color CSS cues
+PASS 07 Celebrations preference + completion trigger
+PASS 08 Navigation settings + persisted nav preferences
+PASS 09 Rename saved project view
+PASS 10 Set project view as default
+PASS 11 Duplicate project view
+PASS 12 Copy per-view deep link
+PASS 13 Remove saved/custom project view
+PASS 14 Add/manage custom project tabs
+PASS 15 Project icon customization end-to-end
+PASS 16 Connect existing goal from project overview
+PASS 17 Create and connect goal from project overview
+PASS 18 Add project to portfolio from overview
+PASS 19 Rich project brief editor + persisted brief API
+PASS 20 Project AI summary controls + generate endpoint
+PASS 21 Project activity/status timeline endpoint + UI
+PASS 22 Inbox Newest/Relevance sort with backend ranking
+PASS 23 Inbox Summary UI + AI endpoint
+PASS 24 Inbox summary timeframe preference
+PASS 25 Persisted turn-off/dismiss summaries
+PASS 26 Archive all notifications end-to-end
+PASS 27 Inbox clear filters empty-state action
+PASS 28 Browse Projects portfolio filter
+PASS 29 Browse Projects portfolio column
+PASS 30 Browse Projects Last modified sort
+PASS 31 Browse Projects quick favorite/star
+PASS 32 Template suggestion strip + dismiss + gallery
+PASS 33 Additional email addresses + verification + login alias
+PASS 34 Account merge workflow with backend ownership transfer
+PASS 35 Organizations/workspaces management in Account
+PASS 36 Portfolio Owner column
+PASS 37 Portfolio Status column
+PASS 38 Portfolio Budget field/column end-to-end
+PASS 39 Portfolio Service line field/column end-to-end
+PASS 40 Custom portfolio columns end-to-end
+
+40/40 approved missing-feature checks passed.
+== verify-asana-v4-1-reference ==
+PASS  Asana reference preset exists
+PASS  Slack aubergine theme exists
+PASS  Slack lagoon theme exists
+PASS  Slack raspberry theme exists
+PASS  Slack mint theme exists
+PASS  At least sixteen built-in presets
+PASS  Custom theme supports full shell recipe
+PASS  Theme provider persists custom colors
+PASS  Topbar contrast is computed
+PASS  Rail contrast is computed
+PASS  Sidebar contrast is computed
+PASS  Sidebar hover contrast is computed
+PASS  Browser theme color follows workspace theme
+PASS  Display settings show theme preset grid
+PASS  Display settings expose six custom shell colors
+PASS  Display settings offers custom theme action
+PASS  Settings uses modal shell like reference
+PASS  Reference topbar height is 48px
+PASS  Reference global rail width is 64px
+PASS  Reference workspace sidebar width is 180px
+PASS  Reference project header height is 48px
+PASS  Reference project tabs height is 36px
+PASS  Reference toolbar height is 56px
+PASS  Desktop search is centered and pill shaped
+PASS  Project list rows use compact reference geometry
+PASS  Board columns use 304px reference width
+PASS  Settings overlay dims app surface
+PASS  Theme preview shows shell + accents
+PASS  Mobile settings becomes full-height surface
+PASS  Mobile search compacts to 38px
+
+30/30 Asana v4.1 reference/theme checks passed.

@@ -2,6 +2,7 @@ import {
   Children,
   cloneElement,
   isValidElement,
+  forwardRef,
   useId,
   type InputHTMLAttributes,
   type ReactElement,
@@ -72,16 +73,25 @@ export function Field({ label, hint, error, required, optional, htmlFor, classNa
   );
 }
 
-export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={`input ui-input ${className}`.trim()} {...props} />;
-}
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
+  { className = "", ...props },
+  ref,
+) {
+  return <input ref={ref} className={`input ui-input ${className}`.trim()} {...props} />;
+});
 
-export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={`input ui-textarea ${className}`.trim()} {...props} />;
-}
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(
+  { className = "", ...props },
+  ref,
+) {
+  return <textarea ref={ref} className={`input ui-textarea ${className}`.trim()} {...props} />;
+});
 
-export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={`input ui-select ${className}`.trim()} {...props} />;
-}
+export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select(
+  { className = "", ...props },
+  ref,
+) {
+  return <select ref={ref} className={`input ui-select ${className}`.trim()} {...props} />;
+});
 
 export const NativeSelect = Select;
