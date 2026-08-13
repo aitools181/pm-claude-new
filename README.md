@@ -2,10 +2,6 @@
 
 A scratch-built, self-hosted project-management platform with an Asana-like simple core UI, Jira-class configurable execution and ClickUp-style optional productivity modules.
 
-## Release 5.7
-
-Current packaged release: **5.7**. This release hardens Coolify/Next.js production builds, adds a build-safety preflight for App Router search-parameter boundaries, and exposes clear **Sign out** actions both from the top-right account menu and Account settings.
-
 ## Current implementation
 
 The repository contains the core Work Item platform plus the complete application-side F29-F42 domain set:

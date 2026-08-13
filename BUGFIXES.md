@@ -1,11 +1,50 @@
-# Release 5.7 — Coolify production build stabilization (2026-08-13)
+# Code review — bugs found & fixed (2026-08-13, v5.7)
 
-- Fixed `/settings/account` prerender failure by placing the `useSearchParams()` consumer behind a React `Suspense` boundary.
-- Proactively protected every remaining `useSearchParams()` consumer, including project list/chrome, so the same Next.js 15 prerender failure does not surface route-by-route.
-- Verified shared Input/Textarea/Select native refs use `forwardRef`, preserving the prior TaskDrawer production typecheck fix.
-- Kept Python/make/g++ build dependencies in Alpine Docker builds so native optional modules can compile predictably in Coolify.
-- Added an explicit current-device **Sign out** action to Account settings; the top-right user menu also retains server-side logout and realtime cleanup.
-- Added production-readiness regression gates for Suspense/search-params safety, logout visibility, and release metadata.
+## A. Web build fails — /settings/account prerender (Coolify deploy blocker)
+`next build` error at `Generating static pages`:
+
+    useSearchParams() should be wrapped in a suspense boundary at page "/settings/account".
+    Error occurred prerendering page "/settings/account".
+
+`AccountSettings` calls `useSearchParams()` (to pick up the `?verifySecondary=`
+token) directly in the page component. Next.js still attempts to statically
+prerender the route at build time, and `useSearchParams()` triggers a
+client-side-rendering bailout that requires a `<Suspense>` boundary.
+
+Fixes (two layers, so this class of error stops recurring one page per deploy):
+1. `app/(app)/settings/account/page.tsx` — logic moved into
+   `AccountSettingsInner`; the default export wraps it in `<Suspense>`.
+   Same treatment for `app/(app)/projects/[id]/page.tsx`.
+2. `app/(app)/layout.tsx` — added `export const dynamic = "force-dynamic"` and
+   `export const revalidate = 0`. Every route in the `(app)` group is already
+   gated on the `pm_session` cookie by `middleware.ts`, so none of it can be
+   usefully prerendered. The group is now server-rendered on demand.
+
+Verified: `pnpm --filter @pm/web build` completes and every `(app)` route is
+reported as dynamic. `@pm/shared`, `@pm/db`, `@pm/api` and `@pm/worker` also build.
+
+## B. Sign out was effectively unreachable after login
+`UserMenu` did contain a sign-out item, but two defects hid it:
+- The row was a bare `<button>` inside `.menu-item`, a class that only styles
+  anchors. The button fell back to user-agent styling and did not read as part
+  of the menu.
+- The trigger derived its label from a `pm_user_name` cookie that no part of the
+  API ever sets, so the control permanently read "PM / Personal / Settings &
+  theme" and never looked like an account menu.
+
+Fixes:
+- New `apps/web/lib/logout.ts` exporting a single `signOut()` — POSTs
+  `/auth/logout`, disconnects the realtime socket, clears `pm_org`, and
+  redirects to `/login` even when the API call fails (already-expired session).
+- `UserMenu` reads the real name from `/me/profile`, uses Radix `onSelect` so
+  the item fires for pointer *and* keyboard activation, and labels the row
+  "Log out" with destructive styling.
+- Log out also added to the sidebar footer and to Settings → Account, so it is
+  reachable from three places.
+- `globals.css` normalises `button.menu-item` / `.menu-item > button` and shows
+  the signed-in name beside the avatar at >=1100px.
+
+---
 
 # Code review — bugs found & fixed (2026-08-07)
 

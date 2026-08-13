@@ -1,7 +1,5 @@
 # PM Platform — Project Handoff
 
-**Current release:** 5.7 (`package.json` 5.7.0; `APP_VERSION` 5.7).
-
 A self-hosted Jira/Asana-style project management platform built from the Gujarati master
 blueprint. The repository now includes the application-side F29-F42 advanced capability domains in addition to the audited core Task/Subtask and Asana-style UX improvements. Read `docs/architecture/F29-F42-COMPLETION.md` and `FINAL_IMPLEMENTATION_VERIFICATION.md` for the exact implementation map. Full dependency-based builds, database/browser suites, provider conformance, accessibility and isolated backup/restore verification must still run in the deployment environment before a production acceptance claim.
 

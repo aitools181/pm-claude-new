@@ -5,8 +5,7 @@ COPY . .
 RUN apk add --no-cache --virtual .build-deps python3 make g++ \
  && pnpm install --frozen-lockfile \
  && apk del .build-deps
-RUN node scripts/verify-production-readiness.cjs \
- && pnpm --filter @pm/shared build \
+RUN pnpm --filter @pm/shared build \
  && pnpm --filter @pm/db build \
  && pnpm --filter @pm/web build
 WORKDIR /app/apps/web

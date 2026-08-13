@@ -3,4 +3,4 @@
  * Convention: MAJOR.MINOR — bump MAJOR for a big update, MINOR for a small change.
  */
 export const APP_VERSION = "5.7";
-export const APP_RELEASE_NAME = "Production Stability";
+export const APP_RELEASE_NAME = "Clean Build & Sign Out";
