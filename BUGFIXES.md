@@ -1,3 +1,75 @@
+# Sign-in and sign-out (2026-08-13, v6.0)
+
+## D. "Sign in" did nothing - no error, no network request
+Two independent defects, either of which alone breaks the button.
+
+**D1. Buttons never submitted their form.** `components/ui/Button.tsx` defaults
+to `type = "button"`, and a `<button type="button">` inside a `<form>` does not
+submit it. The auth pages render the primary button with no `type` prop, so
+`onSubmit` never fired and no request was made - which is why no error appeared,
+since the error path lives inside the submit handler.
+
+**D2. The button was disabled whenever autofill filled the fields.** The login
+button carried `disabled={busy || !email || !password || ...}`, where `email`
+and `password` are React state written by `onChange`. Browser autofill populates
+the DOM directly and frequently does **not** fire React's `onChange`, so state
+stayed empty and the button stayed disabled. A disabled default button also
+suppresses implicit submission, which is why pressing Enter did nothing either.
+
+Fixes:
+- Every button that submits a form now sets `type="submit"` explicitly: login,
+  recover, reset-password, invite/accept, project list and board task create,
+  add section, and TaskDrawer subtask/tag/checklist. The `Button` default is
+  deliberately left as `type="button"` - flipping it would make ordinary action
+  buttons inside forms submit by accident.
+- Auth forms read their values from `FormData(event.currentTarget)`, falling
+  back to React state, so autofilled values are always seen.
+- Inputs carry `name` attributes so `FormData` can find them.
+- Buttons are disabled only while a request is in flight. Empty or invalid input
+  now produces a visible message instead of an inert control.
+- After a successful login the app performs a full navigation rather than
+  `router.push`, so middleware sees the freshly issued session cookie on a real
+  document request.
+
+## E. Sign out was hard to find
+Reachable from four places now, all calling the same `signOut()` helper:
+the account menu (top right), the product rail, the sidebar footer, and
+Settings -> Account. Added `/logout` as a route, so signing out never depends on
+locating a control in the chrome.
+
+---
+
+# Sign-in bug (2026-08-13, v5.9)
+
+## D. Clicking "Sign in" does nothing - no error, no request
+`components/ui/Button.tsx` declares `type = "button"` as its default. A
+`<button type="button">` inside a `<form>` does **not** submit that form, so
+`onSubmit` never fired. The login page renders:
+
+    <form onSubmit={submit}>
+      ...
+      <UiButton variant="primary" className="btn-block" ...>Sign in</UiButton>
+    </form>
+
+with no `type` prop, so the click was inert. No network request was made, which
+is why no error appeared - the error path lives inside `submit()`. Pressing
+Enter in a field still worked, since implicit submission does not depend on the
+button's type.
+
+`AppDialog` already passed `type="submit"` correctly; the auth and inline-create
+forms did not.
+
+Fix: added an explicit `type="submit"` to every button that submits a form -
+`app/login`, `app/recover`, `app/reset-password`, `app/invite/accept`,
+`app/(app)/projects/[id]` (task create, add section, subtask),
+`app/(app)/projects/[id]/board` (task create), and `components/work/TaskDrawer`
+(subtask, tag, checklist).
+
+The `Button` default was deliberately left as `type="button"` - flipping it
+would make every plain action button inside a form submit it by accident.
+
+---
+
 # Runtime failure diagnosed (2026-08-13, v5.8)
 
 ## C. API container exits ~5s after start - "dependency failed to start: container api-... is unhealthy"

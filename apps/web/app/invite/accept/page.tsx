@@ -37,7 +37,7 @@ function Accept() {
           <form onSubmit={submit} className="ui-static-56f43562">
             <Field label="Your name" hint="Leave blank if you already have an account."><Input value={displayName} onChange={(e) => setName(e.target.value)} /></Field>
             <Field label="Set a password" hint="At least 10 characters. Skip if you already have an account."><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
-            <UiButton variant="primary" className="btn-block" disabled={busy}>{busy ? "Joining…" : "Join organization"}</UiButton>
+            <UiButton type="submit" variant="primary" className="btn-block" disabled={busy}>{busy ? "Joining…" : "Join organization"}</UiButton>
           </form>
         )}
       </div></div>

@@ -527,7 +527,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
               <form className="subtask-create" onSubmit={addSubtask}>
                 <Icon name="plus" size={17} />
                 <UiInput value={subtaskDraft} onChange={(e) => setSubtaskDraft(e.target.value)} placeholder="Add a subtask and press Enter" aria-label="New subtask title" />
-                {subtaskDraft.trim() && <UiButton variant="primary" size="compact"  disabled={addingSubtask}>{addingSubtask ? "Adding…" : "Add"}</UiButton>}
+                {subtaskDraft.trim() && <UiButton type="submit" variant="primary" size="compact"  disabled={addingSubtask}>{addingSubtask ? "Adding…" : "Add"}</UiButton>}
               </form>
             </section>
 
@@ -540,13 +540,13 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
                   <button className="icon-btn" aria-label="Remove checklist item" onClick={() => removeChecklistItem(row)}><Icon name="close" size={14} /></button>
                 </div>)}
               </div>
-              <form className="subtask-create" onSubmit={addChecklistItem}><Icon name="plus" size={17} /><UiInput value={checklistDraft} onChange={(e) => setChecklistDraft(e.target.value)} placeholder="Add checklist item" />{checklistDraft.trim() && <UiButton variant="primary" size="compact" >Add</UiButton>}</form>
+              <form className="subtask-create" onSubmit={addChecklistItem}><Icon name="plus" size={17} /><UiInput value={checklistDraft} onChange={(e) => setChecklistDraft(e.target.value)} placeholder="Add checklist item" />{checklistDraft.trim() && <UiButton type="submit" variant="primary" size="compact" >Add</UiButton>}</form>
             </section>
 
             <section className="drawer-section compact-detail-section">
               <div className="drawer-section-head"><h3><Icon name="tag" size={17} />Tags</h3><span>{tags.length}</span></div>
               <div className="task-tags">{tags.map((tag) => <span className="task-tag" key={tag.id}>{tag.name}<button aria-label={`Remove ${tag.name}`} onClick={() => removeTag(tag.id)}>×</button></span>)}</div>
-              <form className="inline-detail-form" onSubmit={addTag}><UiInput value={tagDraft} onChange={(e) => setTagDraft(e.target.value)} placeholder="Add a tag" /><UiButton variant="secondary" size="compact" className="btn-secondary" disabled={!tagDraft.trim()}>Add</UiButton></form>
+              <form className="inline-detail-form" onSubmit={addTag}><UiInput value={tagDraft} onChange={(e) => setTagDraft(e.target.value)} placeholder="Add a tag" /><UiButton type="submit" variant="secondary" size="compact" className="btn-secondary" disabled={!tagDraft.trim()}>Add</UiButton></form>
             </section>
 
             <section className="drawer-section compact-detail-section">

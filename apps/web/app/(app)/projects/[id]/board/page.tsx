@@ -109,7 +109,7 @@ export default function BoardPage() {
                 if (event.key === "Escape") { setAddingTo(null); setDraft(""); }
                 if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); createInColumn(column); }
               }} />
-              <div><span>Enter to add</span><div><UiButton variant="tertiary" size="compact" type="button"  onClick={() => { setAddingTo(null); setDraft(""); }}>Cancel</UiButton><UiButton variant="primary" size="compact"  disabled={!draft.trim() || creating}>{creating ? "Adding…" : "Add task"}</UiButton></div></div>
+              <div><span>Enter to add</span><div><UiButton variant="tertiary" size="compact" type="button"  onClick={() => { setAddingTo(null); setDraft(""); }}>Cancel</UiButton><UiButton type="submit" variant="primary" size="compact"  disabled={!draft.trim() || creating}>{creating ? "Adding…" : "Add task"}</UiButton></div></div>
             </form>}
 
             <div className="asana-column-cards">
