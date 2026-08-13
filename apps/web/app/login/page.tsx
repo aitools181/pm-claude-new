@@ -29,7 +29,13 @@ export default function LoginPage() {
         recoveryCode: needs2fa && useRecovery ? secondFactor || undefined : undefined,
       }) });
       const next = new URLSearchParams(window.location.search).get("next");
-      router.push(next?.startsWith("/") && !next.startsWith("//") ? next : "/home");
+      if (next?.startsWith("/") && !next.startsWith("//")) {
+        router.push(next);
+      } else {
+        const prefs = await api<{ defaultLanding?: string }>("/ui/preferences", { org: true }).catch(() => ({ defaultLanding: "/home" }));
+        const landing = prefs.defaultLanding?.startsWith("/") && !prefs.defaultLanding.startsWith("//") ? prefs.defaultLanding : "/home";
+        router.push(landing);
+      }
     } catch (err) {
       if (err instanceof ApiError && (err.message.toLowerCase().includes("2fa") || err.message.toLowerCase().includes("recovery"))) {
         setNeeds2fa(true);

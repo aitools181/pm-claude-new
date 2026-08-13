@@ -45,7 +45,7 @@ export class CollabController {
   unwatch(@Req() r: Ctx, @Param("id") id: string) { return this.watchers.unwatch(r.organizationId, id, r.userId).then(() => ({ ok: true })); }
 
   @Get("notifications")
-  inbox(@Req() r: Ctx, @Query("unread") unread?: string, @Query("tab") tab?: string) { return this.notifications.inbox(r.organizationId, r.userId, { unreadOnly: unread === "true", tab }); }
+  inbox(@Req() r: Ctx, @Query("unread") unread?: string, @Query("tab") tab?: string, @Query("sort") sort?: "newest" | "relevance") { return this.notifications.inbox(r.organizationId, r.userId, { unreadOnly: unread === "true", tab, sort }); }
   @Get("notifications/unread-count")
   async count(@Req() r: Ctx) { return { count: await this.notifications.unreadCount(r.organizationId, r.userId) }; }
   @Post("notifications/:id/read")
@@ -59,6 +59,9 @@ export class CollabController {
   archive(@Req() r: Ctx, @Param("id") id: string) { return this.notifications.setArchive(r.organizationId, r.userId, id, true); }
   @Delete("notifications/:id/archive")
   unarchive(@Req() r: Ctx, @Param("id") id: string) { return this.notifications.setArchive(r.organizationId, r.userId, id, false); }
+
+  @Post("notifications/archive-all")
+  archiveAll(@Req() r: Ctx) { return this.notifications.archiveAll(r.organizationId, r.userId); }
 
   @Post("notifications/read-all")
   readAll(@Req() r: Ctx) { return this.notifications.markAllRead(r.organizationId, r.userId).then(() => ({ ok: true })); }

@@ -1,5 +1,5 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
@@ -55,6 +55,16 @@ export class TemplatesService {
     }
     await this.db.insert(schema.templateInstances).values({ organizationId, templateId, versionId: tpl.publishedVersionId, entityType: "project", entityId: project.id });
     return { projectId: project.id, taskIds };
+  }
+
+  suggestions(organizationId: string) {
+    return this.db.select({ id: schema.templates.id, name: schema.templates.name, kind: schema.templates.kind, publishedVersionId: schema.templates.publishedVersionId })
+      .from(schema.templates).where(and(eq(schema.templates.organizationId, organizationId), isNotNull(schema.templates.publishedVersionId))).limit(8);
+  }
+
+  gallery(organizationId: string) {
+    return this.db.select({ id: schema.templates.id, name: schema.templates.name, kind: schema.templates.kind, publishedVersionId: schema.templates.publishedVersionId })
+      .from(schema.templates).where(and(eq(schema.templates.organizationId, organizationId), isNotNull(schema.templates.publishedVersionId)));
   }
 
   list(organizationId: string) { return this.db.select().from(schema.templates).where(eq(schema.templates.organizationId, organizationId)); }

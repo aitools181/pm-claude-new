@@ -6,6 +6,8 @@ import { DB } from "../db/db.module.js";
 import { canAccessProject, canAccessWorkItem } from "../collab/access.js";
 import { WorkItemsService } from "../work/work-items.service.js";
 import { rankBetween } from "../work/rank.js";
+import { MailService } from "../mail/mail.service.js";
+import { issueToken, sha256, verifyPassword } from "../common/crypto.js";
 
 const DEFAULT_WIDGETS = [
   { widgetKey: "my_tasks", sortOrder: 0, size: "large" },
@@ -15,7 +17,7 @@ const DEFAULT_WIDGETS = [
 
 @Injectable()
 export class UxService {
-  constructor(@Inject(DB) private readonly db: Database, private readonly workItems: WorkItemsService) {}
+  constructor(@Inject(DB) private readonly db: Database, private readonly workItems: WorkItemsService, private readonly mail: MailService) {}
 
   async profile(org: string, userId: string) {
     const [row] = await this.db.select({ id: schema.users.id, displayName: schema.users.displayName, email: schema.users.email, emailVerifiedAt: schema.users.emailVerifiedAt })
@@ -84,15 +86,119 @@ export class UxService {
     return row;
   }
 
-  async preferences(org: string, userId: string) {
-    const [row] = await this.db.select().from(schema.userUiPreferences)
-      .where(and(eq(schema.userUiPreferences.organizationId, org), eq(schema.userUiPreferences.userId, userId))).limit(1);
-    if (row) return row;
-    const [created] = await this.db.insert(schema.userUiPreferences).values({ organizationId: org, userId }).returning();
-    return created;
+  async emailAddresses(userId: string) {
+    const [user] = await this.db.select({ id: schema.users.id, email: schema.users.email, emailVerifiedAt: schema.users.emailVerifiedAt }).from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+    if (!user) throw new AppError("NOT_FOUND", "User not found");
+    const secondary = await this.db.select({ id: schema.userEmailAddresses.id, email: schema.userEmailAddresses.email, label: schema.userEmailAddresses.label, verifiedAt: schema.userEmailAddresses.verifiedAt, createdAt: schema.userEmailAddresses.createdAt })
+      .from(schema.userEmailAddresses).where(eq(schema.userEmailAddresses.userId, userId)).orderBy(asc(schema.userEmailAddresses.createdAt));
+    return [{ id: "primary", email: user.email, label: "Primary", verifiedAt: user.emailVerifiedAt, primary: true }, ...secondary.map((row) => ({ ...row, primary: false }))];
   }
 
-  async updatePreferences(org: string, userId: string, patch: Partial<{ themeMode: string; chromeTone: string; colorPreset: string; customAccent: string | null; homeBackground: string; density: string; locale: string; customTheme: Record<string, unknown> }>) {
+  async addEmailAddress(userId: string, rawEmail: string, label?: string) {
+    const email = rawEmail.trim().toLowerCase();
+    const [primaryOwner] = await this.db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email)).limit(1);
+    if (primaryOwner) throw new AppError("CONFLICT", primaryOwner.id === userId ? "This is already your primary email" : "That email is already used by another account");
+    const [aliasOwner] = await this.db.select({ id: schema.userEmailAddresses.id, userId: schema.userEmailAddresses.userId }).from(schema.userEmailAddresses).where(eq(schema.userEmailAddresses.email, email)).limit(1);
+    if (aliasOwner) throw new AppError("CONFLICT", aliasOwner.userId === userId ? "That email is already on your account" : "That email is already used by another account");
+    const { raw, hash } = issueToken();
+    const [row] = await this.db.insert(schema.userEmailAddresses).values({ userId, email, label: label?.trim() || null, verificationTokenHash: hash, verificationExpiresAt: new Date(Date.now() + 30 * 60 * 1000) }).returning();
+    const base = process.env.PUBLIC_WEB_URL || "http://localhost:3000";
+    await this.mail.send(email, "Verify your additional PM Platform email", `Open ${base.replace(/\/$/, "")}/settings/account?verifySecondary=${encodeURIComponent(raw)} to verify this email address. This link expires in 30 minutes.`);
+    return { id: row.id, email: row.email, label: row.label, verifiedAt: row.verifiedAt, verificationSent: true };
+  }
+
+  async verifyEmailAddress(userId: string, token: string) {
+    const [row] = await this.db.select().from(schema.userEmailAddresses).where(and(eq(schema.userEmailAddresses.userId, userId), eq(schema.userEmailAddresses.verificationTokenHash, sha256(token)))).limit(1);
+    if (!row || !row.verificationExpiresAt || row.verificationExpiresAt <= new Date()) throw new AppError("VALIDATION", "Invalid or expired email verification link");
+    const [updated] = await this.db.update(schema.userEmailAddresses).set({ verifiedAt: new Date(), verificationTokenHash: null, verificationExpiresAt: null }).where(eq(schema.userEmailAddresses.id, row.id)).returning();
+    return { verified: true, email: updated.email, id: updated.id };
+  }
+
+  async makePrimaryEmail(userId: string, id: string) {
+    return this.db.transaction(async (tx) => {
+      const [alias] = await tx.select().from(schema.userEmailAddresses).where(and(eq(schema.userEmailAddresses.id, id), eq(schema.userEmailAddresses.userId, userId))).limit(1);
+      if (!alias) throw new AppError("NOT_FOUND", "Email address not found");
+      if (!alias.verifiedAt) throw new AppError("VALIDATION", "Verify this email before making it primary");
+      const [user] = await tx.select({ email: schema.users.email, emailVerifiedAt: schema.users.emailVerifiedAt }).from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+      if (!user) throw new AppError("NOT_FOUND", "User not found");
+      await tx.update(schema.users).set({ email: alias.email, emailVerifiedAt: alias.verifiedAt, updatedAt: new Date() }).where(eq(schema.users.id, userId));
+      await tx.update(schema.userEmailAddresses).set({ email: user.email, verifiedAt: user.emailVerifiedAt ?? new Date(), label: alias.label || "Previous primary" }).where(eq(schema.userEmailAddresses.id, id));
+      return { primaryEmail: alias.email, secondaryEmail: user.email };
+    });
+  }
+
+  async removeEmailAddress(userId: string, id: string) {
+    await this.db.delete(schema.userEmailAddresses).where(and(eq(schema.userEmailAddresses.id, id), eq(schema.userEmailAddresses.userId, userId)));
+  }
+
+  async myWorkspaces(userId: string) {
+    return this.db.select({ organizationId: schema.organizations.id, organizationName: schema.organizations.name, organizationSlug: schema.organizations.slug, membershipStatus: schema.organizationMemberships.status })
+      .from(schema.organizationMemberships).innerJoin(schema.organizations, eq(schema.organizations.id, schema.organizationMemberships.organizationId))
+      .where(and(eq(schema.organizationMemberships.userId, userId), isNull(schema.organizationMemberships.deletedAt))).orderBy(asc(schema.organizations.name));
+  }
+
+  async mergeAccount(currentUserId: string, rawEmail: string, password: string) {
+    const email = rawEmail.trim().toLowerCase();
+    let [other] = await this.db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
+    if (!other) {
+      const [alias] = await this.db.select({ userId: schema.userEmailAddresses.userId }).from(schema.userEmailAddresses).where(and(eq(schema.userEmailAddresses.email, email), sql`${schema.userEmailAddresses.verifiedAt} is not null`)).limit(1);
+      if (alias) [other] = await this.db.select().from(schema.users).where(eq(schema.users.id, alias.userId)).limit(1);
+    }
+    if (!other || !other.isActive) throw new AppError("NOT_FOUND", "The other account could not be found");
+    if (other.id === currentUserId) throw new AppError("VALIDATION", "That email already belongs to this account");
+    const [cred] = await this.db.select().from(schema.userCredentials).where(eq(schema.userCredentials.userId, other.id)).limit(1);
+    if (!cred || !(await verifyPassword(cred.passwordHash, password))) throw new AppError("UNAUTHENTICATED", "Password for the other account is incorrect");
+
+    await this.db.transaction(async (tx) => {
+      const [current] = await tx.select().from(schema.users).where(eq(schema.users.id, currentUserId)).limit(1);
+      if (!current) throw new AppError("NOT_FOUND", "Current account not found");
+      await tx.insert(schema.userEmailAddresses).values({ userId: currentUserId, email: other.email, label: "Merged account", verifiedAt: other.emailVerifiedAt ?? new Date() }).onConflictDoNothing();
+      const aliases = await tx.select().from(schema.userEmailAddresses).where(eq(schema.userEmailAddresses.userId, other.id));
+      for (const a of aliases) {
+        const [exists] = await tx.select({ id: schema.userEmailAddresses.id }).from(schema.userEmailAddresses).where(eq(schema.userEmailAddresses.email, a.email)).limit(1);
+        if (exists?.id !== a.id) await tx.delete(schema.userEmailAddresses).where(eq(schema.userEmailAddresses.id, a.id));
+        else await tx.update(schema.userEmailAddresses).set({ userId: currentUserId, label: a.label || "Merged account" }).where(eq(schema.userEmailAddresses.id, a.id));
+      }
+
+      const memberships = await tx.select().from(schema.organizationMemberships).where(eq(schema.organizationMemberships.userId, other.id));
+      for (const m of memberships) {
+        const [exists] = await tx.select({ id: schema.organizationMemberships.id }).from(schema.organizationMemberships).where(and(eq(schema.organizationMemberships.organizationId, m.organizationId), eq(schema.organizationMemberships.userId, currentUserId))).limit(1);
+        if (exists) await tx.delete(schema.organizationMemberships).where(eq(schema.organizationMemberships.id, m.id));
+        else await tx.update(schema.organizationMemberships).set({ userId: currentUserId }).where(eq(schema.organizationMemberships.id, m.id));
+      }
+      const transferUnique = async (table: any, scopeColumn: any, userColumn: any, scopeKey: string) => {
+        const rows = await tx.select().from(table).where(eq(userColumn, other.id));
+        for (const row of rows as any[]) {
+          const [exists] = await tx.select().from(table).where(and(eq(scopeColumn, row[scopeKey]), eq(userColumn, currentUserId))).limit(1);
+          if (exists) await tx.delete(table).where(eq(table.id, row.id));
+          else await tx.update(table).set({ userId: currentUserId }).where(eq(table.id, row.id));
+        }
+      };
+      await transferUnique(schema.workspaceMembers, schema.workspaceMembers.workspaceId, schema.workspaceMembers.userId, "workspaceId");
+      await transferUnique(schema.projectMembers, schema.projectMembers.projectId, schema.projectMembers.userId, "projectId");
+      await transferUnique(schema.teamMembers, schema.teamMembers.teamId, schema.teamMembers.userId, "teamId");
+      await transferUnique(schema.workItemAssignees, schema.workItemAssignees.workItemId, schema.workItemAssignees.userId, "workItemId");
+      await transferUnique(schema.workItemWatchers, schema.workItemWatchers.workItemId, schema.workItemWatchers.userId, "workItemId");
+      await tx.update(schema.projects).set({ ownerUserId: currentUserId }).where(eq(schema.projects.ownerUserId, other.id));
+      await tx.update(schema.portfolios).set({ ownerUserId: currentUserId }).where(eq(schema.portfolios.ownerUserId, other.id));
+      await tx.update(schema.goals).set({ ownerUserId: currentUserId }).where(eq(schema.goals.ownerUserId, other.id));
+      await tx.update(schema.workItems).set({ primaryOwnerUserId: currentUserId }).where(eq(schema.workItems.primaryOwnerUserId, other.id));
+      await tx.update(schema.userSessions).set({ revokedAt: new Date() }).where(and(eq(schema.userSessions.userId, other.id), isNull(schema.userSessions.revokedAt)));
+      await tx.update(schema.users).set({ isActive: false, updatedAt: new Date() }).where(eq(schema.users.id, other.id));
+    });
+    return { merged: true, mergedEmail: other.email };
+  }
+
+  async preferences(org: string, userId: string) {
+    let [row] = await this.db.select().from(schema.userUiPreferences)
+      .where(and(eq(schema.userUiPreferences.organizationId, org), eq(schema.userUiPreferences.userId, userId))).limit(1);
+    if (!row) [row] = await this.db.insert(schema.userUiPreferences).values({ organizationId: org, userId }).returning();
+    const [workspace] = await this.db.select({ weekStart: schema.organizationSettings.weekStart })
+      .from(schema.organizationSettings).where(eq(schema.organizationSettings.organizationId, org)).limit(1);
+    return { ...row, workspaceWeekStart: workspace?.weekStart ?? 1 };
+  }
+
+  async updatePreferences(org: string, userId: string, patch: Partial<{ themeMode: string; chromeTone: string; colorPreset: string; customAccent: string | null; homeBackground: string; density: string; locale: string; personalWeekStart: number | null; notificationPopupSeconds: number; defaultLanding: string; showRowNumbers: boolean; colorBlindMode: boolean; celebrations: boolean; inboxSummaryEnabled: boolean; inboxSummaryTimeframe: string; navigationPreferences: Record<string, unknown>; customTheme: Record<string, unknown> }>) {
     await this.preferences(org, userId);
     const [row] = await this.db.update(schema.userUiPreferences).set({ ...patch, updatedAt: new Date() })
       .where(and(eq(schema.userUiPreferences.organizationId, org), eq(schema.userUiPreferences.userId, userId))).returning();
@@ -124,8 +230,37 @@ export class UxService {
     return this.db.select().from(schema.savedUiViews).where(and(...conds)).orderBy(asc(schema.savedUiViews.createdAt));
   }
 
-  createSavedView(org: string, userId: string, input: { scopeType: string; scopeId?: string; name: string; viewType?: string; filters?: Record<string, unknown>; columns?: unknown[]; sortSpec?: Record<string, unknown>; groupBy?: string | null; isDefault?: boolean }) {
-    return this.db.insert(schema.savedUiViews).values({ organizationId: org, userId, scopeType: input.scopeType, scopeId: input.scopeId, name: input.name, viewType: input.viewType ?? "list", filters: input.filters ?? {}, columns: input.columns ?? [], sortSpec: input.sortSpec ?? {}, groupBy: input.groupBy, isDefault: input.isDefault ?? false }).returning().then((r) => r[0]);
+  async createSavedView(org: string, userId: string, input: { scopeType: string; scopeId?: string; name: string; viewType?: string; filters?: Record<string, unknown>; columns?: unknown[]; sortSpec?: Record<string, unknown>; groupBy?: string | null; isDefault?: boolean }) {
+    return this.db.transaction(async (tx) => {
+      if (input.isDefault) {
+        const conds = [eq(schema.savedUiViews.organizationId, org), eq(schema.savedUiViews.userId, userId), eq(schema.savedUiViews.scopeType, input.scopeType)];
+        if (input.scopeId) conds.push(eq(schema.savedUiViews.scopeId, input.scopeId)); else conds.push(isNull(schema.savedUiViews.scopeId));
+        await tx.update(schema.savedUiViews).set({ isDefault: false, updatedAt: new Date() }).where(and(...conds));
+      }
+      const [row] = await tx.insert(schema.savedUiViews).values({ organizationId: org, userId, scopeType: input.scopeType, scopeId: input.scopeId, name: input.name, viewType: input.viewType ?? "list", filters: input.filters ?? {}, columns: input.columns ?? [], sortSpec: input.sortSpec ?? {}, groupBy: input.groupBy, isDefault: input.isDefault ?? false }).returning();
+      return row;
+    });
+  }
+
+  async updateSavedView(org: string, userId: string, id: string, patch: Partial<{ name: string; viewType: string; filters: Record<string, unknown>; columns: unknown[]; sortSpec: Record<string, unknown>; groupBy: string | null; isDefault: boolean }>) {
+    const [current] = await this.db.select().from(schema.savedUiViews).where(and(eq(schema.savedUiViews.id, id), eq(schema.savedUiViews.organizationId, org), eq(schema.savedUiViews.userId, userId))).limit(1);
+    if (!current) throw new AppError("NOT_FOUND", "Saved view not found");
+    return this.db.transaction(async (tx) => {
+      if (patch.isDefault) {
+        const conds = [eq(schema.savedUiViews.organizationId, org), eq(schema.savedUiViews.userId, userId), eq(schema.savedUiViews.scopeType, current.scopeType)];
+        if (current.scopeId) conds.push(eq(schema.savedUiViews.scopeId, current.scopeId)); else conds.push(isNull(schema.savedUiViews.scopeId));
+        await tx.update(schema.savedUiViews).set({ isDefault: false, updatedAt: new Date() }).where(and(...conds));
+      }
+      const [row] = await tx.update(schema.savedUiViews).set({ ...patch, updatedAt: new Date() }).where(eq(schema.savedUiViews.id, id)).returning();
+      return row;
+    });
+  }
+
+  async duplicateSavedView(org: string, userId: string, id: string) {
+    const [current] = await this.db.select().from(schema.savedUiViews).where(and(eq(schema.savedUiViews.id, id), eq(schema.savedUiViews.organizationId, org), eq(schema.savedUiViews.userId, userId))).limit(1);
+    if (!current) throw new AppError("NOT_FOUND", "Saved view not found");
+    const [row] = await this.db.insert(schema.savedUiViews).values({ organizationId: org, userId, scopeType: current.scopeType, scopeId: current.scopeId, name: `${current.name} copy`, viewType: current.viewType, filters: current.filters, columns: current.columns, sortSpec: current.sortSpec, groupBy: current.groupBy, isDefault: false }).returning();
+    return row;
   }
 
   async deleteSavedView(org: string, userId: string, id: string) {
@@ -349,6 +484,39 @@ export class UxService {
       await tx.insert(schema.activityEvents).values([{ organizationId: org, workItemId: targetId, projectId: target.owningProjectId, actorUserId: userId, action: "work_item.duplicate_merged", data: source.key }, { organizationId: org, workItemId: duplicateId, projectId: source.owningProjectId, actorUserId: userId, action: "work_item.merged_into", data: target.key }]);
     });
     return { targetId, mergedId: duplicateId };
+  }
+
+  async projectBrief(org: string, userId: string, projectId: string) {
+    if (!(await canAccessProject(this.db, org, projectId, userId))) throw new AppError("FORBIDDEN", "No access to the project");
+    const [row] = await this.db.select().from(schema.projectResources).where(and(eq(schema.projectResources.organizationId, org), eq(schema.projectResources.projectId, projectId), eq(schema.projectResources.kind, "brief"))).orderBy(desc(schema.projectResources.createdAt)).limit(1);
+    return row ?? { id: null, projectId, kind: "brief", name: "Project brief", body: "" };
+  }
+
+  async saveProjectBrief(org: string, userId: string, projectId: string, body: string) {
+    if (!(await canAccessProject(this.db, org, projectId, userId))) throw new AppError("FORBIDDEN", "No access to the project");
+    const [existing] = await this.db.select().from(schema.projectResources).where(and(eq(schema.projectResources.organizationId, org), eq(schema.projectResources.projectId, projectId), eq(schema.projectResources.kind, "brief"))).limit(1);
+    if (existing) {
+      const [row] = await this.db.update(schema.projectResources).set({ body, name: "Project brief" }).where(eq(schema.projectResources.id, existing.id)).returning();
+      await this.db.insert(schema.activityEvents).values({ organizationId: org, projectId, actorUserId: userId, action: "project.brief_updated", data: "Project brief updated" });
+      return row;
+    }
+    const [row] = await this.db.insert(schema.projectResources).values({ organizationId: org, projectId, kind: "brief", name: "Project brief", body, createdBy: userId }).returning();
+    await this.db.insert(schema.activityEvents).values({ organizationId: org, projectId, actorUserId: userId, action: "project.brief_created", data: "Project brief created" });
+    return row;
+  }
+
+  async projectActivityTimeline(org: string, userId: string, projectId: string) {
+    if (!(await canAccessProject(this.db, org, projectId, userId))) throw new AppError("FORBIDDEN", "No access to the project");
+    const [activity, statuses, resources] = await Promise.all([
+      this.db.select({ id: schema.activityEvents.id, kind: schema.activityEvents.action, text: schema.activityEvents.data, at: schema.activityEvents.createdAt, actorUserId: schema.activityEvents.actorUserId }).from(schema.activityEvents).where(and(eq(schema.activityEvents.organizationId, org), eq(schema.activityEvents.projectId, projectId))).orderBy(desc(schema.activityEvents.createdAt)).limit(80),
+      this.db.select({ id: schema.projectStatusUpdates.id, kind: sql<string>`'project.status'`, text: schema.projectStatusUpdates.title, at: schema.projectStatusUpdates.createdAt, actorUserId: schema.projectStatusUpdates.authorUserId }).from(schema.projectStatusUpdates).where(and(eq(schema.projectStatusUpdates.organizationId, org), eq(schema.projectStatusUpdates.projectId, projectId))).orderBy(desc(schema.projectStatusUpdates.createdAt)).limit(30),
+      this.db.select({ id: schema.projectResources.id, kind: sql<string>`'project.resource'`, text: schema.projectResources.name, at: schema.projectResources.createdAt, actorUserId: schema.projectResources.createdBy }).from(schema.projectResources).where(and(eq(schema.projectResources.organizationId, org), eq(schema.projectResources.projectId, projectId))).orderBy(desc(schema.projectResources.createdAt)).limit(30),
+    ]);
+    const rows = [...activity, ...statuses, ...resources].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 100);
+    const actorIds = Array.from(new Set(rows.map((r) => r.actorUserId).filter(Boolean))) as string[];
+    const actors = actorIds.length ? await this.db.select({ id: schema.users.id, displayName: schema.users.displayName }).from(schema.users).where(inArray(schema.users.id, actorIds)) : [];
+    const names = new Map(actors.map((a) => [a.id, a.displayName]));
+    return rows.map((r) => ({ ...r, actorName: r.actorUserId ? names.get(r.actorUserId) ?? "Former member" : "System" }));
   }
 
   async projectListMetadata(org: string, userId: string, projectId: string) {

@@ -7,6 +7,7 @@ import { ENV } from "../config/config.module.js";
 
 const SYSTEM_QUEUE = "system";
 const RETENTION_EVERY_MS = 60 * 60 * 1000;
+const AI_SUMMARY_EVERY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Central producer for durable background work. Keeping queue construction in
@@ -43,6 +44,12 @@ export class BackgroundJobsService implements OnModuleInit, OnModuleDestroy {
       { jobId: "retention-auto-purge", repeat: { every: RETENTION_EVERY_MS } },
     );
     this.log.log("Registered hourly retention-auto-purge background job");
+    await this.queue.add(
+      "ai-project-summary-regular",
+      { idempotencyKey: "ai-project-summary-regular", payload: {} },
+      { jobId: "ai-project-summary-regular", repeat: { every: AI_SUMMARY_EVERY_MS } },
+    );
+    this.log.log("Registered daily AI project-summary background job");
   }
 
   async enqueueRetentionPurge(organizationId: string, actorUserId: string) {

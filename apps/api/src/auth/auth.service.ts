@@ -47,8 +47,13 @@ export class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
     this.checkRate(normalizedEmail, ip);
 
-    const [user] = await this.db.select().from(schema.users)
+    let [user] = await this.db.select().from(schema.users)
       .where(eq(schema.users.email, normalizedEmail)).limit(1);
+    if (!user) {
+      const [alias] = await this.db.select({ userId: schema.userEmailAddresses.userId }).from(schema.userEmailAddresses)
+        .where(and(eq(schema.userEmailAddresses.email, normalizedEmail), sql`${schema.userEmailAddresses.verifiedAt} is not null`)).limit(1);
+      if (alias) [user] = await this.db.select().from(schema.users).where(eq(schema.users.id, alias.userId)).limit(1);
+    }
     if (!user || !user.isActive) throw new AppError("UNAUTHENTICATED", "Invalid credentials");
 
     const [cred] = await this.db.select().from(schema.userCredentials)

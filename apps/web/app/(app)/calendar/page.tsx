@@ -5,13 +5,17 @@ import { Button as UiButton } from "../../../components/ui";
 import { Select as UiSelect } from "../../../components/ui";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../lib/api";
+import { useTheme } from "../../../components/theme/ThemeProvider";
 
 type Ev = { id: string; key: string; title: string; startDate: string | null; dueDate: string | null; statusCategory: string };
 type Project = { id: string; name: string };
-const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export default function CalendarPage() {
+  const theme = useTheme();
+  const weekStart = Number.isInteger(theme.preferences.personalWeekStart) ? Number(theme.preferences.personalWeekStart) : (theme.preferences.workspaceWeekStart ?? 1);
+  const locale = theme.preferences.locale || "en";
+  const weekdays = useMemo(() => Array.from({ length: 7 }, (_, i) => { const day = (weekStart + i) % 7; return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(Date.UTC(2026, 0, 4 + day))); }), [weekStart, locale]);
   const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), 1)); });
   const [view, setView] = useState<"month" | "agenda">("month");
   const [scope, setScope] = useState<string>("mine");
@@ -20,10 +24,10 @@ export default function CalendarPage() {
 
   const range = useMemo(() => {
     const y = cursor.getUTCFullYear(), m = cursor.getUTCMonth();
-    const gridStart = new Date(Date.UTC(y, m, 1)); gridStart.setUTCDate(gridStart.getUTCDate() - gridStart.getUTCDay());
+    const gridStart = new Date(Date.UTC(y, m, 1)); const offset = (gridStart.getUTCDay() - weekStart + 7) % 7; gridStart.setUTCDate(gridStart.getUTCDate() - offset);
     const gridEnd = new Date(gridStart); gridEnd.setUTCDate(gridEnd.getUTCDate() + 41);
     return { from: iso(gridStart), to: iso(gridEnd), gridStart };
-  }, [cursor]);
+  }, [cursor, weekStart]);
 
   useEffect(() => { api<Project[]>("/projects", { org: true }).then(setProjects).catch(() => {}); }, []);
   useEffect(() => {
@@ -33,7 +37,7 @@ export default function CalendarPage() {
 
   const byDay = useMemo(() => { const m = new Map<string, Ev[]>(); for (const e of events) if (e.dueDate) m.set(e.dueDate, [...(m.get(e.dueDate) ?? []), e]); return m; }, [events]);
   const cells = useMemo(() => Array.from({ length: 42 }, (_, i) => { const d = new Date(range.gridStart); d.setUTCDate(d.getUTCDate() + i); return d; }), [range]);
-  const monthLabel = cursor.toLocaleString("en", { month: "long", year: "numeric", timeZone: "UTC" });
+  const monthLabel = cursor.toLocaleString(locale, { month: "long", year: "numeric", timeZone: "UTC" });
   const shift = (n: number) => setCursor(new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + n, 1)));
 
   const base = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -62,7 +66,7 @@ export default function CalendarPage() {
 
       {view === "month" && (
         <div className="cal-grid">
-          {DOW.map((d) => <div key={d} className="cal-dow">{d}</div>)}
+          {weekdays.map((d) => <div key={d} className="cal-dow">{d}</div>)}
           {cells.map((d, i) => {
             const key = iso(d), inMonth = d.getUTCMonth() === cursor.getUTCMonth(), evs = byDay.get(key) ?? [];
             return (

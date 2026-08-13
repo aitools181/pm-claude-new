@@ -6,6 +6,7 @@ import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "..
 import { appPrompt } from "../ui/AppDialog";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "../../lib/api";
 import { Icon, type IconName } from "../ui/Icon";
 import { useToast } from "../ui/Toast";
@@ -15,8 +16,9 @@ import { RuntimeStyle } from "../ui/RuntimeStyle";
 
 type Project = {
   id: string; name: string; keyPrefix: string; color?: string; health: string; status: string;
-  privacy: string; version: number; description?: string | null; startDate?: string | null; dueDate?: string | null;
+  privacy: string; version: number; description?: string | null; startDate?: string | null; dueDate?: string | null; icon?: string | null;
 };
+type SavedView = { id: string; name: string; viewType: string; isDefault: boolean; filters?: Record<string, unknown>; columns?: unknown[]; sortSpec?: Record<string, unknown>; groupBy?: string | null };
 type Member = { id: string; userId: string; displayName: string; email: string; accessLevel: string; notifyTasks: boolean };
 type Directory = { id: string; displayName: string; email: string };
 type StatusUpdate = { id: string; health: string; title?: string; headline?: string; body: string | null; createdAt: string };
@@ -37,17 +39,27 @@ export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjec
   project: Project; view: string; onAddTask?: (typeKey?: string) => void; onAddSection?: () => void; onProjectChange?: () => void;
 }) {
   const toast = useToast();
+  const searchParams = useSearchParams();
   const [share, setShare] = useState(false);
   const [customize, setCustomize] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [projectMenu, setProjectMenu] = useState(false);
   const [createMenu, setCreateMenu] = useState(false);
   const [favorite, setFavorite] = useState(false);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [viewMenu, setViewMenu] = useState<string | null>(null);
 
   useEffect(() => {
     api<{ projectId: string }[]>("/projects/favorites", { org: true })
       .then((r) => setFavorite(r.some((x) => x.projectId === project.id))).catch(() => {});
+    api<SavedView[]>(`/ui/saved-views?scopeType=project&scopeId=${project.id}`, { org: true }).then(setSavedViews).catch(() => setSavedViews([]));
   }, [project.id]);
+
+  async function reloadViews(){ setSavedViews(await api<SavedView[]>(`/ui/saved-views?scopeType=project&scopeId=${project.id}`, {org:true})); }
+  async function renameView(row: SavedView){ const name=await appPrompt("Rename view", row.name); if(!name?.trim())return; await api(`/ui/saved-views/${row.id}`,{method:"PATCH",org:true,body:JSON.stringify({name:name.trim()})}); await reloadViews(); }
+  async function setDefaultView(row: SavedView){ await api(`/ui/saved-views/${row.id}`,{method:"PATCH",org:true,body:JSON.stringify({isDefault:true})}); toast({message:`${row.name} is now the default view`}); await reloadViews(); }
+  async function duplicateView(row: SavedView){ await api(`/ui/saved-views/${row.id}/duplicate`,{method:"POST",org:true}); await reloadViews(); }
+  async function removeView(row: SavedView){ await api(`/ui/saved-views/${row.id}`,{method:"DELETE",org:true}); if(searchParams.get("savedView")===row.id) location.href=`/projects/${project.id}`; else await reloadViews(); }
 
   async function toggleFavorite() {
     const next = !favorite; setFavorite(next);
@@ -78,7 +90,7 @@ export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjec
   return <>
     <header className="asana-project-head">
       <div className="project-head-main">
-        <RuntimeStyle as="span" className="project-icon-large runtime-bg" vars={{ "--runtime-bg": project.color || "var(--ui-action)" }}>{project.name.slice(0, 1).toUpperCase()}</RuntimeStyle>
+        <RuntimeStyle as="span" className="project-icon-large runtime-bg" vars={{ "--runtime-bg": project.color || "var(--ui-action)" }}>{project.icon && project.icon !== "project" ? <Icon name={project.icon as IconName} size={20}/> : project.name.slice(0, 1).toUpperCase()}</RuntimeStyle>
         <div className="project-title-stack">
           <div className="project-title-line">
             <h1>{project.name}</h1>
@@ -105,8 +117,9 @@ export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjec
 
     <div className="project-tabs-wrap">
       <nav className="asana-project-tabs" aria-label="Project views">
-        {tabs.map((t) => <a key={t.key} href={`/projects/${project.id}${t.suffix}`} data-active={view === t.key}><Icon name={t.icon} size={15} />{t.label}</a>)}
-        <button className="tab-plus" onClick={() => setCustomize(true)} aria-label="Add project tab"><Icon name="plus" size={16} /></button>
+        {tabs.map((t) => <a key={t.key} href={`/projects/${project.id}${t.suffix}`} data-active={view === t.key && !searchParams.get("savedView")}><Icon name={t.icon} size={15} />{t.label}</a>)}
+        {savedViews.map((row)=><span className="project-custom-tab" key={row.id}><a href={`/projects/${project.id}?savedView=${row.id}`} data-active={searchParams.get("savedView")===row.id}><Icon name={row.viewType==="board"?"board":"list"} size={15}/>{row.name}{row.isDefault?<span title="Default view">•</span>:null}</a><button aria-label={`Manage ${row.name}`} onClick={()=>setViewMenu(viewMenu===row.id?null:row.id)}><Icon name="chevronDown" size={13}/></button>{viewMenu===row.id&&<div className="project-view-menu"><button onClick={()=>renameView(row)}>Rename view</button><button onClick={()=>setDefaultView(row)}>Set as default</button><button onClick={()=>duplicateView(row)}>Make a copy</button><button onClick={()=>{navigator.clipboard.writeText(`${location.origin}/projects/${project.id}?savedView=${row.id}`);toast({message:"View link copied"});setViewMenu(null)}}>Copy view link</button><button className="danger" onClick={()=>removeView(row)}>Remove view</button></div>}</span>)}
+        <button className="tab-plus" onClick={async()=>{const name=await appPrompt("New view name","Custom view");if(!name?.trim())return;await api("/ui/saved-views",{method:"POST",org:true,body:JSON.stringify({scopeType:"project",scopeId:project.id,name:name.trim(),viewType:"list"})});await reloadViews();}} aria-label="Add project tab"><Icon name="plus" size={16} /></button>
       </nav>
       <div className="project-view-actions">
         <div className="split-create">
@@ -191,6 +204,7 @@ function CustomizeDrawer({ project, onClose, onChanged }: { project: Project; on
   const toast = useToast();
   const drawerRef = useModalDialog<HTMLElement>(true, onClose);
   const [description, setDescription] = useState(project.description || "");
+  const [icon, setIcon] = useState(project.icon || "project");
   const [color, setColor] = useState(project.color || "var(--ui-action)");
   const [privacy, setPrivacy] = useState(project.privacy || "workspace");
   const [startDate, setStartDate] = useState(project.startDate || "");
@@ -198,7 +212,7 @@ function CustomizeDrawer({ project, onClose, onChanged }: { project: Project; on
   const palette = PROJECT_COLOR_PALETTE;
   async function saveProject() {
     const fresh = await api<Project>(`/projects/${project.id}`, { org: true });
-    await api(`/projects/${project.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: fresh.version, patch: { description, color, privacy, startDate: startDate || null, dueDate: dueDate || null } }) });
+    await api(`/projects/${project.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: fresh.version, patch: { description, color, icon, privacy, startDate: startDate || null, dueDate: dueDate || null } }) });
     toast({ message: "Project settings saved" }); onChanged?.();
   }
   const items = [
@@ -209,7 +223,7 @@ function CustomizeDrawer({ project, onClose, onChanged }: { project: Project; on
   ];
   return <><button className="drawer-overlay" onClick={onClose} aria-label="Close customize" /><aside ref={drawerRef} tabIndex={-1} className="customize-drawer" role="dialog" aria-modal="true" aria-labelledby="customize-project-title">
     <div className="drawer-head"><h2 id="customize-project-title">Customize</h2><button className="icon-btn" aria-label="Close customize project panel" onClick={onClose}><Icon name="close" /></button></div>
-    <div className="customize-section"><span className="customize-label">This project</span><UiTextarea className="input project-desc-edit" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Project description" /><div className="project-color-palette">{palette.map((c, index) => <button key={c} className="project-palette-swatch" data-palette-index={index} data-on={color === c} onClick={() => setColor(c)} aria-label={`Use ${c}`} />)}</div><div className="mini-form-grid"><label>Privacy<UiSelect className="input" value={privacy} onChange={(e) => setPrivacy(e.target.value)}><option value="workspace">Workspace</option><option value="private">Private</option></UiSelect></label><label>Start<UiInput className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></label><label>Due<UiInput className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></label></div><UiButton variant="secondary" size="compact"  onClick={saveProject}>Save project settings</UiButton></div>
+    <div className="customize-section"><span className="customize-label">This project</span><UiTextarea className="input project-desc-edit" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Project description" /><label>Project icon<UiSelect className="input" value={icon} onChange={(e)=>setIcon(e.target.value)}><option value="project">Letter tile</option><option value="goal">Target</option><option value="calendar">Calendar</option><option value="flag">Flag</option><option value="release">Release</option><option value="sparkles">Sparkles</option><option value="chart">Chart</option></UiSelect></label><div className="project-color-palette">{palette.map((c, index) => <button key={c} className="project-palette-swatch" data-palette-index={index} data-on={color === c} onClick={() => setColor(c)} aria-label={`Use ${c}`} />)}</div><div className="mini-form-grid"><label>Privacy<UiSelect className="input" value={privacy} onChange={(e) => setPrivacy(e.target.value)}><option value="workspace">Workspace</option><option value="private">Private</option></UiSelect></label><label>Start<UiInput className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></label><label>Due<UiInput className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></label></div><UiButton variant="secondary" size="compact"  onClick={saveProject}>Save project settings</UiButton></div>
     <div className="customize-ai"><span className="ai-star"><Icon name="sparkles" size={17} /></span><div><strong>AI Studio</strong><span>Create governed project rules and summaries</span></div><a href="/ai">Open</a></div>
     <div className="customize-section"><span className="customize-label">Workflow features</span>{items.map(([h, d, u]) => <a className="customize-row" href={u} key={h}><span><strong>{h}</strong><small>{d}</small></span><Icon name="chevronRight" size={15} /></a>)}</div>
   </aside></>;

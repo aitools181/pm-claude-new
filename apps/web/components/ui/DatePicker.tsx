@@ -53,6 +53,7 @@ type CalendarProps = {
   locale?: string;
   autoFocus?: boolean;
   ariaLabel?: string;
+  weekStart?: number;
 };
 
 export function Calendar({
@@ -64,9 +65,13 @@ export function Calendar({
   locale,
   autoFocus = false,
   ariaLabel = "Choose date",
+  weekStart,
 }: CalendarProps) {
   const selected = fromIso(value);
   const today = useMemo(() => new Date(), []);
+  const storedPrefs = useMemo(() => { if (typeof window === "undefined") return {} as Record<string, unknown>; try { return JSON.parse(window.localStorage.getItem("pm_ui_preferences") || "{}") as Record<string, unknown>; } catch { return {} as Record<string, unknown>; } }, []);
+  const resolvedWeekStart = Number.isInteger(weekStart) ? Number(weekStart) : Number.isInteger(storedPrefs.personalWeekStart) ? Number(storedPrefs.personalWeekStart) : Number.isInteger(storedPrefs.workspaceWeekStart) ? Number(storedPrefs.workspaceWeekStart) : 1;
+  const resolvedLocale = locale || (typeof storedPrefs.locale === "string" ? storedPrefs.locale : undefined);
   const [month, setMonth] = useState(() =>
     selected
       ? new Date(selected.getFullYear(), selected.getMonth(), 1)
@@ -85,9 +90,10 @@ export function Calendar({
   const cells = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
     const start = new Date(first);
-    start.setDate(1 - first.getDay());
+    const offset = (first.getDay() - resolvedWeekStart + 7) % 7;
+    start.setDate(1 - offset);
     return Array.from({ length: 42 }, (_, i) => addDays(start, i));
-  }, [month]);
+  }, [month, resolvedWeekStart]);
 
   const isDisabled = (dateIso: string) =>
     Boolean((min && dateIso < min) || (max && dateIso > max) || isDateDisabled?.(dateIso));
@@ -159,8 +165,8 @@ export function Calendar({
   };
 
   const formatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
-    [locale],
+    () => new Intl.DateTimeFormat(resolvedLocale, { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+    [resolvedLocale],
   );
 
   return (
@@ -174,7 +180,7 @@ export function Calendar({
           <Icon name="arrowLeft" size={18} />
         </button>
         <strong aria-live="polite">
-          {new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(month)}
+          {new Intl.DateTimeFormat(resolvedLocale, { month: "long", year: "numeric" }).format(month)}
         </strong>
         <button
           type="button"
@@ -185,13 +191,10 @@ export function Calendar({
         </button>
       </header>
       <div className="ui-calendar-weekdays" aria-hidden="true">
-        {Array.from({ length: 7 }, (_, i) => (
-          <span key={i}>
-            {new Intl.DateTimeFormat(locale, { weekday: "short" })
-              .format(new Date(2026, 0, 4 + i))
-              .slice(0, 2)}
-          </span>
-        ))}
+        {Array.from({ length: 7 }, (_, i) => {
+          const weekday = (resolvedWeekStart + i) % 7;
+          return <span key={i}>{new Intl.DateTimeFormat(resolvedLocale, { weekday: "short" }).format(new Date(2026, 0, 4 + weekday)).slice(0, 2)}</span>;
+        })}
       </div>
       <div className="ui-calendar-grid" role="grid" aria-label={ariaLabel}>
         {cells.map((date, index) => {
@@ -235,6 +238,7 @@ type DatePickerProps = {
   disabled?: boolean;
   error?: string;
   locale?: string;
+  weekStart?: number;
   className?: string;
 };
 
@@ -248,6 +252,7 @@ export function DatePicker({
   disabled = false,
   error,
   locale,
+  weekStart,
   className = "",
 }: DatePickerProps) {
   const id = useId().replace(/:/g, "");
@@ -347,6 +352,7 @@ export function DatePicker({
             max={max}
             isDateDisabled={isDateDisabled}
             locale={locale}
+            weekStart={weekStart}
             autoFocus
             ariaLabel={`Choose ${label}`}
           />

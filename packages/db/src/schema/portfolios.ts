@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { organizations, users } from "./identity.js";
 import { projects } from "./work.js";
 
@@ -21,7 +21,23 @@ export const portfolioProjects = pgTable("portfolio_projects", {
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   portfolioId: uuid("portfolio_id").notNull().references(() => portfolios.id),
   projectId: uuid("project_id").notNull().references(() => projects.id),
+  budgetCents: integer("budget_cents"),
+  serviceLine: text("service_line"),
+  customFields: jsonb("custom_fields").default({}).notNull(),
 }, (t) => ({ uniq: uniqueIndex("portfolio_projects_unique").on(t.portfolioId, t.projectId) }));
+
+
+export const portfolioColumns = pgTable("portfolio_columns", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  portfolioId: uuid("portfolio_id").notNull().references(() => portfolios.id),
+  key: text("key").notNull(),
+  name: text("name").notNull(),
+  type: text("type").default("text").notNull(),
+  rank: integer("rank").default(0).notNull(),
+  config: jsonb("config").default({}).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ unique: uniqueIndex("portfolio_columns_unique").on(t.portfolioId, t.key), byPortfolio: index("portfolio_columns_portfolio_idx").on(t.organizationId, t.portfolioId, t.rank) }));
 
 export const initiatives = pgTable("initiatives", {
   id: uuid("id").primaryKey().defaultRandom(),

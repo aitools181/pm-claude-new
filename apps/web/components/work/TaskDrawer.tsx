@@ -11,6 +11,7 @@ import { Icon } from "../ui/Icon";
 import { useToast } from "../ui/Toast";
 import { useModalDialog } from "../ui/useModalDialog";
 import { RuntimeStyle } from "../ui/RuntimeStyle";
+import { celebrateIfEnabled } from "../ui/celebration";
 
 type Item = {
   id: string;
@@ -211,6 +212,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
       setDescriptionDraft(updated.description ?? "");
       onSaved();
       if (successMessage) toast({ message: successMessage });
+      if (patch.status && updated.statusCategory === "done" && item.statusCategory !== "done") celebrateIfEnabled({ label: updated.title });
       await load(currentId);
     } catch (e) {
       if (e instanceof ApiError && e.code === "CONFLICT") {

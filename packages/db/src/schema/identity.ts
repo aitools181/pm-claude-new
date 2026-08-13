@@ -21,6 +21,18 @@ export const users = pgTable("users", {
   emailUnique: uniqueIndex("users_email_unique").on(t.email),
 }));
 
+
+export const userEmailAddresses = pgTable("user_email_addresses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  email: text("email").notNull(),
+  label: text("label"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  verificationTokenHash: text("verification_token_hash"),
+  verificationExpiresAt: timestamp("verification_expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ emailUnique: uniqueIndex("user_email_addresses_email_unique").on(t.email), byUser: index("user_email_addresses_user_idx").on(t.userId) }));
+
 export const userCredentials = pgTable("user_credentials", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id),

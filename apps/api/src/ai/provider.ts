@@ -9,6 +9,7 @@ export interface AiProvider {
   healthy(): boolean;
   /** Draft a concise task title from text + retrieved context. Throws when unavailable. */
   draftTitle(text: string, context: Citation[]): Promise<{ title: string; tokens: number }>;
+  summarize(prompt: string): Promise<{ text: string; tokens: number }>;
 }
 
 /** Deterministic development/test provider. Production validation rejects it. */
@@ -24,12 +25,18 @@ export class MockAiProvider implements AiProvider {
     const title = (firstLine || text).slice(0, 80);
     return { title, tokens: Math.max(1, Math.ceil(text.length / 4)) };
   }
+  async summarize(prompt: string) {
+    if (!this.up) throw new Error("provider_unavailable");
+    const lines = prompt.split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 8);
+    return { text: lines.join(" ").slice(0, 1200), tokens: Math.max(1, Math.ceil(prompt.length / 4)) };
+  }
 }
 
 export class DisabledAiProvider implements AiProvider {
   name = "disabled";
   healthy() { return false; }
   async draftTitle(): Promise<{ title: string; tokens: number }> { throw new Error("provider_disabled"); }
+  async summarize(): Promise<{ text: string; tokens: number }> { throw new Error("provider_disabled"); }
 }
 
 /**
@@ -66,6 +73,30 @@ export class OpenAiCompatibleProvider implements AiProvider {
       if (!content) throw new Error("provider_empty_response");
       const tokens = Number(body?.usage?.total_tokens ?? Math.max(1, Math.ceil(text.length / 4)));
       return { title: content.slice(0, 80), tokens: Number.isFinite(tokens) ? tokens : 0 };
+    } finally { clearTimeout(timer); }
+  }
+
+  async summarize(prompt: string) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    try {
+      const res = await fetch(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST", signal: controller.signal,
+        headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: this.model, temperature: 0.2, max_tokens: 500,
+          messages: [
+            { role: "system", content: "Summarize project-management information clearly and concisely. State risks and sources only when supplied. Do not invent facts." },
+            { role: "user", content: prompt },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error(`provider_http_${res.status}`);
+      const body = await res.json() as any;
+      const text = String(body?.choices?.[0]?.message?.content ?? "").trim();
+      if (!text) throw new Error("provider_empty_response");
+      const tokens = Number(body?.usage?.total_tokens ?? Math.max(1, Math.ceil(prompt.length / 4)));
+      return { text, tokens: Number.isFinite(tokens) ? tokens : 0 };
     } finally { clearTimeout(timer); }
   }
 }

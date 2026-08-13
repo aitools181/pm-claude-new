@@ -40,6 +40,7 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").default("#5b5fc7").notNull(),
+  icon: text("icon").default("project").notNull(),
   ownerUserId: uuid("owner_user_id").references(() => users.id),
   teamId: uuid("team_id").references(() => teams.id),
   status: text("status").default("active").notNull(),      // active|on_hold|completed|archived

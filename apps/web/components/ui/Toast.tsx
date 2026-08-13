@@ -16,7 +16,8 @@ export const useToast = () => useContext(Ctx);
 
 function ToastItem({ toast, remove }: { toast: ToastRow; remove: (id: number) => void }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const duration = toast.durationMs === undefined ? (toast.tone === "error" ? null : 5000) : toast.durationMs;
+  const configuredMs = (() => { if (typeof window === "undefined") return 5000; try { const raw = window.localStorage.getItem("pm_ui_preferences"); const sec = raw ? Number(JSON.parse(raw)?.notificationPopupSeconds) : 5; return Number.isFinite(sec) ? Math.max(2, Math.min(30, sec)) * 1000 : 5000; } catch { return 5000; } })();
+  const duration = toast.durationMs === undefined ? (toast.tone === "error" ? null : configuredMs) : toast.durationMs;
 
   const stopTimer = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);

@@ -20,6 +20,12 @@ const rec = z.object({ name: z.string(), spec: z.record(z.any()), frequency: z.e
 export class TemplatesController {
   constructor(private readonly templates: TemplatesService, private readonly recurrence: RecurrenceService) {}
 
+  @Get("templates/suggestions")
+  suggestions(@Req() r: Ctx) { return this.templates.suggestions(r.organizationId); }
+
+  @Get("templates/gallery")
+  gallery(@Req() r: Ctx) { return this.templates.gallery(r.organizationId); }
+
   @Get("templates") @RequirePermission(CAPABILITIES.TEMPLATES_MANAGE)
   list(@Req() r: Ctx) { return this.templates.list(r.organizationId); }
   @Post("templates") @RequirePermission(CAPABILITIES.TEMPLATES_MANAGE)
@@ -28,6 +34,8 @@ export class TemplatesController {
   publish(@Req() r: Ctx, @Param("versionId") v: string) { return this.templates.publish(r.organizationId, v); }
   @Post("templates/:id/instantiate-project") @RequirePermission(CAPABILITIES.TEMPLATES_MANAGE)
   instantiate(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(inst)) b: z.infer<typeof inst>) { return this.templates.instantiateProject(r.organizationId, r.userId, id, b); }
+  @Post("templates/:id/use-project") @RequirePermission(CAPABILITIES.PROJECT_CREATE)
+  useProjectTemplate(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(inst)) b: z.infer<typeof inst>) { return this.templates.instantiateProject(r.organizationId, r.userId, id, b); }
 
   @Get("recurring-rules") @RequirePermission(CAPABILITIES.TEMPLATES_MANAGE)
   listRec(@Req() r: Ctx) { return this.recurrence.list(r.organizationId); }
