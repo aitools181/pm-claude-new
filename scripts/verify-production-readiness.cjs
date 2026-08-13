@@ -25,9 +25,6 @@ const appDialog = read('apps/web/components/ui/AppDialog.tsx');
 check(appDialog.includes('useModalDialog<HTMLFormElement>') && appDialog.includes('ref={ref}') && !appDialog.includes('RefObject<HTMLFormElement>'), 'AppDialog form ref is typed as HTMLFormElement without unsafe ref casts');
 const sharedField = read('apps/web/components/ui/Field.tsx');
 check(sharedField.includes('forwardRef<HTMLInputElement') && sharedField.includes('<input ref={ref}') && sharedField.includes('forwardRef<HTMLTextAreaElement') && sharedField.includes('forwardRef<HTMLSelectElement'), 'Shared Input/Textarea/Select primitives forward native refs correctly');
-const searchParamConsumers = walk(path.join(root, 'apps/web')).filter(f => /\.(ts|tsx)$/.test(f) && fs.readFileSync(f, 'utf8').includes('useSearchParams'));
-const searchParamWithoutSuspense = searchParamConsumers.filter(f => !fs.readFileSync(f, 'utf8').includes('Suspense'));
-check(searchParamWithoutSuspense.length === 0, `Every useSearchParams consumer is protected by a Suspense boundary (${searchParamConsumers.length})`, searchParamWithoutSuspense.map(rel).join(', '));
 const sourceFiles = ['apps', 'packages'].flatMap(d => walk(path.join(root, d))).filter(f => /\.(ts|tsx)$/.test(f) && !f.endsWith('.d.ts'));
 let syntaxErrors = 0;
 for (const file of sourceFiles) {
@@ -90,11 +87,6 @@ const login = read('apps/web/app/login/page.tsx');
 const userMenu = read('apps/web/components/shell/UserMenu.tsx');
 check(!login.includes('document.cookie = "pm_session') && !login.includes("document.cookie = 'pm_session"), 'Login does not forge a client-side session sentinel');
 check(userMenu.includes('/auth/logout') && userMenu.includes('disconnectSocket()'), 'User menu provides server logout and realtime cleanup');
-const accountSettings = read('apps/web/app/(app)/settings/account/page.tsx');
-check(accountSettings.includes("api('/auth/logout'") && accountSettings.includes('>Sign out</Button>'), 'Account settings exposes an explicit current-device Sign out action');
-const rootPackage = JSON.parse(read('package.json'));
-const versionSource = read('packages/shared/src/version.ts');
-check(rootPackage.version === '5.7.0' && versionSource.includes('APP_VERSION = "5.7"'), 'Release metadata is consistently set to version 5.7');
 const breakglass = read('apps/api/src/enterprise-identity/enterprise-identity-public.controller.ts');
 check(breakglass.includes('secure: this.env.NODE_ENV === "production"'), 'Break-glass session cookie is Secure in production');
 

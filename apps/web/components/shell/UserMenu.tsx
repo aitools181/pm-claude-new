@@ -1,40 +1,46 @@
 "use client";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "../theme/ThemeProvider";
 import { Icon } from "../ui/Icon";
 import { api } from "../../lib/api";
-import { disconnectSocket } from "../../lib/realtime";
+import { signOut } from "../../lib/logout";
+
+type Profile = { displayName?: string; email?: string };
 
 export function UserMenu() {
   const { theme, setTheme, themes } = useTheme();
   const [signingOut, setSigningOut] = useState(false);
+  // Resolved on the client only, so the server render stays deterministic and
+  // hydration cannot mismatch. The previous build read a `pm_user_name` cookie
+  // that the API never sets, so the menu always said "Personal".
+  const [displayName, setDisplayName] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    api<Profile>("/me/profile", { org: true })
+      .then((p) => { if (!cancelled && p?.displayName) setDisplayName(p.displayName); })
+      .catch(() => { /* menu still works without a name */ });
+    return () => { cancelled = true; };
+  }, []);
 
-  async function signOut() {
+  const initials = displayName
+    ? displayName.split(" ").filter(Boolean).map((p) => p[0]).slice(0, 2).join("").toUpperCase()
+    : "PM";
+
+  async function handleSignOut() {
     if (signingOut) return;
     setSigningOut(true);
-    try { await api("/auth/logout", { method: "POST" }); } catch { /* local cleanup still applies */ }
-    disconnectSocket();
-    document.cookie = "pm_org=; path=/; max-age=0; samesite=lax";
-    window.location.assign("/login");
+    try { await signOut(); } finally { setSigningOut(false); }
   }
-
-  const initials = useMemo(() => {
-    if (typeof document === "undefined") return "PM";
-    const match = document.cookie.match(/(?:^|; )pm_user_name=([^;]+)/);
-    if (!match) return "PM";
-    const raw = decodeURIComponent(match[1]);
-    return raw.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-  }, []);
 
   return (
     <Dropdown.Root>
       <Dropdown.Trigger asChild>
-        <button className="user-trigger" aria-label="Open user menu">
+        <button className="user-trigger" aria-label="Open user menu — profile, theme and sign out">
           <span className="user-avatar">{initials}</span>
           <span className="user-trigger-copy">
-            <strong>Personal</strong>
-            <span>Settings & theme</span>
+            <strong>{displayName || "Personal"}</strong>
+            <span>Account & sign out</span>
           </span>
           <Icon name="chevronDown" size={16} />
         </button>
@@ -44,7 +50,7 @@ export function UserMenu() {
           <div className="user-menu-head">
             <div className="user-avatar large">{initials}</div>
             <div>
-              <div className="ui-static-e3ec02ac">My account</div>
+              <div className="ui-static-e3ec02ac">{displayName || "My account"}</div>
               <div className="muted ui-static-6cb285c6" >Profile, preferences and workspace controls</div>
             </div>
           </div>
@@ -63,10 +69,15 @@ export function UserMenu() {
           </Dropdown.Item>
 
           <div className="menu-sep" />
-          <Dropdown.Item className="menu-item" asChild>
-            <button type="button" onClick={signOut} disabled={signingOut}>
-              <Icon name="arrowLeft" size={16} />{signingOut ? "Signing out…" : "Sign out"}
-            </button>
+          {/* onSelect (not onClick) is the event Radix fires for keyboard *and*
+              pointer activation, so the item works either way. */}
+          <Dropdown.Item
+            className="menu-item menu-item-danger"
+            data-testid="sign-out"
+            onSelect={(event) => { event.preventDefault(); void handleSignOut(); }}
+          >
+            <Icon name="arrowLeft" size={16} />
+            <span>{signingOut ? "Signing out…" : "Log out"}</span>
           </Dropdown.Item>
 
           <div className="menu-sep" />
