@@ -1,3 +1,38 @@
+# Runtime failure diagnosed (2026-08-13, v5.8)
+
+## C. API container exits ~5s after start - "dependency failed to start: container api-... is unhealthy"
+The build succeeds and all three images are produced; the failure is at startup.
+Compose reports "unhealthy" because the container **exited**, not because a
+health probe failed (`start_period: 90s` keeps status at `starting` for the
+first 90 seconds).
+
+Root cause, from the Postgres container log:
+
+    PostgreSQL Database directory appears to contain a database; Skipping initialization
+    FATAL: password authentication failed for user "pm"
+
+The official Postgres image only applies `POSTGRES_PASSWORD` when it initialises
+an **empty** data volume. The `pgdata18` volume already held a database, so the
+password inside it stayed at its original value while the deployment supplied a
+different one. `drizzle-kit migrate` could not connect, the migration guard
+(correctly) refused to start the API, and the container exited.
+
+This is not an application bug - no code change fixes it. The remedy is to
+align the two:
+
+    docker exec <postgres-container> psql -U pm -d pm_platform \
+      -c "ALTER USER pm WITH PASSWORD 'value-from-your-env';"
+
+Changed in 5.8 so this is never opaque again:
+- `docker-compose.yml` - the api `command` is now a multi-line script. On
+  migration failure it prints `BOOT:FATAL` plus a targeted hint naming this
+  exact Postgres behaviour and the `ALTER USER` fix, waits briefly so the log is
+  readable, then exits non-zero. Migration failures remain fatal.
+- `.env.example` - documents that `POSTGRES_PASSWORD` is applied only on first
+  volume creation, and how to rotate it afterwards.
+
+---
+
 # Code review — bugs found & fixed (2026-08-13, v5.7)
 
 ## A. Web build fails — /settings/account prerender (Coolify deploy blocker)

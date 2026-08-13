@@ -67,7 +67,26 @@ services:
       NODE_ENV: production
     # Migration failures are fatal. Never start/advertise a healthy API against
     # an unknown schema.
-    command: sh -c "echo BOOT:migrating && pnpm --filter @pm/db exec drizzle-kit migrate && echo BOOT:starting-api && exec node /app/apps/api/dist/main.js"
+    # Migration failures stay fatal, but the reason is printed plainly instead of
+    # vanishing into an opaque "container is unhealthy" from the orchestrator.
+    command:
+      - sh
+      - -c
+      - |
+        echo "BOOT:migrating"
+        if ! pnpm --filter @pm/db exec drizzle-kit migrate; then
+          echo "BOOT:FATAL migration failed - the API will not start."
+          echo "BOOT:HINT If the error above says: password authentication failed for user pm"
+          echo "BOOT:HINT then the pgdata volume was created with a different POSTGRES_PASSWORD."
+          echo "BOOT:HINT Postgres only applies POSTGRES_PASSWORD when the volume is empty."
+          echo "BOOT:HINT Fix on the host (password value from your .env / Coolify env vars):"
+          echo "BOOT:HINT   docker exec <postgres-container> psql -U pm -d pm_platform -c \"ALTER USER pm WITH PASSWORD 'your-password';\""
+          sleep 10
+          exit 1
+        fi
+        echo "BOOT:migrate-ok"
+        echo "BOOT:starting-api"
+        exec node /app/apps/api/dist/main.js
     expose: ["4000"]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
