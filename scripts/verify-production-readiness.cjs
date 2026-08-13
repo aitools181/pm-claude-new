@@ -23,6 +23,8 @@ const workflow = read('apps/web/app/(app)/admin/configure/workflows/[id]/page.ts
 check(!/<[^>]+\bclassName=[^>]+\bclassName=/.test(workflow), 'Workflow editor has no duplicate JSX className attributes');
 const appDialog = read('apps/web/components/ui/AppDialog.tsx');
 check(appDialog.includes('useModalDialog<HTMLFormElement>') && appDialog.includes('ref={ref}') && !appDialog.includes('RefObject<HTMLFormElement>'), 'AppDialog form ref is typed as HTMLFormElement without unsafe ref casts');
+const sharedField = read('apps/web/components/ui/Field.tsx');
+check(sharedField.includes('forwardRef<HTMLInputElement') && sharedField.includes('<input ref={ref}') && sharedField.includes('forwardRef<HTMLTextAreaElement') && sharedField.includes('forwardRef<HTMLSelectElement'), 'Shared Input/Textarea/Select primitives forward native refs correctly');
 const sourceFiles = ['apps', 'packages'].flatMap(d => walk(path.join(root, d))).filter(f => /\.(ts|tsx)$/.test(f) && !f.endsWith('.d.ts'));
 let syntaxErrors = 0;
 for (const file of sourceFiles) {
