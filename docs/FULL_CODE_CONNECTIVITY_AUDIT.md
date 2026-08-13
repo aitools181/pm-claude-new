@@ -1,7 +1,7 @@
 # Full Code, UI and Frontend/Backend Connectivity Audit
 
 **Correction pass:** 2026-08-12  
-**Repository baseline:** PM Platform v5.2 final UI-standardized source  
+**Repository baseline:** PM Platform v5.7 production-stability source  
 **Scope:** previously identified P0/P1/P2 code, security, deployment, connectivity, UI/accessibility and integration corrections.
 
 ## Executive result

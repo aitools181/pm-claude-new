@@ -5,7 +5,7 @@ import { Button as UiButton } from "../ui";
 import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "../ui";
 import { appPrompt } from "../ui/AppDialog";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "../../lib/api";
 import { Icon, type IconName } from "../ui/Icon";
@@ -35,7 +35,7 @@ const tabs: { key: string; label: string; icon: IconName; suffix: string }[] = [
   { key: "files", label: "Files", icon: "paperclip", suffix: "/files" },
 ];
 
-export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjectChange }: {
+function ProjectChromeInner({ project, view, onAddTask, onAddSection, onProjectChange }: {
   project: Project; view: string; onAddTask?: (typeKey?: string) => void; onAddSection?: () => void; onProjectChange?: () => void;
 }) {
   const toast = useToast();
@@ -139,6 +139,10 @@ export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjec
     {customize && <CustomizeDrawer project={project} onClose={() => setCustomize(false)} onChanged={onProjectChange} />}
     {statusOpen && <StatusModal project={project} onClose={() => setStatusOpen(false)} onChanged={onProjectChange} />}
   </>;
+}
+
+export function ProjectChrome(props: Parameters<typeof ProjectChromeInner>[0]) {
+  return <Suspense fallback={null}><ProjectChromeInner {...props} /></Suspense>;
 }
 
 function MemberFaces({ projectId }: { projectId: string }) {
