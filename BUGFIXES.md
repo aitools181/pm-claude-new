@@ -1,3 +1,12 @@
+# Release 5.7 — Coolify production build stabilization (2026-08-13)
+
+- Fixed `/settings/account` prerender failure by placing the `useSearchParams()` consumer behind a React `Suspense` boundary.
+- Proactively protected every remaining `useSearchParams()` consumer, including project list/chrome, so the same Next.js 15 prerender failure does not surface route-by-route.
+- Verified shared Input/Textarea/Select native refs use `forwardRef`, preserving the prior TaskDrawer production typecheck fix.
+- Kept Python/make/g++ build dependencies in Alpine Docker builds so native optional modules can compile predictably in Coolify.
+- Added an explicit current-device **Sign out** action to Account settings; the top-right user menu also retains server-side logout and realtime cleanup.
+- Added production-readiness regression gates for Suspense/search-params safety, logout visibility, and release metadata.
+
 # Code review — bugs found & fixed (2026-08-07)
 
 Three build-blocking bugs were found. Each independently stops a production build,

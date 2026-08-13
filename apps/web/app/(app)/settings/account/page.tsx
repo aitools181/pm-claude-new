@@ -3,7 +3,7 @@
 import { Button, Input, Field } from "../../../../components/ui";
 import { SettingsShell } from "../../../../components/settings/SettingsShell";
 import { api, ApiError, setCurrentOrg } from "../../../../lib/api";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useToast } from "../../../../components/ui/Toast";
 
@@ -12,7 +12,7 @@ type EmailRow={id:string;email:string;label?:string|null;verifiedAt?:string|null
 type OrgRow={organizationId:string;organizationName:string;organizationSlug:string;membershipStatus:string};
 type Workspace={id:string;name:string};
 
-export default function AccountSettings(){
+function AccountSettingsInner(){
   const toast=useToast(); const qs=useSearchParams();
   const [two,setTwo]=useState<Two|null>(null); const [current,setCurrent]=useState(''); const [next,setNext]=useState(''); const [msg,setMsg]=useState('');
   const [emails,setEmails]=useState<EmailRow[]>([]); const [newEmail,setNewEmail]=useState(''); const [newLabel,setNewLabel]=useState('');
@@ -27,12 +27,18 @@ export default function AccountSettings(){
   async function removeEmail(id:string){await api(`/me/emails/${id}`,{method:'DELETE',org:true});load()}
   async function merge(){if(!mergeEmail||!mergePassword)return;setMerging(true);try{await api('/me/account-merge',{method:'POST',org:true,body:JSON.stringify({email:mergeEmail,password:mergePassword})});setMergeEmail('');setMergePassword('');toast({message:'Accounts merged. The other identity now signs in to this account.',tone:'success'});load()}catch(e){toast({message:e instanceof ApiError?e.message:'Could not merge accounts',tone:'error'})}finally{setMerging(false)}}
   async function createWorkspace(){if(!workspaceName.trim())return;try{await api('/workspaces',{method:'POST',org:true,body:JSON.stringify({name:workspaceName.trim()})});setWorkspaceName('');load()}catch(e){toast({message:e instanceof ApiError?e.message:'Could not create workspace',tone:'error'})}}
+  async function signOut(){try{await api('/auth/logout',{method:'POST'});}finally{document.cookie="pm_org=; path=/; max-age=0; samesite=lax";location.assign('/login')}}
   return <SettingsShell><div className="settings-section"><h2>Account</h2><p>Password, identity emails, organizations/workspaces, two-factor authentication, and sessions.</p>
     <div className="setting-card"><strong>Email addresses</strong><p className="setting-copy">Use verified additional addresses to sign in. Any verified address can become your primary address.</p><div className="account-email-list">{emails.map(row=><div className="account-email-row" key={row.id}><span><b>{row.email}</b><small>{row.primary?'Primary':row.verifiedAt?'Verified':'Verification pending'}{row.label?` · ${row.label}`:''}</small></span><div>{!row.primary&&row.verifiedAt&&<Button variant="tertiary" size="compact" onClick={()=>makePrimary(row.id)}>Make primary</Button>}{!row.primary&&<Button variant="tertiary" size="compact" onClick={()=>removeEmail(row.id)}>Remove</Button>}</div></div>)}</div><div className="account-add-email"><Field label="Additional email"><Input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="name@company.com"/></Field><Field label="Label" optional><Input value={newLabel} onChange={e=>setNewLabel(e.target.value)} placeholder="Work or personal"/></Field><Button variant="secondary" disabled={!newEmail} onClick={addEmail}>Add & verify</Button></div></div>
     <div className="setting-card"><strong>Merge another account</strong><p className="setting-copy">Move memberships and supported ownership from another PM Platform identity into this account. You must verify the other account with its password.</p><Field label="Other account email"><Input type="email" value={mergeEmail} onChange={e=>setMergeEmail(e.target.value)}/></Field><Field label="Other account password"><Input type="password" value={mergePassword} onChange={e=>setMergePassword(e.target.value)}/></Field><Button variant="secondary" disabled={!mergeEmail||!mergePassword||merging} onClick={merge}>{merging?'Merging…':'Merge accounts'}</Button></div>
     <div className="setting-card"><strong>Organizations & workspaces</strong><p className="setting-copy">Switch between organizations you belong to and manage workspaces in the current organization.</p><div className="account-org-list">{orgs.map(org=><button className="account-org-row" key={org.organizationId} onClick={()=>{setCurrentOrg(org.organizationId);location.assign('/home')}}><span><b>{org.organizationName}</b><small>{org.organizationSlug} · {org.membershipStatus}</small></span><span>Switch</span></button>)}</div><div className="account-workspaces"><strong>Current organization workspaces</strong>{workspaces.map(w=><span key={w.id}>{w.name}</span>)}<div className="account-workspace-create"><Input value={workspaceName} onChange={e=>setWorkspaceName(e.target.value)} placeholder="New workspace name"/><Button variant="secondary" size="compact" disabled={!workspaceName.trim()} onClick={createWorkspace}>Create workspace</Button></div></div><a className="text-button" href="/admin/organizations">Open organization administration</a></div>
     <div className="setting-card"><strong>Password</strong><Input type="password" className="input" placeholder="Current password" value={current} onChange={e=>setCurrent(e.target.value)}/><Input type="password" className="input" placeholder="New password (10+ characters)" value={next} onChange={e=>setNext(e.target.value)}/><Button variant="secondary" disabled={!current||next.length<10} onClick={change}>Change password</Button>{msg&&<span className="error-text">{msg}</span>}</div>
     <div className="setting-card"><strong>Two-factor authentication</strong><span>{two?.enabled?'Enabled':'Not enabled'}</span><a className="btn" href="/settings/sessions">Manage security & sessions</a></div>
-    <div className="setting-card danger-zone"><strong>Sign out other sessions</strong><span>Revoke every active device session.</span><Button variant="destructive" onClick={async()=>{await api('/auth/sessions/revoke-all',{method:'POST'});location.assign('/login')}}>Sign out everywhere</Button></div>
+    <div className="setting-card"><strong>Sign out</strong><span>End the session on this device and return to the sign-in screen.</span><Button variant="secondary" onClick={signOut}>Sign out</Button></div>
+    <div className="setting-card danger-zone"><strong>Sign out other sessions</strong><span>Revoke every active device session.</span><Button variant="destructive" onClick={async()=>{await api('/auth/sessions/revoke-all',{method:'POST'});document.cookie="pm_org=; path=/; max-age=0; samesite=lax";location.assign('/login')}}>Sign out everywhere</Button></div>
   </div></SettingsShell>;
+}
+
+export default function AccountSettings(){
+  return <Suspense fallback={null}><AccountSettingsInner /></Suspense>;
 }
