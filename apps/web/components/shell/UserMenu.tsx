@@ -1,11 +1,23 @@
 "use client";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTheme } from "../theme/ThemeProvider";
 import { Icon } from "../ui/Icon";
+import { api } from "../../lib/api";
+import { disconnectSocket } from "../../lib/realtime";
 
 export function UserMenu() {
   const { theme, setTheme, themes } = useTheme();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try { await api("/auth/logout", { method: "POST" }); } catch { /* local cleanup still applies */ }
+    disconnectSocket();
+    document.cookie = "pm_org=; path=/; max-age=0; samesite=lax";
+    window.location.assign("/login");
+  }
 
   const initials = useMemo(() => {
     if (typeof document === "undefined") return "PM";
@@ -32,8 +44,8 @@ export function UserMenu() {
           <div className="user-menu-head">
             <div className="user-avatar large">{initials}</div>
             <div>
-              <div style={{ fontWeight: 700 }}>My account</div>
-              <div className="muted" style={{ fontSize: 12 }}>Profile, preferences and workspace controls</div>
+              <div className="ui-static-e3ec02ac">My account</div>
+              <div className="muted ui-static-6cb285c6" >Profile, preferences and workspace controls</div>
             </div>
           </div>
 
@@ -48,6 +60,13 @@ export function UserMenu() {
           </Dropdown.Item>
           <Dropdown.Item className="menu-item" asChild>
             <a href="/settings/sessions"><Icon name="shield" size={16} />Security & sessions</a>
+          </Dropdown.Item>
+
+          <div className="menu-sep" />
+          <Dropdown.Item className="menu-item" asChild>
+            <button type="button" onClick={signOut} disabled={signingOut}>
+              <Icon name="arrowLeft" size={16} />{signingOut ? "Signing out…" : "Sign out"}
+            </button>
           </Dropdown.Item>
 
           <div className="menu-sep" />

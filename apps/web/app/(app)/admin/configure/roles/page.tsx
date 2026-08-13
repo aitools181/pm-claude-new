@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../../components/ui";
+import { Select as UiSelect } from "../../../../../components/ui";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../../../../lib/api";
 import { Field, Input } from "../../../../../components/ui/Field";
@@ -45,48 +49,48 @@ export default function RolesEditor() {
     <>
       <h1 className="page-title">Roles & Permissions</h1>
       <p className="page-sub">Build roles, assign them, and preview a user's exact capabilities — the preview is computed by the same resolver the server enforces.</p>
-      {msg && <div className="callout callout-info" style={{ marginBottom: 14 }}>{msg}</div>}
+      {msg && <div className="callout callout-info ui-static-2b583d73" >{msg}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="ui-static-911b26ad">
         <div className="card card-p">
           <strong>New role</strong>
-          <div className="cfg-form" style={{ margin: "12px 0" }}>
+          <div className="cfg-form ui-static-d60550f6" >
             <Field label="Key"><Input className="mono" value={nr.key} onChange={(e) => setNr({ ...nr, key: e.target.value })} placeholder="reporter" /></Field>
             <Field label="Name"><Input value={nr.name} onChange={(e) => setNr({ ...nr, name: e.target.value })} placeholder="Reporter" /></Field>
           </div>
-          <div style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 8 }}>Permissions</div>
-          <div className="chips" style={{ marginBottom: 14, maxHeight: 180, overflow: "auto" }}>
-            {caps.map((c) => <span key={c} className="chip mono" data-on={!!picked[c]} onClick={() => setPicked({ ...picked, [c]: !picked[c] })}>{c}</span>)}
+          <div className="ui-static-8672e9a0">Permissions</div>
+          <div className="chips ui-static-02a78aa2" >
+            {caps.map((c) => <button type="button" key={c} className="chip mono ui-reset-button" aria-pressed={!!picked[c]} data-on={!!picked[c]} onClick={() => setPicked({ ...picked, [c]: !picked[c] })}>{c}</button>)}
           </div>
-          <button className="btn btn-primary" disabled={!nr.key || !nr.name} onClick={createRole}>Create role</button>
+          <UiButton variant="primary"  disabled={!nr.key || !nr.name} onClick={createRole}>Create role</UiButton>
 
-          <div style={{ borderTop: "1px solid var(--line)", margin: "18px 0" }} />
+          <div className="ui-static-8986c503" />
           <strong>Assign role</strong>
-          <div className="cfg-form" style={{ marginTop: 12 }}>
-            <Field label="User"><select className="input" value={assign.targetUserId} onChange={(e) => setAssign({ ...assign, targetUserId: e.target.value })}><option value="">Select…</option>{members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select></Field>
-            <Field label="Role"><select className="input" value={assign.roleKey} onChange={(e) => setAssign({ ...assign, roleKey: e.target.value })}><option value="">Select…</option>{roles.map((r) => <option key={r.id} value={r.key}>{r.name}</option>)}</select></Field>
+          <div className="cfg-form ui-static-56f43562" >
+            <Field label="User"><UiSelect className="input" value={assign.targetUserId} onChange={(e) => setAssign({ ...assign, targetUserId: e.target.value })}><option value="">Select…</option>{members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</UiSelect></Field>
+            <Field label="Role"><UiSelect className="input" value={assign.roleKey} onChange={(e) => setAssign({ ...assign, roleKey: e.target.value })}><option value="">Select…</option>{roles.map((r) => <option key={r.id} value={r.key}>{r.name}</option>)}</UiSelect></Field>
           </div>
-          <button className="btn" disabled={!assign.targetUserId || !assign.roleKey} onClick={doAssign}>Assign</button>
+          <UiButton variant="secondary"  disabled={!assign.targetUserId || !assign.roleKey} onClick={doAssign}>Assign</UiButton>
         </div>
 
         <div className="card card-p">
           <strong>Permission preview</strong>
-          <p style={{ color: "var(--ink-2)", fontSize: 13, marginTop: 4 }}>Exactly what this user can do right now.</p>
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
-            <Field label="User"><select className="input" value={previewUser} onChange={(e) => setPreviewUser(e.target.value)}><option value="">Select…</option>{members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select></Field>
-            <button className="btn btn-primary" style={{ marginBottom: 16 }} disabled={!previewUser} onClick={runPreview}>Preview</button>
+          <p className="ui-static-76ceb398">Exactly what this user can do right now.</p>
+          <div className="ui-static-843ba39c">
+            <Field label="User"><UiSelect className="input" value={previewUser} onChange={(e) => setPreviewUser(e.target.value)}><option value="">Select…</option>{members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</UiSelect></Field>
+            <UiButton variant="primary" className="ui-static-87c136df"  disabled={!previewUser} onClick={runPreview}>Preview</UiButton>
           </div>
           <div className="preview-box">
-            {preview === null && <span style={{ color: "var(--ink-3)", fontSize: 13 }}>Select a user and preview.</span>}
-            {preview?.length === 0 && <span style={{ color: "var(--ink-3)", fontSize: 13 }}>No capabilities.</span>}
+            {preview === null && <span className="ui-static-c3d3e812">Select a user and preview.</span>}
+            {preview?.length === 0 && <span className="ui-static-c3d3e812">No capabilities.</span>}
             {preview?.map((c) => <div key={c} className="cap-line">✓ {c}</div>)}
           </div>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
+      <div className="card ui-static-1b0f4999" >
         <table className="table"><thead><tr><th>Role</th><th>Key</th><th>Type</th></tr></thead>
-          <tbody>{roles.map((r) => <tr key={r.id}><td style={{ fontWeight: 500 }}>{r.name}</td><td className="mono">{r.key}</td><td>{r.isSystem === "true" ? "system" : "custom"}</td></tr>)}</tbody>
+          <tbody>{roles.map((r) => <tr key={r.id}><td className="ui-static-02a2d333">{r.name}</td><td className="mono">{r.key}</td><td>{r.isSystem === "true" ? "system" : "custom"}</td></tr>)}</tbody>
         </table>
       </div>
     </>

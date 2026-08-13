@@ -1,11 +1,11 @@
 import { Module } from "@nestjs/common";
 import { WebhookService } from "./webhook.service.js";
 import { WebhooksController } from "./webhooks.controller.js";
-import { WEBHOOK_SENDER, LogWebhookSender } from "./webhook-sender.js";
+import { WEBHOOK_SENDER, FetchWebhookSender } from "./webhook-sender.js";
 
 @Module({
   controllers: [WebhooksController],
-  providers: [WebhookService, { provide: WEBHOOK_SENDER, useClass: LogWebhookSender }],
+  providers: [WebhookService, { provide: WEBHOOK_SENDER, useClass: FetchWebhookSender }],
   exports: [WebhookService],
 })
 export class WebhooksModule {}

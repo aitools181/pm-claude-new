@@ -54,5 +54,5 @@ export class AutomationController {
   runs(@Req() r: Ctx, @Param("id") id: string) { return this.auto.runs(r.organizationId, id); }
 
   @Get("runs/:runId/steps") @RequirePermission(CAPABILITIES.AUTOMATION_MANAGE)
-  steps(@Param("runId") id: string) { return this.auto.steps(id); }
+  steps(@Req() r: Ctx, @Param("runId") id: string) { return this.auto.steps(r.organizationId, id); }
 }

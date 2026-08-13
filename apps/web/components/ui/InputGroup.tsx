@@ -1,0 +1,2 @@
+import type { ReactNode } from "react";
+export function InputGroup({ leading, children, trailing, className = "" }: { leading?: ReactNode; children: ReactNode; trailing?: ReactNode; className?: string }) { return <div className={`ui-input-group ${className}`.trim()}>{leading ? <span className="ui-input-group-slot">{leading}</span> : null}<div className="ui-input-group-control">{children}</div>{trailing ? <span className="ui-input-group-slot">{trailing}</span> : null}</div>; }

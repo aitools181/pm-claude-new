@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput, Select as UiSelect } from "../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
@@ -39,26 +43,26 @@ export default function QuickCreatePage() {
   async function retry(a: QueuedAction) { updateAction(a.id, { status: "pending", error: undefined }); refresh(); await doFlush(); }
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto" }}>
+    <div className="ui-static-34a7c6fd">
       <h1 className="page-title">Quick add</h1>
       <p className="page-sub">{online ? "Online — items are created immediately." : "Offline — items are queued and sync automatically when you reconnect."}</p>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{ minWidth: 140 }}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-        <input className="input" placeholder="What needs doing?" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} style={{ flex: 1, minWidth: 160 }} />
-        <button className="btn btn-primary" onClick={add}>Add</button>
+      <div className="ui-static-4748c51c">
+        <UiSelect className="input ui-static-4592c743" value={projectId} onChange={(e) => setProjectId(e.target.value)} >{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UiSelect>
+        <UiInput className="input ui-static-eb62184e" placeholder="What needs doing?" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()}  />
+        <UiButton variant="primary"  onClick={add}>Add</UiButton>
       </div>
 
       {queue.length > 0 && (
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3 style={{ fontSize: 14 }}>Pending sync ({queue.length})</h3>
-            {online && <button className="btn btn-ghost" onClick={doFlush}>Sync now</button>}
+          <div className="ui-static-13313b1a">
+            <h3 className="ui-static-433de30b">Pending sync ({queue.length})</h3>
+            {online && <UiButton variant="tertiary"  onClick={doFlush}>Sync now</UiButton>}
           </div>
           {queue.map((a) => (
-            <div key={a.id} className="fieldcard" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>{a.payload.title} {a.status === "conflict" ? <span className="pill rejected" style={{ marginLeft: 6 }}>conflict</span> : <span className="pill submitted" style={{ marginLeft: 6 }}>queued</span>}{a.error && <span className="muted" style={{ fontSize: 11, display: "block" }}>{a.error}</span>}</span>
-              {a.status === "conflict" && <span style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost" onClick={() => retry(a)}>Retry</button><button className="btn btn-ghost" onClick={() => { removeAction(a.id); refresh(); }}>Discard</button></span>}
+            <div key={a.id} className="fieldcard ui-static-13313b1a" >
+              <span>{a.payload.title} {a.status === "conflict" ? <span className="pill rejected ui-static-391ef124" >conflict</span> : <span className="pill submitted ui-static-391ef124" >queued</span>}{a.error && <span className="muted ui-static-9456bf7e" >{a.error}</span>}</span>
+              {a.status === "conflict" && <span className="ui-static-49cd0921"><UiButton variant="tertiary"  onClick={() => retry(a)}>Retry</UiButton><UiButton variant="tertiary"  onClick={() => { removeAction(a.id); refresh(); }}>Discard</UiButton></span>}
             </div>
           ))}
         </div>

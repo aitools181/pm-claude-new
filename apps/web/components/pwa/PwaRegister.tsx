@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Button } from "../ui/Button";
 
-/** Registers the service worker and surfaces install/update prompts. */
+/** Registers the service worker and surfaces persistent connectivity/update status. */
 export default function PwaRegister() {
   const [updateReady, setUpdateReady] = useState<ServiceWorker | null>(null);
   const [offline, setOffline] = useState(false);
@@ -22,7 +23,7 @@ export default function PwaRegister() {
 
   function applyUpdate() { updateReady?.postMessage("SKIP_WAITING"); updateReady?.addEventListener("statechange", () => { if (updateReady.state === "activated") location.reload(); }); }
 
-  if (offline) return <div style={{ position: "fixed", bottom: 12, left: 12, zIndex: 50, background: "#92610A", color: "#fff", padding: "6px 12px", borderRadius: 8, fontSize: 13 }}>Offline — changes queue locally</div>;
-  if (updateReady) return <div style={{ position: "fixed", bottom: 12, left: 12, zIndex: 50, background: "var(--primary,#5B8DEF)", color: "#fff", padding: "6px 12px", borderRadius: 8, fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}>A new version is available <button onClick={applyUpdate} style={{ background: "#fff", color: "#111", border: "none", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}>Update</button></div>;
+  if (offline) return <div className="ui-pwa-status" data-tone="warning" role="status" aria-live="polite">Offline — changes queue locally</div>;
+  if (updateReady) return <div className="ui-pwa-status" data-tone="info" role="status" aria-live="polite"><span>A new version is available</span><Button size="compact" variant="secondary" onClick={applyUpdate}>Update</Button></div>;
   return null;
 }

@@ -1,4 +1,9 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../../components/ui";
+import { Input as UiInput } from "../../../../../components/ui";
+import { appPrompt } from "../../../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "../../../../../lib/api";
@@ -41,7 +46,7 @@ export default function BacklogPage() {
   }
   async function removeFromSprint(item: Item) { await api(`/sprints/${target}/items/${item.id}`, { method: "DELETE", org: true }); loadBacklog(); loadDetail(target); }
   async function createSprint() {
-    const name = prompt("Sprint name", `Sprint ${sprints.length + 1}`); if (!name) return;
+    const name = await appPrompt("Sprint name", `Sprint ${sprints.length + 1}`); if (!name) return;
     const s = await api<Sprint>(`/projects/${id}/sprints`, { method: "POST", org: true, body: JSON.stringify({ name }) });
     await loadSprints(); setTarget(s.id);
   }
@@ -54,8 +59,8 @@ export default function BacklogPage() {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <h1 className="page-title" style={{ marginBottom: 4 }}>Backlog</h1>
+      <div className="ui-static-69be3752">
+        <h1 className="page-title ui-static-c81ce4b2" >Backlog</h1>
         <a className="btn" href={`/projects/${id}`}>← Project</a>
       </div>
       <p className="page-sub">{backlog.length} items · {totalPts} points</p>
@@ -65,38 +70,38 @@ export default function BacklogPage() {
           {backlog.length === 0 && <div className="empty">Backlog is empty. Create work items in the project.</div>}
           {backlog.map((it, i) => (
             <div key={it.id} className="bl-row">
-              <span style={{ display: "flex", flexDirection: "column" }}>
-                <button className="btn btn-ghost" style={{ padding: "0 4px", height: 16, lineHeight: 1 }} onClick={() => move(i, -1)} disabled={i === 0}>▲</button>
-                <button className="btn btn-ghost" style={{ padding: "0 4px", height: 16, lineHeight: 1 }} onClick={() => move(i, 1)} disabled={i === backlog.length - 1}>▼</button>
+              <span className="ui-static-7ecbcd21">
+                <UiButton variant="tertiary" className="ui-static-6d46476a"  onClick={() => move(i, -1)} disabled={i === 0}>▲</UiButton>
+                <UiButton variant="tertiary" className="ui-static-6d46476a"  onClick={() => move(i, 1)} disabled={i === backlog.length - 1}>▼</UiButton>
               </span>
               <span className="key">{it.key}</span>
               <span className="title">{it.title}</span>
-              <input className="pts" defaultValue={it.storyPoints ?? ""} placeholder="–" onBlur={(e) => e.target.value !== String(it.storyPoints ?? "") && setPoints(it, e.target.value)} />
-              <button className="btn btn-ghost" onClick={() => addToSprint(it)}>→ Sprint</button>
+              <UiInput className="pts" defaultValue={it.storyPoints ?? ""} placeholder="–" onBlur={(e) => e.target.value !== String(it.storyPoints ?? "") && setPoints(it, e.target.value)} />
+              <UiButton variant="tertiary"  onClick={() => addToSprint(it)}>→ Sprint</UiButton>
             </div>
           ))}
         </div>
 
         <div className="gpanel">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h3>Sprints</h3><button className="btn btn-ghost" onClick={createSprint}>+ New</button></div>
+          <div className="ui-static-13313b1a"><h3>Sprints</h3><UiButton variant="tertiary"  onClick={createSprint}>+ New</UiButton></div>
           {sprints.map((s) => (
-            <div key={s.id} className="sprint-card" data-state={s.state} style={{ borderColor: target === s.id ? "var(--primary)" : undefined }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <button className="btn btn-ghost" style={{ padding: 0, fontWeight: 600 }} onClick={() => setTarget(s.id)}>{s.name}</button>
+            <div key={s.id} className="sprint-card" data-state={s.state} data-selected={target === s.id || undefined}>
+              <div className="ui-static-13313b1a">
+                <UiButton variant="tertiary" className="ui-static-06b2a83b"  onClick={() => setTarget(s.id)}>{s.name}</UiButton>
                 <span className={`pill ${s.state === "active" ? "submitted" : s.state === "closed" ? "approved" : "open"}`}>{s.state}</span>
               </div>
               {target === s.id && detail && (
-                <div style={{ marginTop: 8 }}>
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{detail.items.length} items · {detail.points} pts{s.committedPoints != null ? ` · committed ${s.committedPoints}` : ""}</div>
+                <div className="ui-static-8a77e5a3">
+                  <div className="muted ui-static-a42d5f9e" >{detail.items.length} items · {detail.points} pts{s.committedPoints != null ? ` · committed ${s.committedPoints}` : ""}</div>
                   {detail.items.map((it) => (
-                    <div key={it.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0" }}>
+                    <div key={it.id} className="ui-static-78ed4c5e">
                       <span>{it.key} {it.title.slice(0, 18)}</span>
-                      {s.state !== "closed" && <button className="btn btn-ghost" style={{ padding: "0 6px" }} onClick={() => removeFromSprint(it)}>✕</button>}
+                      {s.state !== "closed" && <UiButton variant="tertiary" className="ui-static-7c699c10"  onClick={() => removeFromSprint(it)}>✕</UiButton>}
                     </div>
                   ))}
-                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                    {s.state === "planned" && <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => startSprint(s.id)} disabled={detail.items.length === 0}>Start</button>}
-                    {s.state !== "planned" && <a className="btn btn-primary" style={{ flex: 1, textAlign: "center" }} href={`/projects/${id}/sprints/${s.id}`}>Open board →</a>}
+                  <div className="ui-static-1a6be0e9">
+                    {s.state === "planned" && <UiButton variant="primary" className="ui-static-97445a8d"  onClick={() => startSprint(s.id)} disabled={detail.items.length === 0}>Start</UiButton>}
+                    {s.state !== "planned" && <a className="btn btn-primary ui-static-3cce2efa"  href={`/projects/${id}/sprints/${s.id}`}>Open board →</a>}
                   </div>
                 </div>
               )}

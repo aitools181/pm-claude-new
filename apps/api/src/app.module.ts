@@ -63,9 +63,10 @@ import { AiAgentsModule } from "./ai-agents/ai-agents.module.js";
 import { UxModule } from "./ux/ux.module.js";
 import { PlatformAdminModule } from "./platform/platform-admin.module.js";
 import { PlansModule } from "./plans/plans.module.js";
+import { BackgroundJobsModule } from "./background-jobs/background-jobs.module.js";
 
 @Module({
-  imports: [PlatformAdminModule, PlansModule, 
+  imports: [PlatformAdminModule, PlansModule, BackgroundJobsModule, 
     LoggerModule.forRoot({
       pinoHttp: {
         genReqId: (req, res) => {

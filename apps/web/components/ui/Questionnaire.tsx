@@ -1,0 +1,2 @@
+import type { FormHTMLAttributes, ReactNode } from "react";
+export function Questionnaire({ title, description, children, actions, className = "", ...props }: FormHTMLAttributes<HTMLFormElement> & { title: ReactNode; description?: ReactNode; actions?: ReactNode }) { return <form className={`ui-questionnaire ${className}`.trim()} {...props}><header><h2>{title}</h2>{description ? <p>{description}</p> : null}</header><div className="ui-questionnaire-fields">{children}</div>{actions ? <footer>{actions}</footer> : null}</form>; }

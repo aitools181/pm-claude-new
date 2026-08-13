@@ -1,4 +1,4 @@
-const BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") + "/api/v1";
+const BASE = (process.env.NEXT_PUBLIC_API_URL?.trim() ?? "") + "/api/v1";
 const ORG_COOKIE = "pm_org";
 
 export function getCurrentOrg(): string | null {
@@ -12,12 +12,26 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, headers: Headers, opts: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, { ...opts, headers, credentials: "include" });
+  let res: Response;
+  try {
+    res = await fetch(BASE + path, { ...opts, headers, credentials: "include" });
+  } catch (cause) {
+    throw new ApiError(0, "NETWORK", cause instanceof Error ? cause.message : "Network request failed");
+  }
   if (res.status === 204) return undefined as T;
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const e = body?.error ?? {};
-    throw new ApiError(res.status, e.code ?? "INTERNAL", e.message ?? "Request failed", e.details);
+    const error = new ApiError(res.status, e.code ?? "INTERNAL", e.message ?? "Request failed", e.details);
+    if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/login")) {
+      document.cookie = `${ORG_COOKIE}=; path=/; max-age=0; samesite=lax`;
+      window.dispatchEvent(new CustomEvent("pm:auth-expired"));
+      if (window.location.pathname !== "/login") {
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.assign(`/login?expired=1&next=${next}`);
+      }
+    }
+    throw error;
   }
   return body as T;
 }
@@ -63,10 +77,20 @@ export async function apiDownload(path: string, filename: string): Promise<void>
   const org = getCurrentOrg() ?? (await ensureOrg());
   const headers = new Headers();
   if (org) headers.set("X-Organization-Id", org);
-  const res = await fetch(BASE + path, { method: "GET", headers, credentials: "include" });
+  let res: Response;
+  try {
+    res = await fetch(BASE + path, { method: "GET", headers, credentials: "include" });
+  } catch (cause) {
+    throw new ApiError(0, "NETWORK", cause instanceof Error ? cause.message : "Network request failed");
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const e = body?.error ?? {};
+    if (res.status === 401 && typeof window !== "undefined") {
+      document.cookie = `${ORG_COOKIE}=; path=/; max-age=0; samesite=lax`;
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.assign(`/login?expired=1&next=${next}`);
+    }
     throw new ApiError(res.status, e.code ?? "INTERNAL", e.message ?? "Download failed", e.details);
   }
   const blob = await res.blob();

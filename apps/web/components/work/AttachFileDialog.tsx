@@ -1,6 +1,10 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import { api, apiUpload } from "../../lib/api";
+import { Button } from "../ui/Button";
+import { Dialog } from "../ui/Dialog";
+import { EmptyState } from "../ui/Display";
+import { Field, Input } from "../ui/Field";
 import { Icon } from "../ui/Icon";
 import { useToast } from "../ui/Toast";
 
@@ -28,17 +32,30 @@ export function AttachFileDialog({ tasks, initialTaskId, onClose, onUploaded }: 
       toast({ message: `${file.name} added` });
       onUploaded();
       onClose();
+    } catch (error) {
+      toast({ message: error instanceof Error ? error.message : "Could not upload file", tone: "error" });
     } finally { setUploading(false); }
   }
 
-  return <div className="modal-backdrop attach-file-backdrop" onMouseDown={(event) => event.currentTarget === event.target && onClose()}>
-    <div className="modal-card attach-file-dialog">
-      <div className="modal-title-row"><div><h2>Add file</h2><p>Choose the task that should own this project file.</p></div><button className="icon-btn" onClick={onClose}><Icon name="close" /></button></div>
-      <label className="field"><span>Attach to task</span><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tasks" /></label>
-      <div className="attach-target-list">{filtered.map((task) => <button key={task.id} data-active={targetId === task.id} onClick={() => setTargetId(task.id)}><Icon name={targetId === task.id ? "check" : "circle"} size={16}/><span><strong>{task.title}</strong><small>{task.key}</small></span></button>)}</div>
-      {!tasks.length && <div className="compact-empty"><Icon name="paperclip"/><strong>Create a task first</strong><span>Files are attached to work items so permissions and history stay consistent.</span></div>}
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Add file"
+      description="Choose the task that should own this project file."
+      className="attach-file-dialog"
+      initialFocusSelector="input:not([type=file])"
+      closeLabel="Close add file dialog"
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" leadingIcon="paperclip" loading={uploading} disabled={!targetId} onClick={() => inputRef.current?.click()}>{uploading ? "Uploading" : "Choose file"}</Button></>}
+    >
+      <Field label="Attach to task">
+        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tasks" />
+      </Field>
+      <div className="attach-target-list" aria-label="Task to attach file to">
+        {filtered.map((task) => <button type="button" aria-pressed={targetId === task.id} key={task.id} data-active={targetId === task.id} onClick={() => setTargetId(task.id)}><Icon name={targetId === task.id ? "check" : "circle"} size={16}/><span><strong>{task.title}</strong><small>{task.key}</small></span></button>)}
+      </div>
+      {!tasks.length ? <EmptyState title="Create a task first" description="Files are attached to work items so permissions and history stay consistent." icon="paperclip" /> : null}
       <input ref={inputRef} hidden type="file" onChange={(event) => event.target.files?.[0] && upload(event.target.files[0])} />
-      <div className="modal-foot right"><button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!targetId || uploading} onClick={() => inputRef.current?.click()}><Icon name="paperclip" size={15}/>{uploading ? "Uploading…" : "Choose file"}</button></div>
-    </div>
-  </div>;
+    </Dialog>
+  );
 }

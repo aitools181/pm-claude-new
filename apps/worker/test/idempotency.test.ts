@@ -23,6 +23,23 @@ describe("worker idempotency", () => {
     expect(effect).toHaveBeenCalledTimes(1);
   });
 
+
+  it("serializes concurrent deliveries for the same idempotency key", async () => {
+    const { runIdempotent } = await import("../src/job-runner.js");
+    let calls = 0;
+    const effect = async () => { calls++; await new Promise((r) => setTimeout(r, 40)); return { calls }; };
+    const job = { idempotencyKey: "k-concurrent", payload: {} };
+    const [a, b] = await Promise.all([runIdempotent(job, effect), runIdempotent(job, effect)]);
+    expect(calls).toBe(1);
+    expect(a).toEqual(b);
+  });
+
+  it("refuses incomplete organization context", async () => {
+    const { runIdempotent } = await import("../src/job-runner.js");
+    await expect(runIdempotent({ idempotencyKey: "k-incomplete", organizationId: crypto.randomUUID(), payload: {} }, async () => ({})))
+      .rejects.toThrow(/must be supplied together/i);
+  });
+
   it("refuses a scoped job with no valid membership", async () => {
     const { runIdempotent } = await import("../src/job-runner.js");
     await expect(

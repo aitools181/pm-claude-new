@@ -53,29 +53,29 @@ export default function DependencyGraphPage() {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>Dependencies</h1>
+      <div className="ui-static-aba76af3">
+        <h1 className="page-title ui-static-ef0b7a11" >Dependencies</h1>
         <a className="btn" href={`/projects/${id}`}>← Project</a>
       </div>
 
       {conflicts.length > 0 && (
-        <div className="callout callout-danger" style={{ marginBottom: 16 }}>
+        <div className="callout callout-danger ui-static-87c136df" >
           <strong>{conflicts.length} dependency conflict(s)</strong> — shown as warnings only; V1 never reschedules automatically.
           {conflicts.map((c) => {
             const p = nodeById(c.predecessorId), s = nodeById(c.successorId);
-            return <div key={c.dependencyId} style={{ fontSize: 13, marginTop: 4 }}>{s?.key ?? "?"} starts {c.successorStart} but {p?.key ?? "?"} is due {c.predecessorDue}.</div>;
+            return <div key={c.dependencyId} className="ui-static-5661dcc8">{s?.key ?? "?"} starts {c.successorStart} but {p?.key ?? "?"} is due {c.predecessorDue}.</div>;
           })}
         </div>
       )}
 
       <div className="dep-wrap">
-        <svg width={Math.max(layout.width, 400)} height={Math.max(layout.height, 200)} style={{ display: "block" }}>
+        <svg width={Math.max(layout.width, 400)} height={Math.max(layout.height, 200)} className="ui-static-2a1b75c9">
           <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-3)" /></marker></defs>
           {edges.map((e) => {
             const a = layout.pos.get(e.from), b = layout.pos.get(e.to); if (!a || !b) return null;
             const x1 = a.x + W, y1 = a.y + H / 2, x2 = b.x, y2 = b.y + H / 2;
             const mx = (x1 + x2) / 2;
-            return <path key={e.id} className={`dep-edge ${conflictEdges.has(e.id) ? "conflict" : ""}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`} style={conflictEdges.has(e.id) ? { stroke: "var(--danger)" } : {}} />;
+            return <path key={e.id} className={`dep-edge ${conflictEdges.has(e.id) ? "conflict" : ""}`} d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`} data-conflict={conflictEdges.has(e.id) || undefined} />;
           })}
           {nodes.map((n) => {
             const p = layout.pos.get(n.id); if (!p) return null;

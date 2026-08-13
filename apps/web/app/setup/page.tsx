@@ -1,4 +1,6 @@
 "use client";
+
+import { Button as UiButton } from "../../components/ui";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "../../lib/api";
@@ -29,8 +31,8 @@ export default function SetupPage() {
       <AuthAside meta="First-run setup · creates the first administrator and organization" />
       <div className="auth-panel">
         <div className="auth-panel-inner">
-          <h1 style={{ fontSize: 22, marginBottom: 6 }}>Set up your installation</h1>
-          <p style={{ color: "var(--ink-2)", marginTop: 0, marginBottom: 24 }}>This runs once. You’ll be the first administrator.</p>
+          <h1 className="ui-static-849a358d">Set up your installation</h1>
+          <p className="ui-static-3af046eb">This runs once. You’ll be the first administrator.</p>
 
           <div className="stepper">
             {STEPS.map((s, i) => (
@@ -40,14 +42,14 @@ export default function SetupPage() {
             ))}
           </div>
 
-          {error && <div style={{ marginBottom: 16 }}><Callout tone="danger">{error}</Callout></div>}
+          {error && <div className="ui-static-87c136df"><Callout tone="danger">{error}</Callout></div>}
 
           {step === 0 && (
             <>
               <Field label="Your name"><Input value={f.displayName} onChange={set("displayName")} placeholder="Ada Lovelace" /></Field>
               <Field label="Email"><Input type="email" value={f.email} onChange={set("email")} placeholder="admin@company.com" /></Field>
               <Field label="Password" hint="At least 10 characters."><Input type="password" value={f.password} onChange={set("password")} /></Field>
-              <button className="btn btn-primary btn-block" disabled={!f.displayName || !f.email || f.password.length < 10} onClick={() => setStep(1)}>Continue</button>
+              <UiButton variant="primary" className="btn-block" disabled={!f.displayName || !f.email || f.password.length < 10} onClick={() => setStep(1)}>Continue</UiButton>
             </>
           )}
 
@@ -57,24 +59,24 @@ export default function SetupPage() {
               <Field label="Organization slug" hint={<>Used in URLs. <span className="mono">{f.orgSlug || "acme-inc"}</span></>}>
                 <Input className="mono" value={f.orgSlug} onChange={set("orgSlug")} placeholder="acme-inc" />
               </Field>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn" onClick={() => setStep(0)}>Back</button>
-                <button className="btn btn-primary btn-block" disabled={!f.orgName || !f.orgSlug} onClick={() => setStep(2)}>Continue</button>
+              <div className="ui-static-a76d597a">
+                <UiButton variant="secondary"  onClick={() => setStep(0)}>Back</UiButton>
+                <UiButton variant="primary" className="btn-block" disabled={!f.orgName || !f.orgSlug} onClick={() => setStep(2)}>Continue</UiButton>
               </div>
             </>
           )}
 
           {step === 2 && (
             <>
-              <div className="card card-p" style={{ marginBottom: 16 }}>
+              <div className="card card-p ui-static-87c136df" >
                 <Row k="Administrator" v={f.displayName} />
                 <Row k="Email" v={f.email} mono />
                 <Row k="Organization" v={f.orgName} />
                 <Row k="Slug" v={f.orgSlug} mono />
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn" onClick={() => setStep(1)}>Back</button>
-                <button className="btn btn-primary btn-block" onClick={finish} disabled={busy}>{busy ? "Creating…" : "Create and finish"}</button>
+              <div className="ui-static-a76d597a">
+                <UiButton variant="secondary"  onClick={() => setStep(1)}>Back</UiButton>
+                <UiButton variant="primary" className="btn-block" onClick={finish} disabled={busy}>{busy ? "Creating…" : "Create and finish"}</UiButton>
               </div>
             </>
           )}
@@ -86,8 +88,8 @@ export default function SetupPage() {
 
 function Row({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
-      <span style={{ color: "var(--ink-3)" }}>{k}</span>
+    <div className="ui-static-7342334e">
+      <span className="ui-static-fbeb64b6">{k}</span>
       <span className={mono ? "mono" : ""}>{v || "—"}</span>
     </div>
   );

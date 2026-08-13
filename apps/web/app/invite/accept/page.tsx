@@ -1,4 +1,6 @@
 "use client";
+
+import { Button as UiButton } from "../../../components/ui";
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { api, ApiError } from "../../../lib/api";
@@ -27,15 +29,15 @@ function Accept() {
     <div className="auth">
       <AuthAside meta="Invitation · join an organization" />
       <div className="auth-panel"><div className="auth-panel-inner">
-        <h1 style={{ fontSize: 22, marginBottom: 6 }}>Accept your invitation</h1>
-        <p style={{ color: "var(--ink-2)", marginTop: 0, marginBottom: 22 }}>Set up your account to join.</p>
+        <h1 className="ui-static-849a358d">Accept your invitation</h1>
+        <p className="ui-static-a71c0726">Set up your account to join.</p>
         {!token && <Callout tone="danger">This link is missing its token.</Callout>}
-        {error && <div style={{ marginTop: 12, marginBottom: 4 }}><Callout tone="danger">{error}</Callout></div>}
+        {error && <div className="ui-static-7e0bcb62"><Callout tone="danger">{error}</Callout></div>}
         {token && (
-          <form onSubmit={submit} style={{ marginTop: 12 }}>
+          <form onSubmit={submit} className="ui-static-56f43562">
             <Field label="Your name" hint="Leave blank if you already have an account."><Input value={displayName} onChange={(e) => setName(e.target.value)} /></Field>
             <Field label="Set a password" hint="At least 10 characters. Skip if you already have an account."><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
-            <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Joining…" : "Join organization"}</button>
+            <UiButton variant="primary" className="btn-block" disabled={busy}>{busy ? "Joining…" : "Join organization"}</UiButton>
           </form>
         )}
       </div></div>

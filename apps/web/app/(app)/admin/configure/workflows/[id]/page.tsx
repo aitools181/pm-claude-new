@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../../../components/ui";
+import { Select as UiSelect } from "../../../../../../components/ui";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "../../../../../../lib/api";
@@ -72,21 +76,21 @@ export default function WorkflowEditor() {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>{name || "Workflow"}</h1>
+      <div className="ui-static-89e98afd">
+        <h1 className="page-title ui-static-ef0b7a11" >{name || "Workflow"}</h1>
         <a className="btn btn-ghost" href="/admin/configure/workflows">← All workflows</a>
       </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
+      <div className="ui-static-0d6300c2">
         {versions.map((v) => (
-          <button key={v.id} className={`badge ${v.status === "published" ? "pill-published" : "pill-draft"}`} onClick={() => loadVersion(v)} style={{ cursor: "pointer", outline: active?.id === v.id ? "2px solid var(--primary-line)" : "none" }}>
+          <button key={v.id} className={`badge ui-version-chip ${v.status === "published" ? "pill-published" : "pill-draft"}`} onClick={() => loadVersion(v)} data-active={active?.id === v.id || undefined}>
             v{v.versionNo} · {v.status}
           </button>
         ))}
-        {active?.status === "published" && <button className="btn" onClick={branch}>Branch to new draft</button>}
-        {active?.status === "published" && <button className="btn btn-ghost" onClick={previewMigration}>Migration preview</button>}
+        {active?.status === "published" && <UiButton variant="secondary"  onClick={branch}>Branch to new draft</UiButton>}
+        {active?.status === "published" && <UiButton variant="tertiary"  onClick={previewMigration}>Migration preview</UiButton>}
       </div>
-      {msg && <div className="callout callout-danger" style={{ marginBottom: 14 }}>{msg}</div>}
-      {!editable && active && <div className="callout callout-info" style={{ marginBottom: 14 }}>This version is published and immutable. Branch a new draft to make changes.</div>}
+      {msg && <div className="callout callout-danger ui-static-2b583d73" >{msg}</div>}
+      {!editable && active && <div className="callout callout-info ui-static-2b583d73" >This version is published and immutable. Branch a new draft to make changes.</div>}
 
       <div className="wf-canvas">
         {statuses.map((s) => (
@@ -94,47 +98,47 @@ export default function WorkflowEditor() {
             <div className="cat">{s.category}</div>
             <div className="nm">{s.name}</div>
             {s.isInitial && <div className="init">● initial</div>}
-            <div style={{ marginTop: 8 }}>
+            <div className="ui-static-8a77e5a3">
               {transitions.filter((t) => t.fromStatusId === s.id || t.fromStatusId === null).map((t) => (
                 <div key={t.id} className="wf-trans">{t.name} <span className="arrow">→</span> {statusName(t.toStatusId)}</div>
               ))}
             </div>
           </div>
         ))}
-        {statuses.length === 0 && <div className="empty" style={{ minWidth: 280 }}>No statuses yet. Add the first one.</div>}
+        {statuses.length === 0 && <div className="empty ui-static-e581e86b" >No statuses yet. Add the first one.</div>}
       </div>
 
       {editable && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 20 }}>
+        <div className="ui-static-508e5602">
           <div className="card card-p">
             <strong>Add status</strong>
-            <div className="cfg-form" style={{ margin: "12px 0" }}>
+            <div className="cfg-form ui-static-d60550f6" >
               <Field label="Key"><Input className="mono" value={ns.key} onChange={(e) => setNs({ ...ns, key: e.target.value })} /></Field>
               <Field label="Name"><Input value={ns.name} onChange={(e) => setNs({ ...ns, name: e.target.value })} /></Field>
-              <Field label="Category"><select className="input" value={ns.category} onChange={(e) => setNs({ ...ns, category: e.target.value })}><option value="todo">todo</option><option value="in_progress">in_progress</option><option value="done">done</option></select></Field>
-              <Field label="Initial"><select className="input" value={String(ns.isInitial)} onChange={(e) => setNs({ ...ns, isInitial: e.target.value === "true" })}><option value="false">No</option><option value="true">Yes</option></select></Field>
+              <Field label="Category"><UiSelect className="input" value={ns.category} onChange={(e) => setNs({ ...ns, category: e.target.value })}><option value="todo">todo</option><option value="in_progress">in_progress</option><option value="done">done</option></UiSelect></Field>
+              <Field label="Initial"><UiSelect className="input" value={String(ns.isInitial)} onChange={(e) => setNs({ ...ns, isInitial: e.target.value === "true" })}><option value="false">No</option><option value="true">Yes</option></UiSelect></Field>
             </div>
-            <button className="btn btn-primary" disabled={!ns.key || !ns.name} onClick={addStatus}>Add status</button>
+            <UiButton variant="primary"  disabled={!ns.key || !ns.name} onClick={addStatus}>Add status</UiButton>
           </div>
 
           <div className="card card-p">
             <strong>Add transition</strong>
-            <div className="cfg-form" style={{ margin: "12px 0" }}>
+            <div className="cfg-form ui-static-d60550f6" >
               <Field label="Name"><Input value={nt.name} onChange={(e) => setNt({ ...nt, name: e.target.value })} placeholder="Start" /></Field>
-              <Field label="From"><select className="input" value={nt.fromStatusId} onChange={(e) => setNt({ ...nt, fromStatusId: e.target.value })}><option value="">Any</option>{statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-              <Field label="To"><select className="input" value={nt.toStatusId} onChange={(e) => setNt({ ...nt, toStatusId: e.target.value })}><option value="">Select…</option>{statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+              <Field label="From"><UiSelect className="input" value={nt.fromStatusId} onChange={(e) => setNt({ ...nt, fromStatusId: e.target.value })}><option value="">Any</option>{statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</UiSelect></Field>
+              <Field label="To"><UiSelect className="input" value={nt.toStatusId} onChange={(e) => setNt({ ...nt, toStatusId: e.target.value })}><option value="">Select…</option>{statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</UiSelect></Field>
             </div>
-            <button className="btn btn-primary" disabled={!nt.name || !nt.toStatusId} onClick={addTransition}>Add transition</button>
+            <UiButton variant="primary"  disabled={!nt.name || !nt.toStatusId} onClick={addTransition}>Add transition</UiButton>
           </div>
         </div>
       )}
 
       {editable && (
-        <div style={{ display: "flex", gap: 8, marginTop: 20, alignItems: "center" }}>
-          <button className="btn" onClick={validate}>Validate</button>
-          <button className="btn btn-primary" onClick={publish}>Publish</button>
-          {issues && issues.length > 0 && <span style={{ color: "var(--danger)", fontSize: 13 }}>{issues.join(" · ")}</span>}
-          {issues && issues.length === 0 && <span style={{ color: "var(--success)", fontSize: 13 }}>Valid ✓</span>}
+        <div className="ui-static-fcd56586">
+          <UiButton variant="secondary"  onClick={validate}>Validate</UiButton>
+          <UiButton variant="primary"  onClick={publish}>Publish</UiButton>
+          {issues && issues.length > 0 && <span className="ui-static-8763236a">{issues.join(" · ")}</span>}
+          {issues && issues.length === 0 && <span className="ui-static-9632501d">Valid ✓</span>}
         </div>
       )}
     </>

@@ -16,9 +16,9 @@ function VerifyEmailPageInner() {
       .catch((e) => { setState("error"); setMessage(e instanceof ApiError ? e.message : "Verification failed"); });
   }, [token]);
   return <div className="auth"><AuthAside meta="Verified identity" /><div className="auth-panel"><div className="auth-panel-inner">
-    <h1 style={{ fontSize: 22 }}>Email verification</h1>
+    <h1 className="ui-static-881f70f9">Email verification</h1>
     <Callout tone={state === "error" ? "danger" : "info"}>{message}</Callout>
-    {state !== "loading" && <a className="btn btn-primary btn-block" style={{ marginTop: 16 }} href={state === "done" ? "/home" : "/login"}>{state === "done" ? "Continue" : "Back to sign in"}</a>}
+    {state !== "loading" && <a className="btn btn-primary btn-block ui-static-1b0f4999"  href={state === "done" ? "/home" : "/login"}>{state === "done" ? "Continue" : "Back to sign in"}</a>}
   </div></div></div>;
 }
 

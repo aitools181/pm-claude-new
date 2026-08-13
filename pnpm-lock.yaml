@@ -50,6 +50,9 @@ importers:
       argon2:
         specifier: ^0.41.1
         version: 0.41.1
+      bullmq:
+        specifier: ^5.21.0
+        version: 5.81.3
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7

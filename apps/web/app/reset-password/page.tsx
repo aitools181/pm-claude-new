@@ -1,4 +1,6 @@
 "use client";
+
+import { Button as UiButton } from "../../components/ui";
 import { useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
 import { api, ApiError } from "../../lib/api";
@@ -22,14 +24,14 @@ function ResetPasswordPageInner() {
     finally { setBusy(false); }
   }
   return <div className="auth"><AuthAside meta="Single-use reset · all sessions revoked" /><div className="auth-panel"><div className="auth-panel-inner">
-    <h1 style={{ fontSize: 22, marginBottom: 6 }}>Choose a new password</h1>
-    <p className="muted" style={{ marginTop: 0, marginBottom: 24 }}>Use at least 10 characters. Resetting signs out every active device.</p>
+    <h1 className="ui-static-849a358d">Choose a new password</h1>
+    <p className="muted ui-static-50b8e771" >Use at least 10 characters. Resetting signs out every active device.</p>
     {!token && <Callout tone="danger">This reset link is missing its token.</Callout>}
-    {error && <div style={{ marginBottom: 16 }}><Callout tone="danger">{error}</Callout></div>}
-    {done ? <><Callout tone="info">Password updated. You can now sign in.</Callout><a className="btn btn-primary btn-block" style={{ marginTop: 16 }} href="/login">Sign in</a></> :
+    {error && <div className="ui-static-87c136df"><Callout tone="danger">{error}</Callout></div>}
+    {done ? <><Callout tone="info">Password updated. You can now sign in.</Callout><a className="btn btn-primary btn-block ui-static-1b0f4999"  href="/login">Sign in</a></> :
       <form onSubmit={submit}><Field label="New password"><Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
         <Field label="Confirm password"><Input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></Field>
-        <button className="btn btn-primary btn-block" disabled={busy || !token || password.length < 10 || password !== confirm}>{busy ? "Updating…" : "Update password"}</button></form>}
+        <UiButton variant="primary" className="btn-block" disabled={busy || !token || password.length < 10 || password !== confirm}>{busy ? "Updating…" : "Update password"}</UiButton></form>}
   </div></div></div>;
 }
 

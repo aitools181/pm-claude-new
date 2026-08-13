@@ -1,4 +1,9 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput, Select as UiSelect } from "../../../components/ui";
+import { appPrompt } from "../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
@@ -23,7 +28,7 @@ export default function ChatPage() {
   useEffect(() => { loadChannels(); api<Project[]>("/projects", { org: true }).then((p) => { setProjects(p); setProj((x) => x || p[0]?.id || ""); }).catch(() => {}); }, [loadChannels]);
   const open = useCallback(async (id: string) => { setSel(id); setMessages(await api<Message[]>(`/chat/channels/${id}/messages`, { org: true }).catch(() => [])); }, []);
 
-  async function newChannel() { const name = prompt("Channel name"); if (!name) return; await api("/chat/channels", { method: "POST", org: true, body: JSON.stringify({ name }) }); loadChannels(); }
+  async function newChannel() { const name = await appPrompt("Channel name"); if (!name) return; await api("/chat/channels", { method: "POST", org: true, body: JSON.stringify({ name }) }); loadChannels(); }
   async function send() { if (!sel || !body.trim()) return; await api(`/chat/channels/${sel}/messages`, { method: "POST", org: true, body: JSON.stringify({ body, parentMessageId: reply || undefined }) }); setBody(""); setReply(null); open(sel); }
   async function toTask(m: Message) { if (!proj) { toast({ message: "Pick a project first" }); return; } await api(`/chat/messages/${m.id}/to-task`, { method: "POST", org: true, body: JSON.stringify({ projectId: proj }) }); toast({ message: "Work item created from message" }); open(sel!); }
 
@@ -31,17 +36,17 @@ export default function ChatPage() {
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 className="page-title" style={{ marginBottom: 4 }}>Chat</h1>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select className="input" value={proj} onChange={(e) => setProj(e.target.value)} style={{ width: 150 }}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-          <button className="btn btn-primary" onClick={newChannel}>+ Channel</button>
+      <div className="ui-static-13313b1a">
+        <h1 className="page-title ui-static-c81ce4b2" >Chat</h1>
+        <div className="ui-static-01ef7fc9">
+          <UiSelect className="input ui-static-7c07cdf8" value={proj} onChange={(e) => setProj(e.target.value)} >{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UiSelect>
+          <UiButton variant="primary"  onClick={newChannel}>+ Channel</UiButton>
         </div>
       </div>
       <div className="chat-layout">
         <div className="gpanel">
-          {channels.map((c) => <button key={c.id} className="btn btn-ghost" style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 4, borderColor: sel === c.id ? "var(--primary)" : undefined }} onClick={() => open(c.id)}># {c.name}{c.isPrivate ? " 🔒" : ""}</button>)}
-          {channels.length === 0 && <p className="muted" style={{ fontSize: 13 }}>No channels yet.</p>}
+          {channels.map((c) => <UiButton variant="tertiary" key={c.id} className="ui-selection-row" data-selected={sel === c.id || undefined} onClick={() => open(c.id)}># {c.name}{c.isPrivate ? " 🔒" : ""}</UiButton>)}
+          {channels.length === 0 && <p className="muted ui-static-5e0faad2" >No channels yet.</p>}
         </div>
         <div>
           {!sel && <p className="muted">Select a channel.</p>}
@@ -49,19 +54,19 @@ export default function ChatPage() {
             <>
               {messages.map((m) => (
                 <div key={m.id} className={`chat-msg ${m.parentMessageId ? "thread" : ""}`}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <div className="ui-static-c7853059">
                     <span>{m.body}</span>
-                    <span style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      {!m.parentMessageId && <button className="btn btn-ghost" style={{ padding: "0 6px" }} onClick={() => setReply(m.id)}>Reply</button>}
-                      {m.createdWorkItemId ? <span className="pill approved">task ✓</span> : <button className="btn btn-ghost" style={{ padding: "0 6px" }} onClick={() => toTask(m)}>→ Task</button>}
+                    <span className="ui-static-b71a0331">
+                      {!m.parentMessageId && <UiButton variant="tertiary" className="ui-static-7c699c10"  onClick={() => setReply(m.id)}>Reply</UiButton>}
+                      {m.createdWorkItemId ? <span className="pill approved">task ✓</span> : <UiButton variant="tertiary" className="ui-static-7c699c10"  onClick={() => toTask(m)}>→ Task</UiButton>}
                     </span>
                   </div>
                 </div>
               ))}
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <input className="input" placeholder={reply ? "Reply in thread…" : "Message…"} value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} style={{ flex: 1 }} />
-                {reply && <button className="btn btn-ghost" onClick={() => setReply(null)}>Cancel reply</button>}
-                <button className="btn btn-primary" onClick={send}>Send</button>
+              <div className="ui-static-a7d4afc9">
+                <UiInput className="input ui-static-97445a8d" placeholder={reply ? "Reply in thread…" : "Message…"} value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}  />
+                {reply && <UiButton variant="tertiary"  onClick={() => setReply(null)}>Cancel reply</UiButton>}
+                <UiButton variant="primary"  onClick={send}>Send</UiButton>
               </div>
             </>
           )}

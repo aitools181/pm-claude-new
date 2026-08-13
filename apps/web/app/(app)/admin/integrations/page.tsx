@@ -1,4 +1,9 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../components/ui";
+import { Input as UiInput, Select as UiSelect } from "../../../../components/ui";
+import { appPrompt } from "../../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui/Toast";
@@ -20,7 +25,7 @@ export default function IntegrationsPage() {
     catch (e) { toast({ message: e instanceof ApiError ? e.message : "Failed" }); }
   }
   async function health(id: string) { const r = await api<{ ok: boolean; detail?: string }>(`/integrations/${id}/health-check`, { method: "POST", org: true }); toast({ message: r.ok ? "Healthy" : `Failing: ${r.detail}` }); load(); }
-  async function rotate(id: string) { const secret = prompt("New secret"); if (!secret) return; await api(`/integrations/${id}/credential`, { method: "POST", org: true, body: JSON.stringify({ secret }) }); toast({ message: "Credential rotated" }); load(); }
+  async function rotate(id: string) { const secret = await appPrompt("New secret"); if (!secret) return; await api(`/integrations/${id}/credential`, { method: "POST", org: true, body: JSON.stringify({ secret }) }); toast({ message: "Credential rotated" }); load(); }
   async function disconnect(id: string) { await api(`/integrations/${id}/status`, { method: "POST", org: true, body: JSON.stringify({ status: "disconnected" }) }); load(); }
 
   return (
@@ -30,19 +35,19 @@ export default function IntegrationsPage() {
       <div className="builder-grid">
         <div>
           {items.map((it) => (
-            <div key={it.id} className="fieldcard" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div key={it.id} className="fieldcard ui-static-13313b1a" >
               <span>
                 <strong>{it.name}</strong> <span className="muted">{it.kind}</span>
-                <span style={{ display: "block", fontSize: 12, marginTop: 2 }}>
+                <span className="ui-static-10f5bdb8">
                   <span className={`pill ${it.status === "connected" ? "approved" : it.status === "error" ? "rejected" : "open"}`}>{it.status}</span>
-                  {it.healthStatus && <span className={`pill ${it.healthStatus === "ok" ? "approved" : "rejected"}`} style={{ marginLeft: 4 }}>{it.healthStatus}</span>}
-                  {it.credentialHint && <span className="muted" style={{ marginLeft: 6 }}>secret {it.credentialHint}</span>}
+                  {it.healthStatus && <span className={[`pill ${it.healthStatus === "ok" ? "approved" : "rejected"}`, "ui-static-46cec891"].filter(Boolean).join(" ")} >{it.healthStatus}</span>}
+                  {it.credentialHint && <span className="muted ui-static-391ef124" >secret {it.credentialHint}</span>}
                 </span>
               </span>
-              <span style={{ display: "flex", gap: 6 }}>
-                <button className="btn btn-ghost" onClick={() => health(it.id)}>Health</button>
-                <button className="btn btn-ghost" onClick={() => rotate(it.id)}>Rotate</button>
-                {it.status !== "disconnected" && <button className="btn btn-ghost" onClick={() => disconnect(it.id)}>Disconnect</button>}
+              <span className="ui-static-49cd0921">
+                <UiButton variant="tertiary"  onClick={() => health(it.id)}>Health</UiButton>
+                <UiButton variant="tertiary"  onClick={() => rotate(it.id)}>Rotate</UiButton>
+                {it.status !== "disconnected" && <UiButton variant="tertiary"  onClick={() => disconnect(it.id)}>Disconnect</UiButton>}
               </span>
             </div>
           ))}
@@ -50,10 +55,10 @@ export default function IntegrationsPage() {
         </div>
         <div className="gpanel">
           <h3>Connect</h3>
-          <select className="input" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })} style={{ marginBottom: 8 }}>{KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select>
-          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ marginBottom: 8 }} />
-          <input className="input" type="password" placeholder="Secret / token" value={form.secret} onChange={(e) => setForm({ ...form, secret: e.target.value })} style={{ marginBottom: 8 }} />
-          <button className="btn btn-primary" onClick={create} style={{ width: "100%" }}>Connect</button>
+          <UiSelect className="input ui-static-fdf33f23" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })} >{KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</UiSelect>
+          <UiInput className="input ui-static-fdf33f23" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}  />
+          <UiInput className="input ui-static-fdf33f23" type="password" placeholder="Secret / token" value={form.secret} onChange={(e) => setForm({ ...form, secret: e.target.value })}  />
+          <UiButton variant="primary" className="ui-static-0466783d" onClick={create} >Connect</UiButton>
         </div>
       </div>
     </>

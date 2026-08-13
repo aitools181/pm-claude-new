@@ -1,7 +1,13 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput, Select as UiSelect } from "../../../components/ui";
+import { appPrompt, appConfirm } from "../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
+import { RuntimeStyle } from "../../../components/ui/RuntimeStyle";
 
 type Goal = { id: string; parentId: string | null; name: string; targetType: string; unit: string | null; currentValue: number | null; targetValue: number | null; confidence: string; status: string; progress: number; expectedProgress: number | null; health: string };
 type Link = { id: string; kind: string; name: string; redacted: boolean };
@@ -20,13 +26,13 @@ export default function GoalsPage() {
   const open = useCallback(async (id: string) => { setSel(id); setDetail(await api<Detail>(`/goals/${id}`, { org: true }).catch(() => null)); }, []);
 
   async function create() {
-    const name = prompt("Goal / objective name"); if (!name) return;
-    const isObjective = confirm("Is this a rollup objective (OK) or a measurable key result (Cancel)?");
+    const name = await appPrompt("Goal / objective name"); if (!name) return;
+    const isObjective = await appConfirm("Is this a rollup objective (OK) or a measurable key result (Cancel)?");
     await api("/goals", { method: "POST", org: true, body: JSON.stringify(isObjective ? { name, targetType: "rollup" } : { name, targetType: "percent", currentValue: 0, targetValue: 100 }) });
     load();
   }
   async function addChild(parentId: string) {
-    const name = prompt("Key result name"); if (!name) return;
+    const name = await appPrompt("Key result name"); if (!name) return;
     await api("/goals", { method: "POST", org: true, body: JSON.stringify({ name, parentId, targetType: "percent", currentValue: 0, targetValue: 100 }) });
     load(); open(parentId);
   }
@@ -43,21 +49,21 @@ export default function GoalsPage() {
 
   const Row = ({ g, depth }: { g: Goal; depth: number }) => (
     <>
-      <div className="goal-row" style={{ marginLeft: depth * 20, borderColor: sel === g.id ? "var(--primary)" : undefined }} onClick={() => open(g.id)}>
+      <RuntimeStyle as="button" type="button" className="goal-row ui-reset-button runtime-indent" aria-pressed={sel === g.id} data-selected={sel === g.id || undefined} vars={{ "--runtime-indent": `${depth * 20}px` }} onClick={() => open(g.id)}>
         <span className={`dot ${g.health}`} title={g.health} />
-        <span style={{ minWidth: 160, fontWeight: depth === 0 ? 600 : 400 }}>{g.name}</span>
-        <span className="prog"><div className="prog-bar"><div className="prog-fill" style={{ width: `${g.progress}%`, background: g.health === "off_track" ? "var(--danger)" : g.health === "at_risk" ? "#F5B841" : "var(--primary)" }} /></div></span>
-        <span className="mono" style={{ width: 44, textAlign: "right" }}>{g.progress}%</span>
-      </div>
+        <span className="ui-goal-name" data-root={depth === 0 || undefined}>{g.name}</span>
+        <span className="prog"><span className="prog-bar"><RuntimeStyle as="span" className="prog-fill runtime-width" data-health={g.health} vars={{ "--runtime-width": `${g.progress}%` }} /></span></span>
+        <span className="mono ui-static-408657fe">{g.progress}%</span>
+      </RuntimeStyle>
       {kids(g.id).map((k) => <Row key={k.id} g={k} depth={depth + 1} />)}
     </>
   );
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 className="page-title" style={{ marginBottom: 4 }}>Goals &amp; OKRs</h1>
-        <button className="btn btn-primary" onClick={create}>+ New goal</button>
+      <div className="ui-static-13313b1a">
+        <h1 className="page-title ui-static-c81ce4b2" >Goals &amp; OKRs</h1>
+        <UiButton variant="primary"  onClick={create}>+ New goal</UiButton>
       </div>
       <div className="builder-grid">
         <div>
@@ -71,31 +77,31 @@ export default function GoalsPage() {
             <>
               <h3>{detail.goal.name}</h3>
               <p className="muted">{detail.goal.progress}% · <span className={`h-${detail.goal.health}`}>{detail.goal.health.replace("_", " ")}</span>{detail.goal.expectedProgress != null && ` · expected ${Math.round(detail.goal.expectedProgress)}%`}</p>
-              {detail.goal.targetType === "rollup" && <button className="btn btn-ghost" onClick={() => addChild(detail.goal.id)}>+ Add key result</button>}
+              {detail.goal.targetType === "rollup" && <UiButton variant="tertiary"  onClick={() => addChild(detail.goal.id)}>+ Add key result</UiButton>}
 
               {detail.goal.targetType !== "rollup" && (
-                <div style={{ borderTop: "1px solid var(--line)", margin: "12px 0", paddingTop: 12 }}>
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Check in</div>
-                  <input className="input" type="number" placeholder={`Current ${detail.goal.unit ?? "value"}`} value={ci.currentValue} onChange={(e) => setCi({ ...ci, currentValue: e.target.value })} style={{ marginBottom: 6 }} />
-                  <select className="input" value={ci.confidence} onChange={(e) => setCi({ ...ci, confidence: e.target.value })} style={{ marginBottom: 6 }}>
+                <div className="ui-static-88fa1b71">
+                  <div className="muted ui-static-a42d5f9e" >Check in</div>
+                  <UiInput className="input ui-static-4e420aff" type="number" placeholder={`Current ${detail.goal.unit ?? "value"}`} value={ci.currentValue} onChange={(e) => setCi({ ...ci, currentValue: e.target.value })}  />
+                  <UiSelect className="input ui-static-4e420aff" value={ci.confidence} onChange={(e) => setCi({ ...ci, confidence: e.target.value })} >
                     <option value="on_track">On track</option><option value="at_risk">At risk</option><option value="off_track">Off track</option>
-                  </select>
-                  <input className="input" placeholder="Note (optional)" value={ci.note} onChange={(e) => setCi({ ...ci, note: e.target.value })} style={{ marginBottom: 8 }} />
-                  <button className="btn btn-primary" onClick={checkIn} style={{ width: "100%" }}>Record check-in</button>
+                  </UiSelect>
+                  <UiInput className="input ui-static-fdf33f23" placeholder="Note (optional)" value={ci.note} onChange={(e) => setCi({ ...ci, note: e.target.value })}  />
+                  <UiButton variant="primary" className="ui-static-0466783d" onClick={checkIn} >Record check-in</UiButton>
                 </div>
               )}
 
               {detail.links.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>Linked</div>
-                  {detail.links.map((l) => <div key={l.id} style={{ fontSize: 12, padding: "2px 0", color: l.redacted ? "var(--ink-3)" : "var(--ink)" }}>{l.kind}: {l.name}</div>)}
+                <div className="ui-static-56f43562">
+                  <div className="muted ui-static-86c64b5c" >Linked</div>
+                  {detail.links.map((l) => <div key={l.id} className="ui-goal-link" data-redacted={l.redacted || undefined}>{l.kind}: {l.name}</div>)}
                 </div>
               )}
 
               {detail.updates.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>Update history</div>
-                  {detail.updates.map((u) => <div key={u.id} style={{ fontSize: 12, padding: "3px 0", borderBottom: "1px solid var(--line)" }}>{new Date(u.at).toLocaleDateString()} — {u.progress}%{u.confidence ? ` · ${u.confidence.replace("_", " ")}` : ""}{u.note ? ` · ${u.note}` : ""}</div>)}
+                <div className="ui-static-56f43562">
+                  <div className="muted ui-static-86c64b5c" >Update history</div>
+                  {detail.updates.map((u) => <div key={u.id} className="ui-static-c85fb1c3">{new Date(u.at).toLocaleDateString()} — {u.progress}%{u.confidence ? ` · ${u.confidence.replace("_", " ")}` : ""}{u.note ? ` · ${u.note}` : ""}</div>)}
                 </div>
               )}
             </>

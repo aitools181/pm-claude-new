@@ -1,4 +1,9 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../components/ui";
+import { Input as UiInput, Select as UiSelect } from "../../../../components/ui";
+import { appPrompt } from "../../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui/Toast";
@@ -30,7 +35,7 @@ export default function FormsAdminPage() {
     setSubs(await api<Sub[]>(`/forms/${id}/submissions`, { org: true }).catch(() => []));
   }
   async function createForm() {
-    const name = prompt("Form name"); if (!name) return;
+    const name = await appPrompt("Form name"); if (!name) return;
     const key = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
     const f = await api<Form>("/forms", { method: "POST", org: true, body: JSON.stringify({ key, name }) });
     await loadForms(); openForm(f.id);
@@ -66,72 +71,72 @@ export default function FormsAdminPage() {
           {!sel && <p className="muted">Select or create a form to build it.</p>}
           {sel && (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <strong style={{ fontSize: 16 }}>{sel.name}</strong>
+              <div className="ui-static-a522af54">
+                <strong className="ui-static-1444c6ea">{sel.name}</strong>
                 <span className={`pill ${sel.status === "published" ? "approved" : "open"}`}>{sel.status}</span>
-                <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                  <button className="btn" onClick={saveDraft}>Save draft</button>
-                  <button className="btn btn-primary" onClick={publish}>Publish</button>
+                <div className="ui-static-ff2ab46b">
+                  <UiButton variant="secondary"  onClick={saveDraft}>Save draft</UiButton>
+                  <UiButton variant="primary"  onClick={publish}>Publish</UiButton>
                 </div>
               </div>
 
-              <div style={{ marginBottom: 8 }} className="muted">Default target project</div>
-              <select className="input" value={defaultProjectId} onChange={(e) => setDefaultProjectId(e.target.value)} style={{ marginBottom: 16 }}>
+              <div  className="muted ui-static-fdf33f23">Default target project</div>
+              <UiSelect className="input ui-static-87c136df" value={defaultProjectId} onChange={(e) => setDefaultProjectId(e.target.value)} >
                 <option value="">— none —</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              </UiSelect>
 
-              <h3 style={{ fontSize: 14 }}>Fields</h3>
+              <h3 className="ui-static-433de30b">Fields</h3>
               {fields.map((f, i) => (
                 <div key={i} className="fieldcard">
-                  <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                    <input className="input" value={f.key} onChange={(e) => upField(i, { key: e.target.value })} placeholder="key" style={{ width: 120 }} />
-                    <input className="input" value={f.label} onChange={(e) => upField(i, { label: e.target.value })} placeholder="label" style={{ flex: 1 }} />
-                    <select className="input" value={f.type} onChange={(e) => upField(i, { type: e.target.value })} style={{ width: 110 }}>{FIELD_TYPES.map((t) => <option key={t}>{t}</option>)}</select>
-                    <button className="btn btn-ghost" onClick={() => setFields(fields.filter((_, j) => j !== i))}>✕</button>
+                  <div className="ui-static-9d6820f7">
+                    <UiInput className="input ui-static-465bfea3" value={f.key} onChange={(e) => upField(i, { key: e.target.value })} placeholder="key"  />
+                    <UiInput className="input ui-static-97445a8d" value={f.label} onChange={(e) => upField(i, { label: e.target.value })} placeholder="label"  />
+                    <UiSelect className="input ui-static-60746827" value={f.type} onChange={(e) => upField(i, { type: e.target.value })} >{FIELD_TYPES.map((t) => <option key={t}>{t}</option>)}</UiSelect>
+                    <UiButton variant="tertiary"  onClick={() => setFields(fields.filter((_, j) => j !== i))}>✕</UiButton>
                   </div>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 13 }}>
+                  <div className="ui-static-86f3a074">
                     <label><input type="checkbox" checked={!!f.required} onChange={(e) => upField(i, { required: e.target.checked })} /> required</label>
-                    {f.type === "select" && <input className="input" placeholder="options, comma separated" value={(f.options ?? []).join(",")} onChange={(e) => upField(i, { options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} style={{ flex: 1 }} />}
+                    {f.type === "select" && <UiInput className="input ui-static-97445a8d" placeholder="options, comma separated" value={(f.options ?? []).join(",")} onChange={(e) => upField(i, { options: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}  />}
                   </div>
                 </div>
               ))}
-              <button className="btn btn-ghost" onClick={addField}>+ Add field</button>
+              <UiButton variant="tertiary"  onClick={addField}>+ Add field</UiButton>
 
-              <h3 style={{ fontSize: 14, marginTop: 18 }}>Routing rules</h3>
-              <p className="muted" style={{ fontSize: 12 }}>First matching rule wins; otherwise the default project is used.</p>
+              <h3 className="ui-static-fb893596">Routing rules</h3>
+              <p className="muted ui-static-6cb285c6" >First matching rule wins; otherwise the default project is used.</p>
               {rules.map((r, i) => (
                 <div key={i} className="rulecard">
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+                  <div className="ui-static-209300ac">
                     <span>When</span>
-                    <select className="input" value={r.when?.fieldKey ?? ""} onChange={(e) => upRule(i, { when: { fieldKey: e.target.value, op: "eq", value: r.when?.value ?? "" } })} style={{ width: 120 }}>
+                    <UiSelect className="input ui-static-465bfea3" value={r.when?.fieldKey ?? ""} onChange={(e) => upRule(i, { when: { fieldKey: e.target.value, op: "eq", value: r.when?.value ?? "" } })} >
                       <option value="">(always)</option>{fields.map((f) => <option key={f.key} value={f.key}>{f.key}</option>)}
-                    </select>
+                    </UiSelect>
                     <span>=</span>
-                    <input className="input" value={r.when?.value ?? ""} onChange={(e) => upRule(i, { when: { fieldKey: r.when?.fieldKey ?? "", op: "eq", value: e.target.value } })} style={{ width: 110 }} />
+                    <UiInput className="input ui-static-60746827" value={r.when?.value ?? ""} onChange={(e) => upRule(i, { when: { fieldKey: r.when?.fieldKey ?? "", op: "eq", value: e.target.value } })}  />
                     <span>→</span>
-                    <select className="input" value={r.projectId ?? ""} onChange={(e) => upRule(i, { projectId: e.target.value })} style={{ width: 150 }}>
+                    <UiSelect className="input ui-static-7c07cdf8" value={r.projectId ?? ""} onChange={(e) => upRule(i, { projectId: e.target.value })} >
                       <option value="">(default)</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    <button className="btn btn-ghost" onClick={() => setRules(rules.filter((_, j) => j !== i))}>✕</button>
+                    </UiSelect>
+                    <UiButton variant="tertiary"  onClick={() => setRules(rules.filter((_, j) => j !== i))}>✕</UiButton>
                   </div>
-                  <input className="input" placeholder="Title template, e.g. BUG: {title}" value={r.titleTemplate ?? ""} onChange={(e) => upRule(i, { titleTemplate: e.target.value })} style={{ marginTop: 6 }} />
+                  <UiInput className="input ui-static-fe7b4979" placeholder="Title template, e.g. BUG: {title}" value={r.titleTemplate ?? ""} onChange={(e) => upRule(i, { titleTemplate: e.target.value })}  />
                 </div>
               ))}
-              <button className="btn btn-ghost" onClick={addRule}>+ Add rule</button>
+              <UiButton variant="tertiary"  onClick={addRule}>+ Add rule</UiButton>
 
-              <div style={{ borderTop: "1px solid var(--line)", marginTop: 18, paddingTop: 14 }}>
-                <h3 style={{ fontSize: 14 }}>Public access</h3>
+              <div className="ui-static-45183579">
+                <h3 className="ui-static-433de30b">Public access</h3>
                 {publicUrl ? (
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input className="input" readOnly value={publicUrl} style={{ flex: 1 }} onFocus={(e) => e.target.select()} />
-                    <button className="btn btn-ghost" onClick={() => { navigator.clipboard?.writeText(publicUrl); toast({ message: "Copied" }); }}>Copy</button>
+                  <div className="ui-static-01ef7fc9">
+                    <UiInput className="input ui-static-97445a8d" readOnly value={publicUrl}  onFocus={(e) => e.target.select()} />
+                    <UiButton variant="tertiary"  onClick={() => { navigator.clipboard?.writeText(publicUrl); toast({ message: "Copied" }); }}>Copy</UiButton>
                   </div>
-                ) : <button className="btn" onClick={enablePublic}>Enable public link</button>}
+                ) : <UiButton variant="secondary"  onClick={enablePublic}>Enable public link</UiButton>}
               </div>
 
               {subs.length > 0 && (
-                <div style={{ marginTop: 18 }}>
-                  <h3 style={{ fontSize: 14 }}>Submissions ({subs.length})</h3>
+                <div className="ui-static-86de7ac6">
+                  <h3 className="ui-static-433de30b">Submissions ({subs.length})</h3>
                   <table className="ts-grid"><tbody>
                     {subs.map((s) => <tr key={s.id}><td className="mono">{new Date(s.createdAt).toLocaleString()}</td><td>{s.source}</td><td><span className={`pill ${s.status === "routed" ? "approved" : "rejected"}`}>{s.status}</span></td></tr>)}
                   </tbody></table>
@@ -142,11 +147,11 @@ export default function FormsAdminPage() {
         </div>
 
         <div className="gpanel">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h3>Forms</h3><button className="btn btn-ghost" onClick={createForm}>+ New</button></div>
+          <div className="ui-static-13313b1a"><h3>Forms</h3><UiButton variant="tertiary"  onClick={createForm}>+ New</UiButton></div>
           {forms.map((f) => (
-            <button key={f.id} className="btn btn-ghost" style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 6, borderColor: sel?.id === f.id ? "var(--primary)" : undefined }} onClick={() => openForm(f.id)}>
-              {f.name} <span className={`pill ${f.status === "published" ? "approved" : "open"}`} style={{ marginLeft: 4 }}>{f.status}</span>
-            </button>
+            <UiButton variant="tertiary" key={f.id} className="ui-selection-row" data-selected={sel?.id === f.id || undefined} onClick={() => openForm(f.id)}>
+              {f.name} <span className={[`pill ${f.status === "published" ? "approved" : "open"}`, "ui-static-46cec891"].filter(Boolean).join(" ")} >{f.status}</span>
+            </UiButton>
           ))}
         </div>
       </div>

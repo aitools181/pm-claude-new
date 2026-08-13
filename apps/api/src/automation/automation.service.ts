@@ -18,10 +18,14 @@ export class AutomationService {
     return rule;
   }
   async addCondition(organizationId: string, ruleId: string, kind: string, config?: unknown) {
-    const [c] = await this.db.insert(schema.automationConditions).values({ organizationId, ruleId, kind, config }).returning(); return c;
+    await this.assertRuleInOrg(organizationId, ruleId);
+    const [c] = await this.db.insert(schema.automationConditions).values({ organizationId, ruleId, kind, config }).returning();
+    return c;
   }
   async addAction(organizationId: string, ruleId: string, kind: string, config?: unknown, rank = 0) {
-    const [a] = await this.db.insert(schema.automationActions).values({ organizationId, ruleId, kind, config, rank }).returning(); return a;
+    await this.assertRuleInOrg(organizationId, ruleId);
+    const [a] = await this.db.insert(schema.automationActions).values({ organizationId, ruleId, kind, config, rank }).returning();
+    return a;
   }
   list(organizationId: string) { return this.db.select().from(schema.automationRules).where(eq(schema.automationRules.organizationId, organizationId)); }
   async setEnabled(organizationId: string, ruleId: string, enabled: boolean) {
@@ -37,7 +41,7 @@ export class AutomationService {
 
     if (depth > MAX_DEPTH) {
       // Loop detected: stop and disable the offending rules (disable-on-failure safety).
-      for (const r of rules) await this.disable(r.id, "loop_detected");
+      for (const r of rules) await this.disable(organizationId, r.id, "loop_detected");
       return { loopDetected: true, runs: [] as string[] };
     }
     const runs: string[] = [];
@@ -63,13 +67,19 @@ export class AutomationService {
     if (!run) return null; // IDEMPOTENT: this event was already processed for this rule
 
     // conditions (IF)
-    const conditions = await this.db.select().from(schema.automationConditions).where(eq(schema.automationConditions.ruleId, rule.id));
+    const conditions = await this.db.select().from(schema.automationConditions).where(and(
+      eq(schema.automationConditions.ruleId, rule.id),
+      eq(schema.automationConditions.organizationId, organizationId),
+    ));
     if (!this.conditionsPass(conditions, payload)) {
       await this.db.update(schema.automationRuns).set({ status: "skipped", completedAt: new Date() }).where(eq(schema.automationRuns.id, run.id));
       return run.id;
     }
 
-    const actions = await this.db.select().from(schema.automationActions).where(eq(schema.automationActions.ruleId, rule.id)).orderBy(asc(schema.automationActions.rank));
+    const actions = await this.db.select().from(schema.automationActions).where(and(
+      eq(schema.automationActions.ruleId, rule.id),
+      eq(schema.automationActions.organizationId, organizationId),
+    )).orderBy(asc(schema.automationActions.rank));
     let failed = false;
     for (const action of actions) {
       const [step] = await this.db.insert(schema.automationRunSteps).values({ organizationId, runId: run.id, actionId: action.id, kind: action.kind, rank: action.rank, status: "pending" }).returning();
@@ -81,7 +91,7 @@ export class AutomationService {
     await this.db.update(schema.automationRuns).set({ status, completedAt: new Date() }).where(eq(schema.automationRuns.id, run.id));
     if (failed && !dryRun) {
       await this.db.update(schema.automationRules).set({ failureCount: (rule.failureCount ?? 0) + 1 }).where(eq(schema.automationRules.id, rule.id));
-      if (rule.disableOnFailure) await this.disable(rule.id, "action_failed");
+      if (rule.disableOnFailure) await this.disable(organizationId, rule.id, "action_failed");
     }
     return run.id;
   }
@@ -110,9 +120,15 @@ export class AutomationService {
   async replay(organizationId: string, runId: string) {
     const [run] = await this.db.select().from(schema.automationRuns).where(and(eq(schema.automationRuns.id, runId), eq(schema.automationRuns.organizationId, organizationId))).limit(1);
     if (!run) throw new AppError("NOT_FOUND", "Run not found");
-    const steps = await this.db.select().from(schema.automationRunSteps).where(eq(schema.automationRunSteps.runId, runId)).orderBy(asc(schema.automationRunSteps.rank));
+    const steps = await this.db.select().from(schema.automationRunSteps).where(and(
+      eq(schema.automationRunSteps.runId, runId),
+      eq(schema.automationRunSteps.organizationId, organizationId),
+    )).orderBy(asc(schema.automationRunSteps.rank));
     const actionIds = steps.map((s) => s.actionId).filter(Boolean) as string[];
-    const actions = actionIds.length ? await this.db.select().from(schema.automationActions).where(inArray(schema.automationActions.id, actionIds)) : [];
+    const actions = actionIds.length ? await this.db.select().from(schema.automationActions).where(and(
+      inArray(schema.automationActions.id, actionIds),
+      eq(schema.automationActions.organizationId, organizationId),
+    )) : [];
     const cfgOf = (id: string | null) => actions.find((a) => a.id === id);
 
     let failed = false;
@@ -130,9 +146,27 @@ export class AutomationService {
   runs(organizationId: string, ruleId: string) {
     return this.db.select().from(schema.automationRuns).where(and(eq(schema.automationRuns.organizationId, organizationId), eq(schema.automationRuns.ruleId, ruleId)));
   }
-  steps(runId: string) { return this.db.select().from(schema.automationRunSteps).where(eq(schema.automationRunSteps.runId, runId)).orderBy(asc(schema.automationRunSteps.rank)); }
+  async steps(organizationId: string, runId: string) {
+    const [run] = await this.db.select({ id: schema.automationRuns.id }).from(schema.automationRuns).where(and(
+      eq(schema.automationRuns.id, runId),
+      eq(schema.automationRuns.organizationId, organizationId),
+    )).limit(1);
+    if (!run) throw new AppError("NOT_FOUND", "Run not found");
+    return this.db.select().from(schema.automationRunSteps).where(and(
+      eq(schema.automationRunSteps.runId, runId),
+      eq(schema.automationRunSteps.organizationId, organizationId),
+    )).orderBy(asc(schema.automationRunSteps.rank));
+  }
 
   // ---------- helpers ----------
+  private async assertRuleInOrg(organizationId: string, ruleId: string) {
+    const [rule] = await this.db.select({ id: schema.automationRules.id }).from(schema.automationRules).where(and(
+      eq(schema.automationRules.id, ruleId),
+      eq(schema.automationRules.organizationId, organizationId),
+    )).limit(1);
+    if (!rule) throw new AppError("NOT_FOUND", "Rule not found");
+    return rule;
+  }
   private conditionsPass(conditions: any[], payload: any): boolean {
     for (const c of conditions) {
       if (c.kind === "always") continue;
@@ -144,7 +178,10 @@ export class AutomationService {
     }
     return true;
   }
-  private async disable(ruleId: string, reason: string) {
-    await this.db.update(schema.automationRules).set({ enabled: false, disabledReason: reason }).where(eq(schema.automationRules.id, ruleId));
+  private async disable(organizationId: string, ruleId: string, reason: string) {
+    await this.db.update(schema.automationRules).set({ enabled: false, disabledReason: reason }).where(and(
+      eq(schema.automationRules.id, ruleId),
+      eq(schema.automationRules.organizationId, organizationId),
+    ));
   }
 }

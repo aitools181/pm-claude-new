@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput } from "../../../components/ui";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
@@ -57,41 +61,41 @@ export default function TimePage() {
         {timer ? (
           <>
             <span className="timer-elapsed">{fmtElapsed}</span>
-            <span className="muted" style={{ flex: 1 }}>{timer.description || "Running…"}</span>
-            <button className="btn btn-primary" onClick={stop}>Stop &amp; log</button>
-            <button className="btn btn-ghost" onClick={discard}>Discard</button>
+            <span className="muted ui-static-97445a8d" >{timer.description || "Running…"}</span>
+            <UiButton variant="primary"  onClick={stop}>Stop &amp; log</UiButton>
+            <UiButton variant="tertiary"  onClick={discard}>Discard</UiButton>
           </>
         ) : (
           <>
-            <input className="input" placeholder="What are you working on?" value={desc} onChange={(e) => setDesc(e.target.value)} style={{ flex: 1 }} />
-            <button className="btn btn-primary" onClick={start}>Start timer</button>
+            <UiInput className="input ui-static-97445a8d" placeholder="What are you working on?" value={desc} onChange={(e) => setDesc(e.target.value)}  />
+            <UiButton variant="primary"  onClick={start}>Start timer</UiButton>
           </>
         )}
       </div>
 
       <div className="wk-nav">
-        <button className="btn btn-ghost" onClick={() => setWeek(addDays(week, -7))}>←</button>
+        <UiButton variant="tertiary"  onClick={() => setWeek(addDays(week, -7))}>←</UiButton>
         <strong>{week} → {sheet?.weekEnd ?? addDays(week, 6)}</strong>
-        <button className="btn btn-ghost" onClick={() => setWeek(addDays(week, 7))}>→</button>
+        <UiButton variant="tertiary"  onClick={() => setWeek(addDays(week, 7))}>→</UiButton>
         {sheet && <span className={`pill ${sheet.sheet.status}`}>{sheet.sheet.status}</span>}
-        <span style={{ flex: 1 }} />
+        <span className="ui-static-97445a8d" />
         <strong>{hm(sheet?.totalMinutes ?? 0)}</strong>
-        {!locked && sheet && sheet.totalMinutes > 0 && <button className="btn btn-primary" onClick={submit}>Submit week</button>}
+        {!locked && sheet && sheet.totalMinutes > 0 && <UiButton variant="primary"  onClick={submit}>Submit week</UiButton>}
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+      <div className="ui-static-d0aeaad8">
         {DAYS.map((d, i) => { const date = addDays(week, i); const min = sheet?.byDay[date] ?? 0; return (
-          <div key={d} style={{ flex: 1, textAlign: "center", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 4px" }}>
-            <div className="muted" style={{ fontSize: 11 }}>{d}</div><div style={{ fontWeight: 600, fontSize: 13 }}>{min ? hm(min) : "—"}</div>
+          <div key={d} className="ui-static-7aace258">
+            <div className="muted ui-static-11a50812" >{d}</div><div className="ui-static-160b0675">{min ? hm(min) : "—"}</div>
           </div>); })}
       </div>
 
       {!locked && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "flex-end" }}>
-          <div><div className="muted" style={{ fontSize: 12 }}>Date</div><input className="input" type="date" min={week} max={addDays(week, 6)} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-          <div><div className="muted" style={{ fontSize: 12 }}>Minutes</div><input className="input" type="number" min={1} placeholder="60" value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })} style={{ width: 90 }} /></div>
-          <input className="input" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={{ flex: 1 }} />
-          <button className="btn" onClick={addEntry}>Add entry</button>
+        <div className="ui-static-ec99483c">
+          <div><div className="muted ui-static-6cb285c6" >Date</div><UiInput className="input" type="date" min={week} max={addDays(week, 6)} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+          <div><div className="muted ui-static-6cb285c6" >Minutes</div><UiInput className="input ui-static-581be415" type="number" min={1} placeholder="60" value={form.minutes} onChange={(e) => setForm({ ...form, minutes: e.target.value })}  /></div>
+          <UiInput className="input ui-static-97445a8d" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}  />
+          <UiButton variant="secondary"  onClick={addEntry}>Add entry</UiButton>
         </div>
       )}
 
@@ -103,7 +107,7 @@ export default function TimePage() {
             <tr key={e.id}>
               <td className="mono">{e.date}</td><td>{hm(e.minutes)}</td><td>{e.description || "—"}</td>
               <td><span className="muted">{e.source}</span></td>
-              <td style={{ textAlign: "right" }}>{!locked && <button className="btn btn-ghost" onClick={() => del(e.id)}>Delete</button>}</td>
+              <td className="ui-static-54c2afb7">{!locked && <UiButton variant="tertiary"  onClick={() => del(e.id)}>Delete</UiButton>}</td>
             </tr>
           ))}
         </tbody>

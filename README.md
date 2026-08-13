@@ -21,7 +21,20 @@ The repository contains the core Work Item platform plus the complete applicatio
 - Hardened account security with password reset, email verification, lockout, session management and one-time 2FA recovery codes
 - Rich Task Drawer details: subtasks, checklist, tags, secure files, custom fields, comments, activity and dependencies
 
-Read `docs/architecture/F29-F42-COMPLETION.md` for the exact feature-to-code map and external-provider boundaries.
+Read `docs/architecture/F29-F42-COMPLETION.md` for the exact feature-to-code map and external-provider boundaries. For the final source-level security, deployment, frontend/backend and UI correction pass, read `docs/FULL_CODE_CONNECTIVITY_AUDIT.md`.
+
+## UI design system
+
+The web application now has a consolidated production UI contract based on the supplied Professional UI Design Standards Rulebook:
+
+- `apps/web/app/ui-standards.css` owns shared tokens, geometry, responsive behavior, focus and state styling;
+- `apps/web/components/ui` exposes the canonical primitives for the supplied 64-component inventory;
+- `apps/web/app/ui-static.css` contains centralized route-static presentation and loads before the standards layer;
+- `docs/UI_COMPONENT_CONTRACT.md` documents the allowed component anatomy/variants;
+- `docs/PROFESSIONAL_UI_STANDARDIZATION_AUDIT.md` records the final source migration and verification;
+- `docs/UI_FINAL_QA_CHECKLIST.md` is the browser/release checklist.
+
+Source-level regressions are blocked by `node scripts/verify-ui-standards.cjs`.
 
 ## Stack
 
@@ -38,6 +51,9 @@ Read `docs/architecture/F29-F42-COMPLETION.md` for the exact feature-to-code map
 
 ```bash
 node scripts/verify-f29-f42.cjs
+node scripts/verify-asana-screenshot-parity.cjs
+node scripts/verify-ui-standards.cjs
+node scripts/verify-production-readiness.cjs
 ```
 
 This dependency-free gate checks TS/TSX syntax, relative imports, advanced migration coverage, UI/API registration, auth-security controls, Work Item detail controls and pure WQL/scenario/SLA/prioritisation/migration fixtures.

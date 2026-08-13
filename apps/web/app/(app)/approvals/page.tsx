@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput, Select as UiSelect } from "../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
@@ -51,14 +55,14 @@ export default function ApprovalsPage() {
           {!detail && <p className="muted">Select an item from your approval queue.</p>}
           {detail && (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <div className="ui-static-8d446200">
                 <span className={`pill ${detail.request.status}`}>{detail.request.status}</span>
                 <span className="muted">{detail.request.mode} · round {detail.request.round}</span>
-                <a className="btn btn-ghost" href={`/projects`} style={{ marginLeft: "auto" }}>Open item ↗</a>
+                <a className="btn btn-ghost ui-static-6d000617" href={`/projects`} >Open item ↗</a>
               </div>
               {detail.stages.map((st) => (
                 <div key={st.id} className="stagebox" data-active={st.status === "active"}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div className="ui-static-dd15bb92">
                     <strong>{st.index + 1}. {st.name}</strong>
                     <span className="muted">{st.rule === "all" ? "all must approve" : "any approver"} · <span className={`pill ${st.status === "approved" ? "approved" : st.status === "rejected" ? "rejected" : st.status === "active" ? "submitted" : "open"}`}>{st.status}</span></span>
                   </div>
@@ -69,25 +73,25 @@ export default function ApprovalsPage() {
                     </div>
                   ))}
                   {myPending?.stageId === st.id && st.status === "active" && detail.request.status === "pending" && (
-                    <div style={{ marginTop: 10 }}>
-                      <input className="input" placeholder="Comment (optional)" value={comment} onChange={(e) => setComment(e.target.value)} style={{ marginBottom: 8 }} />
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button className="btn btn-primary" onClick={() => decide(st.id, "approved")}>Approve</button>
-                        <button className="btn" onClick={() => decide(st.id, "rejected")}>Reject</button>
-                        <select className="input" value={delegateTo} onChange={(e) => setDelegateTo(e.target.value)} style={{ width: 150 }}>
+                    <div className="ui-static-d2c171b1">
+                      <UiInput className="input ui-static-fdf33f23" placeholder="Comment (optional)" value={comment} onChange={(e) => setComment(e.target.value)}  />
+                      <div className="ui-static-3de8f987">
+                        <UiButton variant="primary"  onClick={() => decide(st.id, "approved")}>Approve</UiButton>
+                        <UiButton variant="secondary"  onClick={() => decide(st.id, "rejected")}>Reject</UiButton>
+                        <UiSelect className="input ui-static-7c07cdf8" value={delegateTo} onChange={(e) => setDelegateTo(e.target.value)} >
                           <option value="">Delegate to…</option>
                           {Object.entries(names).map(([id, n]) => <option key={id} value={id}>{n}</option>)}
-                        </select>
-                        <button className="btn btn-ghost" disabled={!delegateTo} onClick={() => delegate(st.id)}>Delegate</button>
+                        </UiSelect>
+                        <UiButton variant="tertiary"  disabled={!delegateTo} onClick={() => delegate(st.id)}>Delegate</UiButton>
                       </div>
                     </div>
                   )}
                 </div>
               ))}
               {history.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>History</div>
-                  {history.map((e) => <div key={e.id} style={{ fontSize: 12, color: "var(--ink-2)", padding: "3px 0" }}>{new Date(e.at).toLocaleString()} — {e.type}{e.data ? ` (${e.data})` : ""}</div>)}
+                <div className="ui-static-d6f2af6e">
+                  <div className="muted ui-static-a42d5f9e" >History</div>
+                  {history.map((e) => <div key={e.id} className="ui-static-0936530b">{new Date(e.at).toLocaleString()} — {e.type}{e.data ? ` (${e.data})` : ""}</div>)}
                 </div>
               )}
             </>
@@ -98,9 +102,9 @@ export default function ApprovalsPage() {
           <h3>My queue</h3>
           {queue.length === 0 && <p className="muted">Nothing awaits your decision.</p>}
           {queue.map((q) => (
-            <button key={q.stageId} className="btn btn-ghost" style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 6, borderColor: sel === q.requestId ? "var(--primary)" : undefined }} onClick={() => open(q.requestId)}>
-              {q.stageName} {q.delegated && <span className="pill submitted" style={{ marginLeft: 4 }}>delegated</span>}
-            </button>
+            <UiButton variant="tertiary" key={q.stageId} className="ui-selection-row" data-selected={sel === q.requestId || undefined} onClick={() => open(q.requestId)}>
+              {q.stageName} {q.delegated && <span className="pill submitted ui-static-46cec891" >delegated</span>}
+            </UiButton>
           ))}
         </div>
       </div>

@@ -67,7 +67,7 @@ describe("Phase 5 — automation engine", () => {
     const runId = (await auto.manualTrigger(orgId, rule.id, {}, userId))!;
     const [run] = await db.select().from(schema.automationRuns).where(eq(schema.automationRuns.id, runId));
     expect(run.status).toBe("succeeded");
-    const [step] = await auto.steps(runId);
+    const [step] = await auto.steps(orgId, runId);
     expect(step.attempt).toBe(2); // failed once, succeeded on retry
   });
 
@@ -99,6 +99,17 @@ describe("Phase 5 — automation engine", () => {
     expect(after.disabledReason).toBe("loop_detected");
     const runs = await auto.runs(orgId, rule.id);
     expect(runs.length).toBeLessThanOrEqual(7); // bounded by MAX_DEPTH, not infinite
+  });
+
+  it("enforces organization ownership for authoring and run-step reads", async () => {
+    const [otherOrg] = await db.insert(schema.organizations).values({ name: "Other", slug: `other-${crypto.randomUUID().slice(0, 8)}` }).returning();
+    const rule = await auto.createRule(orgId, userId, { name: "Tenant owned", triggerType: "manual" });
+    await expect(auto.addCondition(otherOrg.id, rule.id, "always", {})).rejects.toThrow(/rule not found/i);
+    await expect(auto.addAction(otherOrg.id, rule.id, "test_fail_always", {})).rejects.toThrow(/rule not found/i);
+
+    const runId = (await auto.manualTrigger(orgId, rule.id, {}, userId))!;
+    await expect(auto.steps(otherOrg.id, runId)).rejects.toThrow(/run not found/i);
+    expect(await auto.steps(orgId, runId)).toEqual(expect.any(Array));
   });
 
   it("disables a rule on failure when configured", async () => {

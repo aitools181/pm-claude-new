@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { api } from "../../lib/api";
 import { Icon } from "../ui/Icon";
+import { RuntimeStyle } from "../ui/RuntimeStyle";
 
 type Project = { id: string; name: string; keyPrefix: string; color?: string };
 function active(path: string, href: string) { return path === href || (href !== "/home" && path.startsWith(`${href}/`)); }
@@ -16,17 +17,17 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
     <div className="work-sidebar-head"><div className="work-title-row"><strong>Work</strong><button className="side-plus" onClick={() => location.assign('/projects')} aria-label="Create project"><Icon name="plus" size={15} /></button></div><OrgSwitcher /></div>
     <div className="work-sidebar-scroll">
       <nav className="work-primary-nav">
-        <a data-active={active(path,"/home")} href="/home"><Icon name="home" size={17} /><span>Home</span></a>
-        <a data-active={active(path,"/inbox")} href="/inbox"><Icon name="inbox" size={17} /><span>Inbox</span></a>
+        <a data-active={active(path,"/home")} aria-current={active(path,"/home") ? "page" : undefined} href="/home"><Icon name="home" size={17} /><span>Home</span></a>
+        <a data-active={active(path,"/inbox")} aria-current={active(path,"/inbox") ? "page" : undefined} href="/inbox"><Icon name="inbox" size={17} /><span>Inbox</span></a>
       </nav>
       <div className="side-divider" />
       <nav className="work-primary-nav">
-        <a data-active={active(path,"/my-tasks")} href="/my-tasks"><Icon name="check" size={17} /><span>My tasks</span></a>
-        <a data-active={path === "/projects"} href="/projects"><Icon name="projects" size={17} /><span>Projects</span></a>
-        <a data-active={active(path,"/portfolios")} href="/portfolios"><Icon name="portfolio" size={17} /><span>Portfolios</span></a>
+        <a data-active={active(path,"/my-tasks")} aria-current={active(path,"/my-tasks") ? "page" : undefined} href="/my-tasks"><Icon name="check" size={17} /><span>My tasks</span></a>
+        <a data-active={path === "/projects"} aria-current={path === "/projects" ? "page" : undefined} href="/projects"><Icon name="projects" size={17} /><span>Projects</span></a>
+        <a data-active={active(path,"/portfolios")} aria-current={active(path,"/portfolios") ? "page" : undefined} href="/portfolios"><Icon name="portfolio" size={17} /><span>Portfolios</span></a>
       </nav>
-      <section className="sidebar-projects"><div className="side-section-title"><span>Projects</span><a href="/projects" title="Browse projects">+</a></div>{projects.slice(0,12).map((p) => <a className="side-project-link" data-active={path.startsWith(`/projects/${p.id}`)} href={`/projects/${p.id}`} key={p.id}><span className="project-glyph" style={{ background: p.color || undefined }}>{p.name.slice(0,1).toUpperCase()}</span><span>{p.name}</span></a>)}{!projects.length && <span className="side-empty">No projects yet</span>}</section>
-      <section className="side-more"><button onClick={() => setMore(!more)}><span>More tools</span><Icon name={more ? "chevronDown" : "chevronRight"} size={14} /></button>{more && <nav className="work-primary-nav compact"><a href="/goals"><Icon name="goal" size={16}/>Goals</a><a href="/workload"><Icon name="people" size={16}/>Workload</a><a href="/calendar"><Icon name="calendar" size={16}/>Calendar</a><a href="/dashboards"><Icon name="chart" size={16}/>Dashboards</a><a href="/docs"><Icon name="docs" size={16}/>Docs</a><a href="/service"><Icon name="shield" size={16}/>Service</a><a href="/admin/organizations"><Icon name="settings" size={16}/>Organizations</a><a href="/admin/configure"><Icon name="sliders" size={16}/>Customize</a></nav>}</section>
+      <section className="sidebar-projects"><div className="side-section-title"><span>Projects</span><a href="/projects" title="Browse projects" aria-label="Browse projects">+</a></div>{projects.slice(0,12).map((p) => <a className="side-project-link" data-active={path.startsWith(`/projects/${p.id}`)} aria-current={path.startsWith(`/projects/${p.id}`) ? "page" : undefined} href={`/projects/${p.id}`} key={p.id}><RuntimeStyle as="span" className="project-glyph runtime-bg" vars={{ "--runtime-bg": p.color }}>{p.name.slice(0,1).toUpperCase()}</RuntimeStyle><span>{p.name}</span></a>)}{!projects.length && <span className="side-empty">No projects yet</span>}</section>
+      <section className="side-more"><button onClick={() => setMore(!more)} aria-expanded={more} aria-controls="more-tools-nav"><span>More tools</span><Icon name={more ? "chevronDown" : "chevronRight"} size={14} /></button>{more && <nav id="more-tools-nav" className="work-primary-nav compact"><a data-active={active(path,"/goals")} aria-current={active(path,"/goals") ? "page" : undefined} href="/goals"><Icon name="goal" size={16}/>Goals</a><a data-active={active(path,"/workload")} aria-current={active(path,"/workload") ? "page" : undefined} href="/workload"><Icon name="people" size={16}/>Workload</a><a data-active={active(path,"/calendar")} aria-current={active(path,"/calendar") ? "page" : undefined} href="/calendar"><Icon name="calendar" size={16}/>Calendar</a><a data-active={active(path,"/dashboards")} aria-current={active(path,"/dashboards") ? "page" : undefined} href="/dashboards"><Icon name="chart" size={16}/>Dashboards</a><a data-active={active(path,"/docs")} aria-current={active(path,"/docs") ? "page" : undefined} href="/docs"><Icon name="docs" size={16}/>Docs</a><a data-active={active(path,"/service")} aria-current={active(path,"/service") ? "page" : undefined} href="/service"><Icon name="shield" size={16}/>Service</a><a data-active={active(path,"/admin/organizations")} aria-current={active(path,"/admin/organizations") ? "page" : undefined} href="/admin/organizations"><Icon name="settings" size={16}/>Organizations</a><a data-active={active(path,"/admin/configure")} aria-current={active(path,"/admin/configure") ? "page" : undefined} href="/admin/configure"><Icon name="sliders" size={16}/>Customize</a></nav>}</section>
     </div>
     <div className="work-sidebar-bottom">{isPlatformAdmin && <a href="/superadmin"><Icon name="shield" size={16}/>Platform console</a>}<a href="/settings/workspace#plan"><Icon name="star" size={16}/>Plan & billing</a><a href="/settings/workspace"><Icon name="settings" size={16}/>Workspace settings</a><a href="/admin/people"><Icon name="people" size={16}/>Invite people</a></div>
   </aside>;

@@ -23,10 +23,10 @@ export default function RecoveryPage() {
       <p className="page-sub">Restore-drill history with checksum integrity, reconciliation and RPO/RTO.</p>
 
       {ev && (
-        <div className="metric-grid" style={{ marginBottom: 16 }}>
-          <div className="metric-card"><div className="metric-label">Drills passed</div><div className="metric-value">{ev.passed}/{ev.total}</div><div className="muted" style={{ fontSize: 12 }}>{ev.passRate}% pass rate</div></div>
-          <div className="metric-card"><div className="metric-label">Last good RPO</div><div className="metric-value">{fmt(ev.lastGoodRecovery?.rpoSeconds ?? null)}</div><div className="muted" style={{ fontSize: 12 }}>data age at recovery</div></div>
-          <div className="metric-card"><div className="metric-label">Last good RTO</div><div className="metric-value">{fmt(ev.lastGoodRecovery?.rtoSeconds ?? null)}</div><div className="muted" style={{ fontSize: 12 }}>time to recover</div></div>
+        <div className="metric-grid ui-static-87c136df" >
+          <div className="metric-card"><div className="metric-label">Drills passed</div><div className="metric-value">{ev.passed}/{ev.total}</div><div className="muted ui-static-6cb285c6" >{ev.passRate}% pass rate</div></div>
+          <div className="metric-card"><div className="metric-label">Last good RPO</div><div className="metric-value">{fmt(ev.lastGoodRecovery?.rpoSeconds ?? null)}</div><div className="muted ui-static-6cb285c6" >data age at recovery</div></div>
+          <div className="metric-card"><div className="metric-label">Last good RTO</div><div className="metric-value">{fmt(ev.lastGoodRecovery?.rtoSeconds ?? null)}</div><div className="muted ui-static-6cb285c6" >time to recover</div></div>
         </div>
       )}
 

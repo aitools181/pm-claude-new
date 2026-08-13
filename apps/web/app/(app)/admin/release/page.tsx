@@ -1,4 +1,6 @@
 "use client";
+
+import { Button as UiButton } from "../../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui/Toast";
@@ -32,18 +34,18 @@ export default function ReleasePage() {
       <h1 className="page-title">Release & support</h1>
       <p className="page-sub">Version, migration status, changelog and diagnostic support bundle.</p>
 
-      <div className="metric-grid" style={{ marginBottom: 16 }}>
-        <div className="metric-card"><div className="metric-label">Version</div><div className="metric-value">{version?.appVersion ?? "—"}</div><div className="muted" style={{ fontSize: 12 }}>node {version?.node}</div></div>
-        <div className="metric-card"><div className="metric-label">Schema</div><div className="metric-value">{migration ? `${migration.applied}/${migration.expected}` : "—"}</div><div className="muted" style={{ fontSize: 12 }}>{migration?.mode}{migration && !migration.upToDate ? ` · ${migration.pending} pending` : ""}</div></div>
-        <div className="metric-card"><div className="metric-label">Status</div><div className="metric-value">{migration?.upToDate ? "✓" : "⚠"}</div><div className="muted" style={{ fontSize: 12 }}>{migration?.upToDate ? "up to date" : "migration needed"}</div></div>
+      <div className="metric-grid ui-static-87c136df" >
+        <div className="metric-card"><div className="metric-label">Version</div><div className="metric-value">{version?.appVersion ?? "—"}</div><div className="muted ui-static-6cb285c6" >node {version?.node}</div></div>
+        <div className="metric-card"><div className="metric-label">Schema</div><div className="metric-value">{migration ? `${migration.applied}/${migration.expected}` : "—"}</div><div className="muted ui-static-6cb285c6" >{migration?.mode}{migration && !migration.upToDate ? ` · ${migration.pending} pending` : ""}</div></div>
+        <div className="metric-card"><div className="metric-label">Status</div><div className="metric-value">{migration?.upToDate ? "✓" : "⚠"}</div><div className="muted ui-static-6cb285c6" >{migration?.upToDate ? "up to date" : "migration needed"}</div></div>
       </div>
-      <button className="btn btn-primary" onClick={support} style={{ marginBottom: 16 }}>Download support bundle</button>
+      <UiButton variant="primary" className="ui-static-87c136df" onClick={support} >Download support bundle</UiButton>
 
-      <h3 style={{ fontSize: 14 }}>Changelog</h3>
+      <h3 className="ui-static-433de30b">Changelog</h3>
       {changelog?.entries.map((e) => (
         <div key={e.version} className="fieldcard">
-          <strong>{e.version}</strong> <span className="muted" style={{ fontSize: 12 }}>{e.date}</span>
-          <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>{e.highlights.map((h, i) => <li key={i}>{h}</li>)}</ul>
+          <strong>{e.version}</strong> <span className="muted ui-static-6cb285c6" >{e.date}</span>
+          <ul className="ui-static-fc1e217f">{e.highlights.map((h, i) => <li key={i}>{h}</li>)}</ul>
         </div>
       ))}
     </>

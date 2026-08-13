@@ -1,0 +1,2 @@
+import type { ReactNode } from "react";
+export function ChartFrame({ title, summary, children, dataTable, className = "" }: { title: ReactNode; summary: ReactNode; children: ReactNode; dataTable: ReactNode; className?: string }) { return <figure className={`ui-chart ${className}`.trim()}><figcaption><strong>{title}</strong><span>{summary}</span></figcaption><div className="ui-chart-visual" aria-hidden="true">{children}</div><details className="ui-chart-data"><summary>View exact data</summary>{dataTable}</details></figure>; }

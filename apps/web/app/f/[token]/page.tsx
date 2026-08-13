@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "../../../components/ui";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "../../../lib/api";
@@ -23,10 +27,10 @@ export default function PublicFormPage() {
   }
 
   return (
-    <div style={{ maxWidth: 620, margin: "48px auto", padding: "0 20px" }}>
+    <div className="ui-static-fd9aae72">
       {error && !form && <div className="empty">{error}</div>}
       {done ? (
-        <div className="fieldcard" style={{ textAlign: "center", padding: 28 }}>
+        <div className="fieldcard ui-static-18e2afef" >
           <h2 className="page-title">Thank you</h2>
           <p className="page-sub">Your request has been received.</p>
           {done.ref && <a className="btn btn-primary" href={`/requests/${done.ref}`}>Track your request →</a>}
@@ -36,16 +40,16 @@ export default function PublicFormPage() {
           <h1 className="page-title">{form.name}</h1>
           {form.description && <p className="page-sub">{form.description}</p>}
           {form.fields.filter((f) => visible(f, answers)).map((f) => (
-            <div key={f.key} style={{ marginBottom: 14 }}>
-              <label style={{ display: "block", fontSize: 13, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: "var(--danger)" }}> *</span>}</label>
-              {f.type === "textarea" ? <textarea className="input" rows={4} onChange={(e) => set(f.key, e.target.value)} style={{ width: "100%" }} />
-                : f.type === "select" ? <select className="input" onChange={(e) => set(f.key, e.target.value)} style={{ width: "100%" }}><option value="">— select —</option>{(f.options ?? []).map((o) => <option key={o}>{o}</option>)}</select>
+            <div key={f.key} className="ui-static-2b583d73">
+              <label className="ui-static-6cbc05e9">{f.label}{f.required && <span className="ui-static-497726e8"> *</span>}</label>
+              {f.type === "textarea" ? <UiTextarea className="input ui-static-0466783d" rows={4} onChange={(e) => set(f.key, e.target.value)}  />
+                : f.type === "select" ? <UiSelect className="input ui-static-0466783d" onChange={(e) => set(f.key, e.target.value)} ><option value="">— select —</option>{(f.options ?? []).map((o) => <option key={o}>{o}</option>)}</UiSelect>
                 : f.type === "checkbox" ? <input type="checkbox" onChange={(e) => set(f.key, e.target.checked)} />
-                : <input className="input" type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "email" ? "email" : "text"} onChange={(e) => set(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)} style={{ width: "100%" }} />}
+                : <UiInput className="input ui-static-0466783d" type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "email" ? "email" : "text"} onChange={(e) => set(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)}  /> }
             </div>
           ))}
-          {error && <p style={{ color: "var(--danger)", fontSize: 13 }}>{error}</p>}
-          <button className="btn btn-primary" onClick={submit} style={{ marginTop: 8 }}>Submit</button>
+          {error && <p className="ui-static-8763236a">{error}</p>}
+          <UiButton variant="primary" className="ui-static-8a77e5a3" onClick={submit} >Submit</UiButton>
         </>
       )}
     </div>
