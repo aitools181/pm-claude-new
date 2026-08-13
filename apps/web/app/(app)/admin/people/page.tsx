@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../components/ui";
+import { Select as UiSelect } from "../../../../components/ui";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { Field, Input } from "../../../../components/ui/Field";
@@ -11,14 +15,13 @@ export default function PeoplePage() {
     <>
       <h1 className="page-title">People</h1>
       <p className="page-sub">Members, teams, and default roles in this organization.</p>
-      <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid var(--line)" }}>
+      <div className="ui-static-67715833">
         {(["members", "teams", "roles"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className="btn btn-ghost"
-            style={{ borderRadius: 0, borderBottom: tab === t ? "2px solid var(--primary)" : "2px solid transparent", color: tab === t ? "var(--primary)" : "var(--ink-2)", textTransform: "capitalize" }}>{t}</button>
+          <UiButton variant="tertiary" key={t} onClick={() => setTab(t)} className="ui-subtab-button" data-active={tab === t || undefined}>{t}</UiButton>
         ))}
       </div>
       {tab === "members" && <Members />}
-      {tab === "teams" && <div className="card card-p"><div className="empty" style={{ padding: 40 }}>No teams yet. Create one to group people for assignment and reporting.</div></div>}
+      {tab === "teams" && <div className="card card-p"><div className="empty ui-static-a19bf612" >No teams yet. Create one to group people for assignment and reporting.</div></div>}
       {tab === "roles" && <RolesTable />}
     </>
   );
@@ -42,27 +45,27 @@ function Members() {
   return (
     <div className="card card-p">
       <strong>Invite a member</strong>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 160px auto", gap: 10, alignItems: "end", margin: "12px 0 8px" }}>
+      <div className="ui-static-09170c65">
         <Field label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" /></Field>
         <Field label="Role">
-          <select className="input" value={roleKey} onChange={(e) => setRole(e.target.value)}>
+          <UiSelect className="input" value={roleKey} onChange={(e) => setRole(e.target.value)}>
             {["organization_admin", "project_admin", "team_leader", "member", "viewer"].map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
-          </select>
+          </UiSelect>
         </Field>
-        <button className="btn btn-primary" style={{ marginBottom: 16 }} disabled={!email} onClick={invite}>Send invite</button>
+        <UiButton variant="primary" className="ui-static-87c136df"  disabled={!email} onClick={invite}>Send invite</UiButton>
       </div>
-      {msg && <div className="callout callout-info" style={{ marginBottom: 12 }}>{msg}</div>}
+      {msg && <div className="callout callout-info ui-static-da12f285" >{msg}</div>}
 
-      <table className="table" style={{ marginTop: 8 }}>
+      <table className="table ui-static-8a77e5a3" >
         <thead><tr><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
         <tbody>
-          {invites.length === 0 && <tr><td colSpan={4} style={{ color: "var(--ink-3)" }}>No pending invitations.</td></tr>}
+          {invites.length === 0 && <tr><td colSpan={4} className="ui-static-fbeb64b6">No pending invitations.</td></tr>}
           {invites.map((i) => (
             <tr key={i.id}>
               <td>{i.email}</td>
-              <td style={{ color: "var(--ink-2)" }}>{i.roleKey.replace(/_/g, " ")}</td>
+              <td className="ui-static-66d97643">{i.roleKey.replace(/_/g, " ")}</td>
               <td><span className="badge"><span className={`dot ${i.status === "pending" ? "dot-warn" : i.status === "accepted" ? "dot-ok" : "dot-off"}`} />{i.status}</span></td>
-              <td style={{ textAlign: "right" }}>{i.status === "pending" && <button className="btn btn-danger" onClick={() => revoke(i.id)}>Revoke</button>}</td>
+              <td className="ui-static-54c2afb7">{i.status === "pending" && <UiButton variant="destructive"  onClick={() => revoke(i.id)}>Revoke</UiButton>}</td>
             </tr>
           ))}
         </tbody>
@@ -83,7 +86,7 @@ function RolesTable() {
   ];
   return (
     <div className="card"><table className="table"><thead><tr><th>Role</th><th>Scope</th></tr></thead>
-      <tbody>{rows.map(([r, s]) => <tr key={r}><td style={{ fontWeight: 500 }}>{r}</td><td style={{ color: "var(--ink-2)" }}>{s}</td></tr>)}</tbody>
+      <tbody>{rows.map(([r, s]) => <tr key={r}><td className="ui-static-02a2d333">{r}</td><td className="ui-static-66d97643">{s}</td></tr>)}</tbody>
     </table></div>
   );
 }

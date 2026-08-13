@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../components/ui";
+import { Input as UiInput } from "../../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError, getCurrentOrg, setCurrentOrg } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui/Toast";
@@ -33,9 +37,9 @@ export default function OrganizationsPage() {
       <div className="builder-grid">
         <div className="gpanel">
           <h3>New organization</h3>
-          <label>Name<input className="input" value={name} onChange={(e) => { setName(e.target.value); if (!slug) setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")); }} style={{ marginBottom: 6 }} /></label>
-          <label>Slug<input className="input mono" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="acme-inc" style={{ marginBottom: 8 }} /></label>
-          <button className="btn btn-primary" onClick={create} disabled={!name || busy} style={{ width: "100%" }}>{busy ? "Creating…" : "Create organization"}</button>
+          <label>Name<UiInput className="input ui-static-4e420aff" value={name} onChange={(e) => { setName(e.target.value); if (!slug) setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")); }}  /></label>
+          <label>Slug<UiInput className="input mono ui-static-fdf33f23" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="acme-inc"  /></label>
+          <UiButton variant="primary" className="ui-static-0466783d" onClick={create} disabled={!name || busy} >{busy ? "Creating…" : "Create organization"}</UiButton>
         </div>
         <div>
           <table className="exec-table">
@@ -43,9 +47,9 @@ export default function OrganizationsPage() {
             <tbody>
               {orgs.length === 0 && <tr><td colSpan={3} className="muted">No organizations.</td></tr>}
               {orgs.map((o) => <tr key={o.id}>
-                <td><strong>{o.name}</strong>{current === o.id && <span className="pill open" style={{ marginLeft: 8 }}>current</span>}</td>
-                <td className="mono" style={{ fontSize: 12 }}>{o.slug}</td>
-                <td style={{ textAlign: "right" }}>{current === o.id ? <span className="muted">active</span> : <button className="btn btn-ghost" onClick={() => switchTo(o.id)}>Switch</button>}</td>
+                <td><strong>{o.name}</strong>{current === o.id && <span className="pill open ui-static-5dd2a678" >current</span>}</td>
+                <td className="mono ui-static-6cb285c6" >{o.slug}</td>
+                <td className="ui-static-54c2afb7">{current === o.id ? <span className="muted">active</span> : <UiButton variant="tertiary"  onClick={() => switchTo(o.id)}>Switch</UiButton>}</td>
               </tr>)}
             </tbody>
           </table>

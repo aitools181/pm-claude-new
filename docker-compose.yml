@@ -1,14 +1,13 @@
 # Deploy stack. Infra services are INTERNAL only (no host ports) so they never
-# collide with other apps on a shared host (e.g. Coolify). Only `web` is exposed
-# to the reverse proxy; it proxies /api to the internal api service.
+# collide with other apps on a shared host. Only `web` is exposed; it proxies
+# /api and /socket.io to the internal API service.
 services:
   postgres:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: pm
-      POSTGRES_PASSWORD: pm_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: pm_platform
-    # NOTE: Postgres 18 stores data in a version subdir — mount the PARENT dir.
     volumes: ["pgdata18:/var/lib/postgresql"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pm -d pm_platform"]
@@ -28,29 +27,50 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: pm_minio_user
-      MINIO_ROOT_PASSWORD: pm_minio_password
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
     volumes: ["miniodata:/data"]
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+
+  # Use the official MinIO client to wait for storage and create the private
+  # bucket idempotently. This is more reliable than assuming tools exist in the
+  # server image, and API boot waits for this one-shot job to succeed.
+  minio-init:
+    image: minio/mc:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      S3_BUCKET: pm-platform
+    depends_on:
+      minio: { condition: service_started }
+    entrypoint: >
+      /bin/sh -c '
+        until mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do sleep 2; done;
+        mc mb --ignore-existing local/"$${S3_BUCKET}";
+        mc anonymous set none local/"$${S3_BUCKET}";
+      '
+    restart: "no"
 
   api:
     build: { context: ., dockerfile: apps/api/Dockerfile }
-    env_file: [.env.example]
     environment:
-      DATABASE_URL: postgresql://pm:pm_password@postgres:5432/pm_platform
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      DATABASE_URL: postgresql://pm:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/pm_platform
       REDIS_URL: redis://redis:6379
-      SESSION_SECRET: change_me_in_real_deployments_min_32_chars_long
+      SESSION_SECRET: ${SESSION_SECRET:?Set a random SESSION_SECRET of at least 32 characters in .env}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      S3_BUCKET: pm-platform
+      AI_PROVIDER: disabled
       NODE_ENV: production
-    # Apply the schema to the DB on boot (idempotent), then start the API.
-    command: sh -c "echo BOOT:env DATABASE_URL=$${DATABASE_URL:+set} REDIS_URL=$${REDIS_URL:+set} SESSION_SECRET=$${SESSION_SECRET:+set} && echo BOOT:migrating && (pnpm --filter @pm/db exec drizzle-kit migrate || echo BOOT:MIGRATE_FAILED) && echo BOOT:starting-api && node /app/apps/api/dist/main.js; echo BOOT:API_EXITED code=$$?"
+    # Migration failures are fatal. Never start/advertise a healthy API against
+    # an unknown schema.
+    command: sh -c "echo BOOT:migrating && pnpm --filter @pm/db exec drizzle-kit migrate && echo BOOT:starting-api && exec node /app/apps/api/dist/main.js"
     expose: ["4000"]
     healthcheck:
-      # node has global fetch on 20+, so no curl/wget dependency is needed.
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -58,13 +78,13 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
 
   worker:
     build: { context: ., dockerfile: apps/worker/Dockerfile }
-    env_file: [.env.example]
     environment:
       REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgresql://pm:pm_password@postgres:5432/pm_platform
+      DATABASE_URL: postgresql://pm:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/pm_platform
       WORKER_HEALTH_PORT: "4100"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -74,16 +94,16 @@ services:
       start_period: 60s
     depends_on:
       redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
 
   web:
     build: { context: ., dockerfile: apps/web/Dockerfile }
     environment:
-      NEXT_PUBLIC_API_URL: ""              # browser uses same-origin /api (proxied)
-      INTERNAL_API_URL: http://api:4000    # Next server-side proxy target
-      API_URL: http://api:4000             # server components
+      NEXT_PUBLIC_API_URL: ""
+      INTERNAL_API_URL: http://api:4000
+      API_URL: http://api:4000
     expose: ["3000"]
     healthcheck:
-      # /healthz, not /api/health: next.config rewrites /api/* to the API service.
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
@@ -95,17 +115,16 @@ services:
   maintenance:
     build: { context: ., dockerfile: apps/maintenance/Dockerfile }
     profiles: ["maintenance"]
-    env_file: [.env.example]
     environment:
-      DATABASE_URL: postgresql://pm:pm_password@postgres:5432/pm_platform
+      DATABASE_URL: postgresql://pm:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/pm_platform
       S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: pm_minio_user
-      S3_SECRET_KEY: pm_minio_password
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
       S3_BUCKET: pm-platform
     volumes: ["backups:/backups"]
     depends_on:
       postgres: { condition: service_healthy }
-      minio: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
 
 volumes:
   pgdata18:

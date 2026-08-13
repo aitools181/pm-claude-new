@@ -1,7 +1,13 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput } from "../../../components/ui";
+import { appPrompt, appConfirm } from "../../../components/ui/AppDialog";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
+import { useModalDialog } from "../../../components/ui/useModalDialog";
 
 type Org = { id: string; name: string; slug: string; status: string; members: number; projects: number; workItems: number };
 type Admin = { userId: string; email: string; displayName: string; note: string | null };
@@ -31,6 +37,8 @@ export default function SuperAdminPage() {
   const [mail, setMail] = useState<Mail>(null);
   const [mailForm, setMailForm] = useState({ host: "", port: 587, secure: false, username: "", password: "", fromName: "PM Platform", fromEmail: "", replyTo: "", enabled: false });
   const [mailBusy, setMailBusy] = useState(false);
+  const planDialogRef = useModalDialog<HTMLDivElement>(Boolean(planFor), () => setPlanFor(null));
+  const modulesDialogRef = useModalDialog<HTMLDivElement>(Boolean(modulesFor), () => setModulesFor(null));
 
   const err = (e: unknown, fallback: string) => toast({ message: e instanceof ApiError ? e.message : fallback });
 
@@ -73,7 +81,7 @@ export default function SuperAdminPage() {
     catch (e) { err(e, "Could not grant access"); }
   }
   async function revoke(a: Admin) {
-    if (!confirm(`Remove platform access for ${a.email}?`)) return;
+    if (!await appConfirm(`Remove platform access for ${a.email}?`)) return;
     try { await api(`/superadmin/admins/${a.userId}`, { method: "DELETE" }); toast({ message: "Access revoked" }); load(); }
     catch (e) { err(e, "Could not revoke access"); }
   }
@@ -83,14 +91,14 @@ export default function SuperAdminPage() {
   }
   async function editPrice(plan: Plan, field: "priceMonthly" | "priceYearly") {
     const label = field === "priceMonthly" ? "monthly" : "yearly";
-    const cur = prompt(`New ${label} price for ${plan.name} (in ${plan.currency}, whole units)`, String(plan[field] / 100));
+    const cur = await appPrompt(`New ${label} price for ${plan.name} (in ${plan.currency}, whole units)`, String(plan[field] / 100));
     if (cur === null) return;
     const minor = Math.round(Number(cur) * 100);
     if (!Number.isFinite(minor) || minor < 0) return toast({ message: "Enter a valid amount" });
     savePlan(plan, { [field]: minor });
   }
   async function editLimit(plan: Plan, key: string) {
-    const cur = prompt(`${key} for ${plan.name} — a number, or blank for unlimited`, plan.limits?.[key] == null ? "" : String(plan.limits[key]));
+    const cur = await appPrompt(`${key} for ${plan.name} — a number, or blank for unlimited`, plan.limits?.[key] == null ? "" : String(plan.limits[key]));
     if (cur === null) return;
     const val = cur.trim() === "" ? null : Number(cur);
     if (val !== null && (!Number.isInteger(val) || val < 0)) return toast({ message: "Enter a whole number or leave blank" });
@@ -117,7 +125,7 @@ export default function SuperAdminPage() {
     finally { setMailBusy(false); }
   }
   async function testMail() {
-    const to = prompt("Send a test message to which address?");
+    const to = await appPrompt("Send a test message to which address?");
     if (!to) return;
     setMailBusy(true);
     try { await api("/superadmin/mail/test", { method: "POST", body: JSON.stringify({ to }) }); toast({ message: `Test message sent to ${to}` }); load(); }
@@ -130,25 +138,25 @@ export default function SuperAdminPage() {
   }
 
   if (allowed === null) return <p className="muted">Checking access…</p>;
-  if (!allowed) return (<><h1 className="page-title">Platform console</h1><div className="fieldcard" style={{ borderColor: "var(--danger)" }}><p>This console is limited to platform administrators. Organization administrators manage their own organization from Admin instead.</p></div></>);
+  if (!allowed) return (<><h1 className="page-title">Platform console</h1><div className="fieldcard ui-static-2907c574" ><p>This console is limited to platform administrators. Organization administrators manage their own organization from Admin instead.</p></div></>);
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>Platform console</h1>
+      <div className="ui-static-1363b299">
+        <h1 className="page-title ui-static-ef0b7a11" >Platform console</h1>
         {version && <span className="pill open" title={version.release}>v{version.version} · {version.release}</span>}
       </div>
       <p className="page-sub">Instance-wide administration: organizations, module entitlements, platform flags and administrators. Work item content stays private to each organization.</p>
 
       {stats && (
-        <div className="stat-row" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <div className="stat-row ui-static-bc3ad077" >
           {[["Organizations", `${stats.activeOrganizations}/${stats.organizations}`], ["Users", stats.users], ["Projects", stats.projects], ["Work items", stats.workItems], ["Platform admins", stats.platformAdmins]].map(([k, v]) => (
-            <div className="fieldcard" key={String(k)} style={{ flex: "1 1 150px" }}><div className="muted" style={{ fontSize: 12 }}>{k}</div><div style={{ fontSize: 22, fontWeight: 600 }}>{v}</div></div>
+            <div className="fieldcard ui-static-86b8a5c0" key={String(k)} ><div className="muted ui-static-6cb285c6" >{k}</div><div className="ui-static-c021b869">{v}</div></div>
           ))}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+      <div className="ui-static-a7ec8b99">
         {TABS.map((t) => <button key={t} className={`btn ${tab === t ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab(t)}>{t}</button>)}
       </div>
 
@@ -158,15 +166,15 @@ export default function SuperAdminPage() {
           <tbody>
             {orgs.length === 0 && <tr><td colSpan={6} className="muted">No organizations.</td></tr>}
             {orgs.map((o) => <tr key={o.id}>
-              <td><strong>{o.name}</strong><br /><span className="muted mono" style={{ fontSize: 11 }}>{o.slug}</span></td>
+              <td><strong>{o.name}</strong><br /><span className="muted mono ui-static-11a50812" >{o.slug}</span></td>
               <td>{o.members}</td><td>{o.projects}</td><td>{o.workItems}</td>
               <td><span className={`pill ${o.status === "active" ? "open" : "danger"}`}>{o.status}</span></td>
-              <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                <button className="btn btn-ghost" onClick={() => openPlanFor(o)}>Plan</button>
-                <button className="btn btn-ghost" onClick={() => openModules(o)}>Modules</button>
+              <td className="ui-static-4ede699f">
+                <UiButton variant="tertiary"  onClick={() => openPlanFor(o)}>Plan</UiButton>
+                <UiButton variant="tertiary"  onClick={() => openModules(o)}>Modules</UiButton>
                 {o.status === "active"
-                  ? <button className="btn btn-ghost" onClick={() => setStatus(o, "suspended")}>Suspend</button>
-                  : <button className="btn btn-ghost" onClick={() => setStatus(o, "active")}>Reactivate</button>}
+                  ? <UiButton variant="tertiary"  onClick={() => setStatus(o, "suspended")}>Suspend</UiButton>
+                  : <UiButton variant="tertiary"  onClick={() => setStatus(o, "active")}>Reactivate</UiButton>}
               </td>
             </tr>)}
           </tbody>
@@ -175,29 +183,29 @@ export default function SuperAdminPage() {
 
       {tab === "Plans & pricing" && (
         <>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <span className="muted" style={{ fontSize: 12 }}>Prices are what customers see on the public pricing page. Limits and modules decide what each tier can actually use.</span>
-            {plans.length === 0 && <button className="btn btn-primary" onClick={seedPlans}>Install default plans</button>}
+          <div className="ui-static-27a9242a">
+            <span className="muted ui-static-6cb285c6" >Prices are what customers see on the public pricing page. Limits and modules decide what each tier can actually use.</span>
+            {plans.length === 0 && <UiButton variant="primary"  onClick={seedPlans}>Install default plans</UiButton>}
           </div>
           <table className="exec-table">
             <thead><tr><th>Plan</th><th>Monthly</th><th>Yearly</th><th>Members</th><th>Projects</th><th>Modules</th><th>State</th></tr></thead>
             <tbody>
               {plans.length === 0 && <tr><td colSpan={7} className="muted">No plans yet.</td></tr>}
               {plans.map((p) => <tr key={p.id}>
-                <td><strong>{p.name}</strong><br /><span className="muted mono" style={{ fontSize: 11 }}>{p.key}</span></td>
-                <td><button className="btn btn-ghost" onClick={() => editPrice(p, "priceMonthly")}>{money(p.priceMonthly, p.currency)}</button></td>
-                <td><button className="btn btn-ghost" onClick={() => editPrice(p, "priceYearly")}>{money(p.priceYearly, p.currency)}</button></td>
-                <td><button className="btn btn-ghost" onClick={() => editLimit(p, "maxMembers")}>{p.limits?.maxMembers ?? "∞"}</button></td>
-                <td><button className="btn btn-ghost" onClick={() => editLimit(p, "maxProjects")}>{p.limits?.maxProjects ?? "∞"}</button></td>
-                <td className="muted" style={{ fontSize: 11, maxWidth: 220 }}>{p.modules.length ? p.modules.join(", ") : "core only"}</td>
+                <td><strong>{p.name}</strong><br /><span className="muted mono ui-static-11a50812" >{p.key}</span></td>
+                <td><UiButton variant="tertiary"  onClick={() => editPrice(p, "priceMonthly")}>{money(p.priceMonthly, p.currency)}</UiButton></td>
+                <td><UiButton variant="tertiary"  onClick={() => editPrice(p, "priceYearly")}>{money(p.priceYearly, p.currency)}</UiButton></td>
+                <td><UiButton variant="tertiary"  onClick={() => editLimit(p, "maxMembers")}>{p.limits?.maxMembers ?? "∞"}</UiButton></td>
+                <td><UiButton variant="tertiary"  onClick={() => editLimit(p, "maxProjects")}>{p.limits?.maxProjects ?? "∞"}</UiButton></td>
+                <td className="muted ui-static-9bd7c139" >{p.modules.length ? p.modules.join(", ") : "core only"}</td>
                 <td>
                   <span className={`pill ${p.status === "active" ? "open" : "danger"}`}>{p.status}</span>
-                  {p.status === "active" && <button className="btn btn-ghost" onClick={() => savePlan(p, { isPublic: !p.isPublic })}>{p.isPublic ? "public" : "hidden"}</button>}
+                  {p.status === "active" && <UiButton variant="tertiary"  onClick={() => savePlan(p, { isPublic: !p.isPublic })}>{p.isPublic ? "public" : "hidden"}</UiButton>}
                 </td>
               </tr>)}
             </tbody>
           </table>
-          <p className="muted" style={{ fontSize: 12 }}>Click a price or limit to edit it. Blank limit means unlimited. Changes apply immediately — downgrades withdraw module access without deleting data.</p>
+          <p className="muted ui-static-6cb285c6" >Click a price or limit to edit it. Blank limit means unlimited. Changes apply immediately — downgrades withdraw module access without deleting data.</p>
         </>
       )}
 
@@ -205,26 +213,26 @@ export default function SuperAdminPage() {
         <div className="builder-grid">
           <div className="gpanel">
             <h3>SMTP server</h3>
-            <label>Host<input className="input" value={mailForm.host} onChange={(e) => setMailForm({ ...mailForm, host: e.target.value })} placeholder="smtp.gmail.com" style={{ marginBottom: 6 }} /></label>
-            <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-              <label style={{ flex: 1 }}>Port<input className="input" type="number" value={mailForm.port} onChange={(e) => setMailForm({ ...mailForm, port: Number(e.target.value) })} /></label>
-              <label style={{ flex: 1, display: "flex", gap: 6, alignItems: "flex-end", paddingBottom: 8 }}>
+            <label>Host<UiInput className="input ui-static-4e420aff" value={mailForm.host} onChange={(e) => setMailForm({ ...mailForm, host: e.target.value })} placeholder="smtp.gmail.com"  /></label>
+            <div className="ui-static-9d6820f7">
+              <label className="ui-static-97445a8d">Port<UiInput className="input" type="number" value={mailForm.port} onChange={(e) => setMailForm({ ...mailForm, port: Number(e.target.value) })} /></label>
+              <label className="ui-static-bd649348">
                 <input type="checkbox" checked={mailForm.secure} onChange={(e) => setMailForm({ ...mailForm, secure: e.target.checked })} /> <span>Implicit TLS (465)</span>
               </label>
             </div>
-            <label>Username<input className="input" value={mailForm.username} onChange={(e) => setMailForm({ ...mailForm, username: e.target.value })} autoComplete="off" style={{ marginBottom: 6 }} /></label>
-            <label>Password<input className="input" type="password" value={mailForm.password} onChange={(e) => setMailForm({ ...mailForm, password: e.target.value })} autoComplete="new-password" placeholder={mail?.hasPassword ? "•••••••• (leave blank to keep)" : "SMTP password"} style={{ marginBottom: 10 }} /></label>
+            <label>Username<UiInput className="input ui-static-4e420aff" value={mailForm.username} onChange={(e) => setMailForm({ ...mailForm, username: e.target.value })} autoComplete="off"  /></label>
+            <label>Password<UiInput className="input ui-static-761d3add" type="password" value={mailForm.password} onChange={(e) => setMailForm({ ...mailForm, password: e.target.value })} autoComplete="new-password" placeholder={mail?.hasPassword ? "•••••••• (leave blank to keep)" : "SMTP password"}  /></label>
             <h3>Sender</h3>
-            <label>From name<input className="input" value={mailForm.fromName} onChange={(e) => setMailForm({ ...mailForm, fromName: e.target.value })} style={{ marginBottom: 6 }} /></label>
-            <label>From address<input className="input" value={mailForm.fromEmail} onChange={(e) => setMailForm({ ...mailForm, fromEmail: e.target.value })} placeholder="no-reply@yourdomain.com" style={{ marginBottom: 6 }} /></label>
-            <label>Reply-to (optional)<input className="input" value={mailForm.replyTo} onChange={(e) => setMailForm({ ...mailForm, replyTo: e.target.value })} style={{ marginBottom: 10 }} /></label>
-            <label style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+            <label>From name<UiInput className="input ui-static-4e420aff" value={mailForm.fromName} onChange={(e) => setMailForm({ ...mailForm, fromName: e.target.value })}  /></label>
+            <label>From address<UiInput className="input ui-static-4e420aff" value={mailForm.fromEmail} onChange={(e) => setMailForm({ ...mailForm, fromEmail: e.target.value })} placeholder="no-reply@yourdomain.com"  /></label>
+            <label>Reply-to (optional)<UiInput className="input ui-static-761d3add" value={mailForm.replyTo} onChange={(e) => setMailForm({ ...mailForm, replyTo: e.target.value })}  /></label>
+            <label className="ui-static-779f737d">
               <input type="checkbox" checked={mailForm.enabled} onChange={(e) => setMailForm({ ...mailForm, enabled: e.target.checked })} />
               <span>Deliver email through this server</span>
             </label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn btn-primary" onClick={saveMail} disabled={mailBusy || !mailForm.host || !mailForm.fromEmail}>{mailBusy ? "Working…" : "Save settings"}</button>
-              <button className="btn" onClick={testMail} disabled={mailBusy || !mail?.enabled}>Send test</button>
+            <div className="ui-static-a76d597a">
+              <UiButton variant="primary"  onClick={saveMail} disabled={mailBusy || !mailForm.host || !mailForm.fromEmail}>{mailBusy ? "Working…" : "Save settings"}</UiButton>
+              <UiButton variant="secondary"  onClick={testMail} disabled={mailBusy || !mail?.enabled}>Send test</UiButton>
             </div>
           </div>
           <div className="fieldcard">
@@ -232,51 +240,51 @@ export default function SuperAdminPage() {
             {!mail && <p className="muted">Not configured yet. Until a server is saved and enabled, email is written to the server log instead of being delivered.</p>}
             {mail && (
               <>
-                <p style={{ margin: "0 0 8px" }}>Delivery is <span className={`pill ${mail.enabled ? "open" : "danger"}`}>{mail.enabled ? "enabled" : "disabled"}</span></p>
-                <p className="muted mono" style={{ fontSize: 12 }}>{mail.host}:{mail.port} · {mail.secure ? "implicit TLS" : "STARTTLS"} · {mail.username || "no auth"}</p>
-                <p className="muted" style={{ fontSize: 12 }}>From: {mail.fromName} &lt;{mail.fromEmail}&gt;</p>
-                <hr style={{ opacity: 0.2, margin: "12px 0" }} />
+                <p className="ui-static-df671843">Delivery is <span className={`pill ${mail.enabled ? "open" : "danger"}`}>{mail.enabled ? "enabled" : "disabled"}</span></p>
+                <p className="muted mono ui-static-6cb285c6" >{mail.host}:{mail.port} · {mail.secure ? "implicit TLS" : "STARTTLS"} · {mail.username || "no auth"}</p>
+                <p className="muted ui-static-6cb285c6" >From: {mail.fromName} &lt;{mail.fromEmail}&gt;</p>
+                <hr className="ui-static-6ead5531" />
                 <h3>Last test</h3>
                 {!mail.lastTestAt && <p className="muted">Never tested.</p>}
                 {mail.lastTestAt && (
-                  <p style={{ fontSize: 13 }}>
+                  <p className="ui-static-5e0faad2">
                     <span className={`pill ${mail.lastTestOk ? "open" : "danger"}`}>{mail.lastTestOk ? "delivered" : "failed"}</span>{" "}
                     <span className="muted">{new Date(mail.lastTestAt).toLocaleString()}</span>
-                    {mail.lastTestError && <><br /><span className="mono" style={{ fontSize: 11, color: "var(--danger)" }}>{mail.lastTestError}</span></>}
+                    {mail.lastTestError && <><br /><span className="mono ui-static-09bfd191" >{mail.lastTestError}</span></>}
                   </p>
                 )}
               </>
             )}
-            <hr style={{ opacity: 0.2, margin: "12px 0" }} />
-            <p className="muted" style={{ fontSize: 12 }}>The password is encrypted before it is stored and is never sent back to this page. Leave the field blank when saving to keep the existing one. If delivery fails, invitations and password resets still complete — the message is logged rather than lost.</p>
+            <hr className="ui-static-6ead5531" />
+            <p className="muted ui-static-6cb285c6" >The password is encrypted before it is stored and is never sent back to this page. Leave the field blank when saving to keep the existing one. If delivery fails, invitations and password resets still complete — the message is logged rather than lost.</p>
           </div>
         </div>
       )}
 
       {tab === "Administrators" && (
         <>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input className="input" placeholder="user@example.com" value={email} onChange={(e) => setEmail(e.target.value)} style={{ maxWidth: 320 }} />
-            <button className="btn btn-primary" onClick={grant} disabled={!email}>Grant platform access</button>
+          <div className="ui-static-bb2693cf">
+            <UiInput className="input ui-static-3521b3d8" placeholder="user@example.com" value={email} onChange={(e) => setEmail(e.target.value)}  />
+            <UiButton variant="primary"  onClick={grant} disabled={!email}>Grant platform access</UiButton>
           </div>
           <table className="exec-table">
             <thead><tr><th>Administrator</th><th>Email</th><th>Note</th><th></th></tr></thead>
             <tbody>
               {admins.map((a) => <tr key={a.userId}>
-                <td>{a.displayName}</td><td className="mono" style={{ fontSize: 12 }}>{a.email}</td><td className="muted">{a.note ?? "—"}</td>
-                <td style={{ textAlign: "right" }}><button className="btn btn-ghost" onClick={() => revoke(a)}>Revoke</button></td>
+                <td>{a.displayName}</td><td className="mono ui-static-6cb285c6" >{a.email}</td><td className="muted">{a.note ?? "—"}</td>
+                <td className="ui-static-54c2afb7"><UiButton variant="tertiary"  onClick={() => revoke(a)}>Revoke</UiButton></td>
               </tr>)}
             </tbody>
           </table>
-          <p className="muted" style={{ fontSize: 12 }}>The final administrator cannot be removed, to prevent locking the instance out.</p>
+          <p className="muted ui-static-6cb285c6" >The final administrator cannot be removed, to prevent locking the instance out.</p>
         </>
       )}
 
       {tab === "Platform flags" && (
         <>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input className="input mono" placeholder="new.flag.key" value={flagKey} onChange={(e) => setFlagKey(e.target.value)} style={{ maxWidth: 320 }} />
-            <button className="btn btn-primary" onClick={() => setFlag(flagKey, true)} disabled={!flagKey}>Create enabled</button>
+          <div className="ui-static-bb2693cf">
+            <UiInput className="input mono ui-static-3521b3d8" placeholder="new.flag.key" value={flagKey} onChange={(e) => setFlagKey(e.target.value)}  />
+            <UiButton variant="primary"  onClick={() => setFlag(flagKey, true)} disabled={!flagKey}>Create enabled</UiButton>
           </div>
           <table className="exec-table">
             <thead><tr><th>Flag</th><th>State</th><th></th></tr></thead>
@@ -284,7 +292,7 @@ export default function SuperAdminPage() {
               {flags.length === 0 && <tr><td colSpan={3} className="muted">No platform flags yet.</td></tr>}
               {flags.map((f) => <tr key={f.id}>
                 <td className="mono">{f.key}</td><td><span className={`pill ${f.enabled ? "open" : "danger"}`}>{f.enabled ? "on" : "off"}</span></td>
-                <td style={{ textAlign: "right" }}><button className="btn btn-ghost" onClick={() => setFlag(f.key, !f.enabled)}>{f.enabled ? "Disable" : "Enable"}</button></td>
+                <td className="ui-static-54c2afb7"><UiButton variant="tertiary"  onClick={() => setFlag(f.key, !f.enabled)}>{f.enabled ? "Disable" : "Enable"}</UiButton></td>
               </tr>)}
             </tbody>
           </table>
@@ -297,9 +305,9 @@ export default function SuperAdminPage() {
           <tbody>
             {audit.length === 0 && <tr><td colSpan={3} className="muted">No instance activity yet.</td></tr>}
             {audit.map((a) => <tr key={a.id}>
-              <td className="muted" style={{ fontSize: 12 }}>{new Date(a.createdAt).toLocaleString()}</td>
-              <td className="mono" style={{ fontSize: 12 }}>{a.action}</td>
-              <td className="muted mono" style={{ fontSize: 11 }}>{a.targetType ?? "—"}{a.targetId ? ` · ${a.targetId.slice(0, 8)}…` : ""}</td>
+              <td className="muted ui-static-6cb285c6" >{new Date(a.createdAt).toLocaleString()}</td>
+              <td className="mono ui-static-6cb285c6" >{a.action}</td>
+              <td className="muted mono ui-static-11a50812" >{a.targetType ?? "—"}{a.targetId ? ` · ${a.targetId.slice(0, 8)}…` : ""}</td>
             </tr>)}
           </tbody>
         </table>
@@ -307,35 +315,35 @@ export default function SuperAdminPage() {
 
       {planFor && (
         <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setPlanFor(null); }}>
-          <div className="modal-card">
-            <div className="modal-title-row"><h2>Plan · {planFor.org.name}</h2><button className="icon-btn" onClick={() => setPlanFor(null)}>✕</button></div>
-            <p className="muted" style={{ fontSize: 12 }}>Current tier: <strong>{planFor.current}</strong>. Changing the plan immediately changes limits and module entitlements.</p>
-            <div style={{ display: "grid", gap: 6 }}>
+          <div ref={planDialogRef} tabIndex={-1} className="modal-card" role="dialog" aria-modal="true" aria-labelledby="org-plan-title">
+            <div className="modal-title-row"><h2 id="org-plan-title">Plan · {planFor.org.name}</h2><button className="icon-btn" aria-label="Close organization plan dialog" onClick={() => setPlanFor(null)}>✕</button></div>
+            <p className="muted ui-static-6cb285c6" >Current tier: <strong>{planFor.current}</strong>. Changing the plan immediately changes limits and module entitlements.</p>
+            <div className="ui-static-5646293c">
               {plans.filter((p) => p.status === "active").map((p) => (
                 <button key={p.key} className={`btn ${planFor.current === p.key ? "btn-primary" : ""}`} onClick={() => assignPlan(planFor.org.id, p.key)}>
                   {p.name} · {money(p.priceMonthly, p.currency)}/mo · {p.limits?.maxProjects ?? "∞"} projects
                 </button>
               ))}
             </div>
-            <div className="modal-actions"><button className="btn" onClick={() => setPlanFor(null)}>Cancel</button></div>
+            <div className="modal-actions"><UiButton variant="secondary"  onClick={() => setPlanFor(null)}>Cancel</UiButton></div>
           </div>
         </div>
       )}
 
       {modulesFor && (
         <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setModulesFor(null); }}>
-          <div className="modal-card">
-            <div className="modal-title-row"><h2>Modules · {modulesFor.org.name}</h2><button className="icon-btn" onClick={() => setModulesFor(null)}>✕</button></div>
-            <p className="muted" style={{ fontSize: 12 }}>Optional modules this organization may use. Disabled modules are refused by the API, not merely hidden.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, maxHeight: 320, overflow: "auto" }}>
+          <div ref={modulesDialogRef} tabIndex={-1} className="modal-card" role="dialog" aria-modal="true" aria-labelledby="org-modules-title">
+            <div className="modal-title-row"><h2 id="org-modules-title">Modules · {modulesFor.org.name}</h2><button className="icon-btn" aria-label="Close organization modules dialog" onClick={() => setModulesFor(null)}>✕</button></div>
+            <p className="muted ui-static-6cb285c6" >Optional modules this organization may use. Disabled modules are refused by the API, not merely hidden.</p>
+            <div className="ui-static-9629e438">
               {Object.entries(modulesFor.modules).map(([m, on]) => (
-                <label key={m} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <label key={m} className="ui-static-01ef7fc9">
                   <input type="checkbox" checked={on} onChange={(e) => toggleModule(m, e.target.checked)} />
-                  <span className="mono" style={{ fontSize: 12 }}>{m}</span>
+                  <span className="mono ui-static-6cb285c6" >{m}</span>
                 </label>
               ))}
             </div>
-            <div className="modal-actions"><button className="btn" onClick={() => setModulesFor(null)}>Done</button></div>
+            <div className="modal-actions"><UiButton variant="secondary"  onClick={() => setModulesFor(null)}>Done</UiButton></div>
           </div>
         </div>
       )}

@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Select as UiSelect } from "../../../components/ui";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../lib/api";
 
@@ -41,17 +45,17 @@ export default function CalendarPage() {
       <p className="page-sub">Due dates across your work; subscribe from any calendar app via ICS.</p>
 
       <div className="cal-toolbar">
-        <button className="btn btn-ghost" onClick={() => shift(-1)}>←</button>
-        <strong style={{ minWidth: 160, textAlign: "center" }}>{monthLabel}</strong>
-        <button className="btn btn-ghost" onClick={() => shift(1)}>→</button>
-        <button className="btn" onClick={() => setCursor(() => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), 1)); })}>Today</button>
-        <span style={{ flex: 1 }} />
-        <select className="input" style={{ width: 180 }} value={scope} onChange={(e) => setScope(e.target.value)}>
+        <UiButton variant="tertiary"  onClick={() => shift(-1)}>←</UiButton>
+        <strong className="ui-static-25b0165e">{monthLabel}</strong>
+        <UiButton variant="tertiary"  onClick={() => shift(1)}>→</UiButton>
+        <UiButton variant="secondary"  onClick={() => setCursor(() => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), 1)); })}>Today</UiButton>
+        <span className="ui-static-97445a8d" />
+        <UiSelect className="input ui-static-54f91ac4"  value={scope} onChange={(e) => setScope(e.target.value)}>
           <option value="mine">My work</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <div style={{ display: "flex", gap: 4 }}>
-          {(["month", "agenda"] as const).map((v) => <button key={v} className={`btn ${view === v ? "btn-primary" : "btn-ghost"}`} style={{ textTransform: "capitalize" }} onClick={() => setView(v)}>{v}</button>)}
+        </UiSelect>
+        <div className="ui-static-74cac98b">
+          {(["month", "agenda"] as const).map((v) => <button key={v} className={[`btn ${view === v ? "btn-primary" : "btn-ghost"}`, "ui-static-6fedee39"].filter(Boolean).join(" ")}  onClick={() => setView(v)}>{v}</button>)}
         </div>
         <a className="btn" href={icsUrl} target="_blank" rel="noreferrer">Subscribe (ICS)</a>
       </div>
@@ -74,11 +78,11 @@ export default function CalendarPage() {
 
       {view === "agenda" && (
         <div className="card">
-          {events.length === 0 && <div style={{ padding: 16, color: "var(--ink-3)" }}>Nothing due in this range.</div>}
+          {events.length === 0 && <div className="ui-static-cfad4427">Nothing due in this range.</div>}
           {[...events].filter((e) => e.dueDate).sort((a, b) => (a.dueDate! < b.dueDate! ? -1 : 1)).map((e) => (
             <div key={e.id} className="agenda-row">
-              <span className="mono" style={{ fontSize: 12, color: "var(--ink-3)" }}>{e.dueDate}</span>
-              <span><span className="mono" style={{ fontSize: 12, color: "var(--ink-3)" }}>{e.key}</span> {e.title}</span>
+              <span className="mono ui-static-63e481c4" >{e.dueDate}</span>
+              <span><span className="mono ui-static-63e481c4" >{e.key}</span> {e.title}</span>
               <span className={`status-pill ${e.statusCategory === "done" ? "st-done" : e.statusCategory === "in_progress" ? "st-in_progress" : "st-todo"}`}>{e.statusCategory}</span>
             </div>
           ))}

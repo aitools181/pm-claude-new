@@ -1,0 +1,58 @@
+PM PLATFORM FINAL SOURCE VERIFICATION
+Generated: 2026-08-13
+Scope: source/static verification after centralized color-token + runtime-style debt cleanup
+
+1. F29-F42 source verifier
+   PASS: 65
+   FAIL: 0
+   Source files scanned: 551
+   Tables checked: 96
+
+2. Asana screenshot-parity source verifier
+   PASS: 25/25
+
+3. UI standards verifier
+   PASS: 94/94
+   Key enforced outcomes:
+   - design-tokens.css loads before globals.css, ui-static.css and ui-standards.css
+   - authored literal CSS colors outside design-tokens.css: 0
+   - static JSX style attributes: 0
+   - dynamic JSX style attributes: 0
+   - hard-coded TSX hex colors: 0
+   - raw reusable text input/select/textarea outside shared UI: 0
+   - browser prompt/confirm workflows: 0
+   - modal implementations use the shared dialog/modal behavior
+
+4. Production-readiness source verifier
+   PASS: 39/39
+   Frontend request-method variants mapped: 456/456
+   AdvancedModuleHub endpoints mapped: 31/31
+   Backend routes scanned: 597
+   Missing statically-resolvable route match: 0
+
+5. TypeScript/TSX syntax/transpile pass
+   Files checked: 551/551
+   Parse/transpile errors: 0
+
+6. CSS/token integrity
+   CSS files parsed: 4/4
+   Parse errors: 0
+   --pm-* token definitions: 418
+   --pm-* token references: 418
+   Missing --pm-* references: 0
+   Literal hex/numeric rgb/rgba values in globals.css: 0
+   Literal hex/numeric rgb/rgba values in ui-static.css: 0
+   Literal hex/numeric rgb/rgba values in ui-standards.css: 0
+   JSX style= attributes under apps/web: 0
+
+7. Runtime-only visual values
+   Runtime geometry/data values (measured overlay positions, Gantt/chart/whiteboard geometry,
+   progress dimensions, user-selected colors, CSS variables) are routed through the shared
+   RuntimeStyle/useRuntimeCssVars bridge. Visual declarations remain in CSS; route/component
+   JSX no longer uses style attributes.
+
+RUNTIME CERTIFICATION BOUNDARY
+This packaging environment does not contain the project's installed workspace dependencies,
+Node 20 runtime, or Docker. Therefore this report does NOT claim a completed semantic
+pnpm typecheck, Next/Nest production build, Docker integration run, or Playwright/axe browser
+run. Execute the documented Node 20 release gate before deployment.

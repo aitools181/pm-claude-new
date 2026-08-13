@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Select as UiSelect, Textarea as UiTextarea } from "../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
@@ -34,28 +38,28 @@ export default function AiPage() {
     <>
       <h1 className="page-title">AI assistant</h1>
       <p className="page-sub">The assistant drafts proposals from content you can access. Nothing changes until you confirm.</p>
-      {status && <p className="muted" style={{ fontSize: 12 }}>Provider: {status.provider} · {status.healthy ? "healthy" : "degraded"} · budget {status.usedTokens}/{status.budgetTokens} tokens</p>}
+      {status && <p className="muted ui-static-6cb285c6" >Provider: {status.provider} · {status.healthy ? "healthy" : "degraded"} · budget {status.usedTokens}/{status.budgetTokens} tokens</p>}
 
-      <div className="gpanel" style={{ marginBottom: 16 }}>
-        <textarea className="input" rows={3} placeholder="Describe a task; the assistant will draft it…" value={text} onChange={(e) => setText(e.target.value)} style={{ marginBottom: 8 }} />
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)} style={{ width: 180 }}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-          <label style={{ fontSize: 13 }}><input type="checkbox" checked={useRetrieval} onChange={(e) => setUseRetrieval(e.target.checked)} /> use my accessible items as context</label>
-          <span style={{ flex: 1 }} />
-          <button className="btn btn-primary" onClick={propose}>Draft proposal</button>
+      <div className="gpanel ui-static-87c136df" >
+        <UiTextarea className="input ui-static-fdf33f23" rows={3} placeholder="Describe a task; the assistant will draft it…" value={text} onChange={(e) => setText(e.target.value)}  />
+        <div className="ui-static-06307df0">
+          <UiSelect className="input ui-static-54f91ac4" value={projectId} onChange={(e) => setProjectId(e.target.value)} >{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UiSelect>
+          <label className="ui-static-5e0faad2"><input type="checkbox" checked={useRetrieval} onChange={(e) => setUseRetrieval(e.target.checked)} /> use my accessible items as context</label>
+          <span className="ui-static-97445a8d" />
+          <UiButton variant="primary"  onClick={propose}>Draft proposal</UiButton>
         </div>
       </div>
 
-      <h3 style={{ fontSize: 14 }}>Proposals</h3>
+      <h3 className="ui-static-433de30b">Proposals</h3>
       {proposals.length === 0 && <div className="empty">No proposals yet.</div>}
       {proposals.map((p) => (
         <div key={p.id} className="fieldcard">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>{p.title}<span className="ai-badge">AI</span>{p.degraded && <span className="pill submitted" style={{ marginLeft: 6 }}>degraded</span>}</span>
-            {p.status === "proposed" ? <span style={{ display: "flex", gap: 6 }}><button className="btn btn-primary" onClick={() => confirm(p.id)}>Confirm & create</button><button className="btn btn-ghost" onClick={() => reject(p.id)}>Reject</button></span>
+          <div className="ui-static-13313b1a">
+            <span>{p.title}<span className="ai-badge">AI</span>{p.degraded && <span className="pill submitted ui-static-391ef124" >degraded</span>}</span>
+            {p.status === "proposed" ? <span className="ui-static-49cd0921"><UiButton variant="primary"  onClick={() => confirm(p.id)}>Confirm & create</UiButton><UiButton variant="tertiary"  onClick={() => reject(p.id)}>Reject</UiButton></span>
               : <span className={`pill ${p.status === "applied" ? "approved" : "rejected"}`}>{p.status}</span>}
           </div>
-          {p.citations.length > 0 && <div style={{ marginTop: 6 }}><span className="muted" style={{ fontSize: 11 }}>Sources: </span>{p.citations.map((c) => <span key={c.id} className="ai-cite mono">{c.key ?? c.id.slice(0, 8)}</span>)}</div>}
+          {p.citations.length > 0 && <div className="ui-static-fe7b4979"><span className="muted ui-static-11a50812" >Sources: </span>{p.citations.map((c) => <span key={c.id} className="ai-cite mono">{c.key ?? c.id.slice(0, 8)}</span>)}</div>}
         </div>
       ))}
     </>

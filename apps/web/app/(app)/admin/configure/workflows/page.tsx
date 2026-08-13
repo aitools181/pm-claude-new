@@ -1,4 +1,6 @@
 "use client";
+
+import { Button as UiButton } from "../../../../../components/ui";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "../../../../../lib/api";
@@ -24,15 +26,15 @@ export default function WorkflowsList() {
     <>
       <h1 className="page-title">Workflows</h1>
       <p className="page-sub">Design statuses and transitions, publish an immutable version, then migrate.</p>
-      {msg && <div className="callout callout-danger" style={{ marginBottom: 14 }}>{msg}</div>}
-      <div className="card card-p" style={{ marginBottom: 20, display: "flex", gap: 8, maxWidth: 460 }}>
+      {msg && <div className="callout callout-danger ui-static-2b583d73" >{msg}</div>}
+      <div className="card card-p ui-static-76c744f9" >
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Development Flow" />
-        <button className="btn btn-primary" disabled={!name} onClick={create}>Create</button>
+        <UiButton variant="primary"  disabled={!name} onClick={create}>Create</UiButton>
       </div>
       <div className="card">
-        {rows.length === 0 && <div style={{ padding: 16, color: "var(--ink-3)" }}>No workflows yet.</div>}
+        {rows.length === 0 && <div className="ui-static-cfad4427">No workflows yet.</div>}
         {rows.map((w) => (
-          <a key={w.id} href={`/admin/configure/workflows/${w.id}`} className="wi-row" style={{ gridTemplateColumns: "1fr 120px" }}>
+          <a key={w.id} href={`/admin/configure/workflows/${w.id}`} className="wi-row ui-static-b4a3ead0" >
             <span className="wi-title">{w.name}</span>
             <span className={`badge ${w.publishedVersionId ? "pill-published" : "pill-draft"}`}>{w.publishedVersionId ? "published" : "draft"}</span>
           </a>

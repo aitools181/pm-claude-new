@@ -1,7 +1,13 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput, Select as UiSelect } from "../../../components/ui";
+import { appPrompt } from "../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
+import { useModalDialog } from "../../../components/ui/useModalDialog";
 
 type Dashboard = { id: string; name: string; visibility: string };
 type Widget = { id: string; type: string; title: string; source?: string; params?: Record<string, unknown>; value?: number | null; unit?: string; formula?: { formula: string }; ageSeconds?: number; stale?: boolean; error?: string };
@@ -18,12 +24,13 @@ export default function DashboardsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [add, setAdd] = useState({ source: "", title: "", projectId: "" });
   const [drill, setDrill] = useState<{ title: string; records: { key: string; title: string }[] } | null>(null);
+  const drillDialogRef = useModalDialog<HTMLDivElement>(Boolean(drill), () => setDrill(null));
 
   const loadList = useCallback(async () => setList(await api<Dashboard[]>("/dashboards", { org: true }).catch(() => [])), []);
   useEffect(() => { loadList(); api<Cat[]>("/metric-catalogue", { org: true }).then(setCat).catch(() => {}); api<Project[]>("/projects", { org: true }).then(setProjects).catch(() => {}); }, [loadList]);
   const open = useCallback(async (id: string) => { setSel(id); setRendered(await api<Rendered>(`/dashboards/${id}/render`, { org: true }).catch(() => null)); }, []);
 
-  async function create() { const name = prompt("Dashboard name"); if (!name) return; await api("/dashboards", { method: "POST", org: true, body: JSON.stringify({ name, visibility: "org", widgets: [] }) }); loadList(); }
+  async function create() { const name = await appPrompt("Dashboard name"); if (!name) return; await api("/dashboards", { method: "POST", org: true, body: JSON.stringify({ name, visibility: "org", widgets: [] }) }); loadList(); }
   async function addWidget() {
     if (!sel || !add.source || !rendered) return;
     const c = cat.find((x) => x.source === add.source);
@@ -41,41 +48,41 @@ export default function DashboardsPage() {
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 className="page-title" style={{ marginBottom: 4 }}>Dashboards</h1>
-        <button className="btn btn-primary" onClick={create}>+ New dashboard</button>
+      <div className="ui-static-13313b1a">
+        <h1 className="page-title ui-static-c81ce4b2" >Dashboards</h1>
+        <UiButton variant="primary"  onClick={create}>+ New dashboard</UiButton>
       </div>
       <div className="builder-grid">
         <div>
           {!rendered && <p className="muted">Select a dashboard.</p>}
           {rendered && (
             <>
-              <div className="dash-grid" style={{ marginBottom: 16 }}>
+              <div className="dash-grid ui-static-87c136df" >
                 {rendered.widgets.length === 0 && <p className="muted">No widgets yet — add one below.</p>}
                 {rendered.widgets.map((w) => (
                   <div key={w.id} className="widget-card">
-                    <div className="muted" style={{ fontSize: 12 }}>{w.title}</div>
-                    {w.error ? <div style={{ color: "var(--danger)", fontSize: 13 }}>{w.error}</div> : <div className="widget-val">{w.value}{w.unit === "%" ? "%" : ""}</div>}
+                    <div className="muted ui-static-6cb285c6" >{w.title}</div>
+                    {w.error ? <div className="ui-static-8763236a">{w.error}</div> : <div className="widget-val">{w.value}{w.unit === "%" ? "%" : ""}</div>}
                     <div className="widget-meta">{w.formula?.formula}</div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                    <div className="ui-static-1c620034">
                       <span className={`fresh ${w.stale ? "stale" : ""}`}>{w.ageSeconds === 0 ? "live" : `${w.ageSeconds}s ago`}</span>
-                      {drillable(w) && <button className="btn btn-ghost" style={{ padding: "0 8px" }} onClick={() => doDrill(w)}>Drill →</button>}
+                      {drillable(w) && <UiButton variant="tertiary" className="ui-static-e5e520c5"  onClick={() => doDrill(w)}>Drill →</UiButton>}
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <select className="input" value={add.source} onChange={(e) => setAdd({ ...add, source: e.target.value })} style={{ width: 190 }}>
+              <div className="ui-static-559c8d07">
+                <UiSelect className="input ui-static-fc2c71fc" value={add.source} onChange={(e) => setAdd({ ...add, source: e.target.value })} >
                   <option value="">Add widget: metric…</option>{cat.map((c) => <option key={c.source} value={c.source}>{c.label}</option>)}
-                </select>
+                </UiSelect>
                 {cat.find((c) => c.source === add.source)?.params.includes("projectId") && (
-                  <select className="input" value={add.projectId} onChange={(e) => setAdd({ ...add, projectId: e.target.value })} style={{ width: 150 }}>
+                  <UiSelect className="input ui-static-7c07cdf8" value={add.projectId} onChange={(e) => setAdd({ ...add, projectId: e.target.value })} >
                     <option value="">All projects</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
+                  </UiSelect>
                 )}
-                <input className="input" placeholder="Title (optional)" value={add.title} onChange={(e) => setAdd({ ...add, title: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
-                <button className="btn" onClick={addWidget} disabled={!add.source}>Add widget</button>
+                <UiInput className="input ui-static-f09611ef" placeholder="Title (optional)" value={add.title} onChange={(e) => setAdd({ ...add, title: e.target.value })}  />
+                <UiButton variant="secondary"  onClick={addWidget} disabled={!add.source}>Add widget</UiButton>
               </div>
             </>
           )}
@@ -83,18 +90,18 @@ export default function DashboardsPage() {
 
         <div className="gpanel">
           <h3>Dashboards</h3>
-          {list.map((d) => <button key={d.id} className="btn btn-ghost" style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 6, borderColor: sel === d.id ? "var(--primary)" : undefined }} onClick={() => open(d.id)}>{d.name} <span className="pill open" style={{ marginLeft: 4 }}>{d.visibility}</span></button>)}
+          {list.map((d) => <UiButton variant="tertiary" key={d.id} className="ui-selection-row" data-selected={sel === d.id || undefined} onClick={() => open(d.id)}>{d.name} <span className="pill open ui-static-46cec891" >{d.visibility}</span></UiButton>)}
         </div>
       </div>
 
       {drill && (
-        <div className="modal-backdrop" onClick={() => setDrill(null)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <h2 className="page-title" style={{ fontSize: 18 }}>{drill.title} — records</h2>
+        <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setDrill(null); }}>
+          <div ref={drillDialogRef} tabIndex={-1} className="modal-card" role="dialog" aria-modal="true" aria-labelledby="dashboard-drill-title">
+            <h2 id="dashboard-drill-title" className="page-title ui-static-4ff818ff" >{drill.title} — records</h2>
             <p className="page-sub">Showing {drill.records.length} record(s) you can access.</p>
             {drill.records.map((r) => <div key={r.key} className="bl-row"><span className="key">{r.key}</span><span className="title">{r.title}</span></div>)}
             {drill.records.length === 0 && <p className="muted">No authorised records.</p>}
-            <div style={{ textAlign: "right", marginTop: 12 }}><button className="btn" onClick={() => setDrill(null)}>Close</button></div>
+            <div className="ui-static-475e409f"><UiButton variant="secondary"  onClick={() => setDrill(null)}>Close</UiButton></div>
           </div>
         </div>
       )}

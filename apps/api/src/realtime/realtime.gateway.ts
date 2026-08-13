@@ -8,7 +8,7 @@ import { OrgContextService } from "../org-context/org-context.service.js";
  * then joins user + organization rooms. Emits are best-effort; the inbox is the
  * source of truth (deduped), so a reconnect never produces duplicate state.
  */
-@WebSocketGateway({ cors: { origin: true, credentials: true } })
+@WebSocketGateway({ cors: { origin: process.env.APP_URL ?? "http://localhost:3000", credentials: true } })
 export class RealtimeGateway implements OnGatewayConnection {
   @WebSocketServer() server!: Server;
 

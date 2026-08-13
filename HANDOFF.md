@@ -176,16 +176,30 @@ If pushing from a fresh machine, authenticate first (`gh auth login` or a PAT re
 
 ---
 
-## 10. Ideas for future work (optional)
+## 10. Final UI standardization handoff (2026-08-12)
 
-- Real LLM provider bindings behind the Phase 13 `AiProvider` interface (BYOK/local).
+The UI standardization request has been consolidated into the repository rather than left as a route-by-route checklist:
+
+- final design-system layer: `apps/web/app/ui-standards.css`;
+- generated/tokenized static presentation: `apps/web/app/ui-static.css`;
+- canonical component barrel: `apps/web/components/ui/index.ts`;
+- complete supplied inventory contract: `docs/UI_COMPONENT_CONTRACT.md`;
+- implementation audit: `docs/PROFESSIONAL_UI_STANDARDIZATION_AUDIT.md`;
+- final rendered-browser checklist: `docs/UI_FINAL_QA_CHECKLIST.md`;
+- strict dependency-free regression gate: `node scripts/verify-ui-standards.cjs`;
+- full-stack browser gate once dependencies are present: `pnpm --filter @pm/web e2e` (includes `e2e/ui-standards.spec.ts`).
+
+Current source gates after the final code/connectivity correction pass: F29-F42 **65/65**, Asana parity **25/25**, UI standards **94/94**, production readiness **39/39**. The route-contract gate maps **456** statically-resolvable frontend request-method variants plus **31** configured AdvancedModuleHub endpoints to **597** backend routes with no missing match. See `docs/FULL_CODE_CONNECTIVITY_AUDIT.md`. A semantic Next/Nest production build and Playwright run were not executed in the constrained packaging environment because Node 20/workspace dependencies/Docker are unavailable; run the documented full release gate before deployment.
+
+## 11. Ideas for future work (optional)
+
+- Certify the configured OpenAI-compatible/BYOK AI endpoint with production credentials; add provider-specific adapters only where deployment requirements justify them.
 - Live collaboration transport for chat/whiteboard (Socket.IO is already wired for collab).
-- Scheduled jobs to drive `retryDue` (webhooks/reports), `purgeExpired` (retention), and
-  restore-drill regressions from the worker.
+- Extend the now-live BullMQ worker beyond retention to drive `retryDue` for webhooks/reports and scheduled restore-drill regressions.
 - More public-API resources + SDKs generated from the OpenAPI document.
 
 
-## 11. F29-F42 final package notes
+## 12. F29-F42 final package notes
 
 - Migrations `0026_complete_f29_f42.sql`, `0027_f29_f42_completion.sql` and `0028_auth_security_completion.sql` must all be applied.
 - Run `node scripts/verify-f29-f42.cjs` before installing dependencies, then run the full pnpm release gate.

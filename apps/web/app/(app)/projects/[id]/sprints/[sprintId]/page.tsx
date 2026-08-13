@@ -1,8 +1,13 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../../../components/ui";
+import { Select as UiSelect } from "../../../../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, ApiError } from "../../../../../../lib/api";
 import { useToast } from "../../../../../../components/ui/Toast";
+import { useModalDialog } from "../../../../../../components/ui/useModalDialog";
 
 type Item = { id: string; key: string; title: string; statusCategory: string; storyPoints: number | null };
 type Detail = { sprint: { id: string; name: string; state: string; goal: string | null; committedPoints: number | null }; items: Item[]; points: number };
@@ -23,6 +28,7 @@ export default function SprintBoardPage() {
   const [wizard, setWizard] = useState(false);
   const [carryTo, setCarryTo] = useState("");
   const [planned, setPlanned] = useState<Sprint[]>([]);
+  const closeSprintDialogRef = useModalDialog<HTMLDivElement>(wizard, () => setWizard(false), "select");
 
   const load = useCallback(async () => {
     setDetail(await api<Detail>(`/sprints/${sprintId}`, { org: true }).catch(() => null));
@@ -54,11 +60,11 @@ export default function SprintBoardPage() {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <div><h1 className="page-title" style={{ marginBottom: 0 }}>{detail.sprint.name}</h1>{detail.sprint.goal && <p className="page-sub">{detail.sprint.goal}</p>}</div>
-        <div style={{ display: "flex", gap: 8 }}>
+      <div className="ui-static-f16fa207">
+        <div><h1 className="page-title ui-static-ef0b7a11" >{detail.sprint.name}</h1>{detail.sprint.goal && <p className="page-sub">{detail.sprint.goal}</p>}</div>
+        <div className="ui-static-a76d597a">
           <a className="btn" href={`/projects/${id}/backlog`}>← Backlog</a>
-          {detail.sprint.state === "active" && <button className="btn btn-primary" onClick={openWizard}>Close sprint</button>}
+          {detail.sprint.state === "active" && <UiButton variant="primary"  onClick={openWizard}>Close sprint</UiButton>}
         </div>
       </div>
 
@@ -80,10 +86,10 @@ export default function SprintBoardPage() {
               <h4>{label} · {its.length} · {pts(its)}pt</h4>
               {its.map((it) => (
                 <div key={it.id} className="board-item">
-                  <span><span className="mono" style={{ fontSize: 11, color: "var(--ink-3)" }}>{it.key}</span> {it.title}</span>
-                  <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span><span className="mono ui-static-6acd729e" >{it.key}</span> {it.title}</span>
+                  <span className="ui-static-25b52886">
                     {it.storyPoints != null && <span className="pts">{it.storyPoints}</span>}
-                    {!closed && <button className="btn btn-ghost" style={{ padding: "0 6px" }} title={`Move to ${NEXT[it.statusCategory]}`} onClick={() => setStatus(it)}>→</button>}
+                    {!closed && <UiButton variant="tertiary" className="ui-static-7c699c10"  title={`Move to ${NEXT[it.statusCategory]}`} onClick={() => setStatus(it)}>→</UiButton>}
                   </span>
                 </div>
               ))}
@@ -93,20 +99,20 @@ export default function SprintBoardPage() {
       </div>
 
       {wizard && (
-        <div className="modal-backdrop" onClick={() => setWizard(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <h2 className="page-title" style={{ fontSize: 18 }}>Close sprint</h2>
+        <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setWizard(false); }}>
+          <div ref={closeSprintDialogRef} tabIndex={-1} className="modal-card" role="dialog" aria-modal="true" aria-labelledby="close-sprint-title">
+            <h2 id="close-sprint-title" className="page-title ui-static-4ff818ff" >Close sprint</h2>
             <p className="page-sub">{detail.items.filter((i) => i.statusCategory === "done").length} of {detail.items.length} items done. {incomplete.length} incomplete item(s) will be carried over.</p>
-            <div style={{ margin: "12px 0" }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 5 }}>Carry incomplete items to</div>
-              <select className="input" value={carryTo} onChange={(e) => setCarryTo(e.target.value)} style={{ width: "100%" }}>
+            <div className="ui-static-d60550f6">
+              <div className="muted ui-static-99ecd519" >Carry incomplete items to</div>
+              <UiSelect className="input ui-static-0466783d" value={carryTo} onChange={(e) => setCarryTo(e.target.value)} >
                 <option value="">Back to backlog</option>
                 {planned.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              </UiSelect>
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button className="btn" onClick={() => setWizard(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={close}>Close sprint &amp; freeze report</button>
+            <div className="ui-static-309cf477">
+              <UiButton variant="secondary"  onClick={() => setWizard(false)}>Cancel</UiButton>
+              <UiButton variant="primary"  onClick={close}>Close sprint &amp; freeze report</UiButton>
             </div>
           </div>
         </div>

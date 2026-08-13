@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../ui";
+import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "../ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../../lib/api";
 import { useToast } from "../ui/Toast";
@@ -115,7 +119,7 @@ export function AdvancedModuleHub(props: HubProps) {
       <header className="advanced-hero">
         <span className="advanced-icon"><Icon name={props.icon} size={22} /></span>
         <div className="advanced-hero-copy"><span className="advanced-eyebrow">{props.eyebrow}</span><h1>{props.title}</h1><p>{props.description}</p></div>
-        <button className="btn" onClick={load} disabled={loading}>Refresh</button>
+        <UiButton variant="secondary"  onClick={load} disabled={loading}>Refresh</UiButton>
       </header>
       <nav className="advanced-tabs" aria-label={`${props.title} sections`}>
         {(["overview", "create", "data"] as const).map((name) => <button key={name} data-active={tab === name} onClick={() => setTab(name)}>{name === "create" ? "New / Configure" : name[0].toUpperCase() + name.slice(1)}</button>)}
@@ -127,9 +131,9 @@ export function AdvancedModuleHub(props: HubProps) {
         </section>
         <section className="advanced-layout">
           <div className="advanced-panel"><div className="advanced-panel-head"><div><span className="advanced-kicker">Capabilities</span><h2>Everything in one workspace</h2></div></div><div className="feature-check-grid">{props.features.map((feature) => <div key={feature}><span><Icon name="check" size={14} /></span><p>{feature}</p></div>)}</div></div>
-          <aside className="advanced-side-card"><span className="advanced-kicker">Quick start</span><h3>{props.actions[0]?.label}</h3><p>{props.actions[0]?.description}</p><button className="btn btn-primary" onClick={() => setTab("create")}>Open setup</button></aside>
+          <aside className="advanced-side-card"><span className="advanced-kicker">Quick start</span><h3>{props.actions[0]?.label}</h3><p>{props.actions[0]?.description}</p><UiButton variant="primary"  onClick={() => setTab("create")}>Open setup</UiButton></aside>
         </section>
-        {groups[0] && <section className="advanced-panel"><div className="advanced-panel-head"><div><span className="advanced-kicker">Recent</span><h2>{groups[0].key.replace(/([A-Z])/g, " $1")}</h2></div><button className="btn btn-ghost" onClick={() => setTab("data")}>View all</button></div><div className="record-list">{groups[0].rows.slice(0, 6).map((row, i) => <button key={String((row as any)?.id ?? i)} onClick={() => { setTab("data"); setExpanded(String((row as any)?.id ?? `${groups[0].key}-${i}`)); }}><span className="record-monogram">{recordTitle(row, i).slice(0, 1).toUpperCase()}</span><span><strong>{recordTitle(row, i)}</strong><small>{recordSub(row) || "Configured record"}</small></span><Icon name="chevronRight" size={15} /></button>)}</div></section>}
+        {groups[0] && <section className="advanced-panel"><div className="advanced-panel-head"><div><span className="advanced-kicker">Recent</span><h2>{groups[0].key.replace(/([A-Z])/g, " $1")}</h2></div><UiButton variant="tertiary"  onClick={() => setTab("data")}>View all</UiButton></div><div className="record-list">{groups[0].rows.slice(0, 6).map((row, i) => <button key={String((row as any)?.id ?? i)} onClick={() => { setTab("data"); setExpanded(String((row as any)?.id ?? `${groups[0].key}-${i}`)); }}><span className="record-monogram">{recordTitle(row, i).slice(0, 1).toUpperCase()}</span><span><strong>{recordTitle(row, i)}</strong><small>{recordSub(row) || "Configured record"}</small></span><Icon name="chevronRight" size={15} /></button>)}</div></section>}
       </>}
 
       {tab === "create" && <section className="advanced-layout">
@@ -138,10 +142,10 @@ export function AdvancedModuleHub(props: HubProps) {
           {props.actions.length > 1 && <div className="action-switcher">{props.actions.map((item, i) => <button key={item.label} data-active={i === actionIndex} onClick={() => setActionIndex(i)}>{item.label}</button>)}</div>}
           <div className="advanced-form">
             {action.fields.map((field) => <label key={field.key} className={field.kind === "textarea" || field.kind === "json" ? "wide" : ""}><span>{field.label}{field.required && <b> *</b>}</span>
-              {field.kind === "textarea" || field.kind === "json" ? <textarea rows={field.kind === "json" ? 6 : 4} placeholder={field.placeholder} value={String(values[field.key] ?? "")} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))} /> : field.kind === "select" ? <select value={String(values[field.key] ?? "")} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}><option value="">Choose…</option>{field.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> : field.kind === "project" ? <select value={String(values[field.key] ?? "")} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}><option value="">Choose project…</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select> : field.kind === "checkbox" ? <span className="advanced-checkbox"><input type="checkbox" checked={Boolean(values[field.key])} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.checked }))} /> Enabled</span> : <input type={field.kind === "number" ? "number" : field.kind === "datetime" ? "datetime-local" : "text"} placeholder={field.placeholder} value={String(values[field.key] ?? "")} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))} />}
+              {field.kind === "textarea" || field.kind === "json" ? <UiTextarea rows={field.kind === "json" ? 6 : 4} placeholder={field.placeholder} value={String(values[field.key] ?? "")} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))} /> : field.kind === "select" ? <UiSelect value={String(values[field.key] ?? "")} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}><option value="">Choose…</option>{field.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</UiSelect> : field.kind === "project" ? <UiSelect value={String(values[field.key] ?? "")} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}><option value="">Choose project…</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UiSelect> : field.kind === "checkbox" ? <span className="advanced-checkbox"><input type="checkbox" checked={Boolean(values[field.key])} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.checked }))} /> Enabled</span> : <UiInput type={field.kind === "number" ? "number" : field.kind === "datetime" ? "datetime-local" : "text"} placeholder={field.placeholder} value={String(values[field.key] ?? "")} onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))} />}
             </label>)}
           </div>
-          <div className="advanced-form-footer"><span>Fields are validated by the server and audited where required.</span><button className="btn btn-primary" onClick={submit} disabled={submitting}>{submitting ? "Saving…" : action.label}</button></div>
+          <div className="advanced-form-footer"><span>Fields are validated by the server and audited where required.</span><UiButton variant="primary"  onClick={submit} disabled={submitting}>{submitting ? "Saving…" : action.label}</UiButton></div>
         </div>
         <aside className="advanced-side-card"><span className="advanced-kicker">Safe by design</span><h3>Permission-aware</h3><p>Organization context, module enablement, access checks and stable validation errors are enforced server-side.</p></aside>
       </section>}

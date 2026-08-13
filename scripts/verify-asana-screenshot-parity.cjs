@@ -24,7 +24,7 @@ const checks = [
   ['gantt', 'apps/web/app/(app)/projects/[id]/gantt/page.tsx', 'ProjectChrome'],
   ['dashboard', 'apps/web/app/(app)/projects/[id]/reports/page.tsx', 'ProjectChrome'],
   ['files', 'apps/web/app/(app)/projects/[id]/files/page.tsx', 'ProjectChrome'],
-  ['theme combinations', 'apps/web/components/theme/ThemeProvider.tsx', 'slack-huddle'],
+  ['theme combinations', 'apps/web/components/theme/themeTokens.ts', 'slack-huddle'],
   ['custom accent', 'apps/web/components/theme/ThemeProvider.tsx', 'setCustomAccent'],
   ['workspace settings', 'apps/web/app/(app)/settings/workspace/page.tsx', 'SettingsShell'],
 ];

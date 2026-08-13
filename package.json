@@ -16,7 +16,9 @@
     "db:generate": "pnpm --filter @pm/db generate",
     "db:migrate": "pnpm --filter @pm/db migrate",
     "verify:f29-f42": "node scripts/verify-f29-f42.cjs",
-    "verify:asana-screenshots": "node scripts/verify-asana-screenshot-parity.cjs"
+    "verify:asana-screenshots": "node scripts/verify-asana-screenshot-parity.cjs",
+    "verify:ui-standards": "node scripts/verify-ui-standards.cjs",
+    "verify:production-readiness": "node scripts/verify-production-readiness.cjs"
   },
   "devDependencies": {
     "@types/node": "20",

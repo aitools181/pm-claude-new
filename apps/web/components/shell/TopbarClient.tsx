@@ -17,7 +17,7 @@ export function TopbarClient({ onMenu }: { onMenu: () => void }) {
   return <>
     <header className="asana-topbar">
       <div className="asana-topbar-left"><button className="topbar-icon mobile-menu" aria-label="Open navigation" onClick={onMenu}><Icon name="menu" size={20} /></button><button className="asana-create" onClick={() => setCreateOpen(true)}><span className="create-orb"><Icon name="plus" size={17} /></span><strong>Create</strong></button></div>
-      <button className="asana-search" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}><Icon name="search" size={17} /><span>Search</span><kbd>Ctrl K</kbd></button>
+      <button className="asana-search" aria-haspopup="dialog" aria-label="Search workspace (Ctrl K)" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}><Icon name="search" size={17} /><span>Search</span><kbd>Ctrl K</kbd></button>
       <div className="asana-topbar-actions"><a href="/ai" className="topbar-icon ai-topbar-button" aria-label="AI assistant"><Icon name="sparkles" size={18} /></a><a href="/inbox" className="topbar-icon bell" aria-label="Inbox" onClick={() => setUnread(0)}><Icon name="bell" size={18} />{unread > 0 && <span className="count">{unread > 99 ? "99+" : unread}</span>}</a><a href="/settings" className="topbar-icon" aria-label="Settings"><Icon name="settings" size={18} /></a><UserMenu /></div>
       <CommandPalette />
     </header>

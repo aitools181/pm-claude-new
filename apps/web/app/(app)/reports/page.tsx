@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput, Select as UiSelect } from "../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
@@ -45,25 +49,25 @@ export default function ReportsPage() {
           {!sel && <p className="muted">Select a report to see its run history and deliveries.</p>}
           {sel && (
             <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <h3 style={{ margin: 0 }}>{defs.find((d) => d.id === sel)?.name}</h3>
-                <button className="btn btn-primary" onClick={() => runNow(sel)}>Run now</button>
+              <div className="ui-static-ba5de791">
+                <h3 className="ui-static-11696618">{defs.find((d) => d.id === sel)?.name}</h3>
+                <UiButton variant="primary"  onClick={() => runNow(sel)}>Run now</UiButton>
               </div>
               {runs.length === 0 && <p className="muted">No runs yet.</p>}
               {runs.map((run) => (
                 <div key={run.id} className="fieldcard">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span onClick={() => toggleRun(run.id)} style={{ cursor: "pointer" }}>
-                      <span className="mono" style={{ fontSize: 12, color: "var(--ink-3)" }}>{new Date(run.createdAt).toLocaleString()}</span>
+                  <div className="ui-static-13313b1a">
+                    <button type="button" onClick={() => toggleRun(run.id)} className="ui-static-3b6a3a65 ui-reset-button" aria-expanded={expanded === run.id}>
+                      <span className="mono ui-static-63e481c4" >{new Date(run.createdAt).toLocaleString()}</span>
                       {" "}<span className={`pill ${run.status === "delivered" ? "approved" : run.status === "failed" ? "rejected" : "submitted"}`}>{run.status}</span>
-                      <span className="muted" style={{ fontSize: 12 }}> · attempt {run.attempt}/{run.maxAttempts}</span>
-                    </span>
-                    {(run.status === "retry_scheduled" || run.status === "failed") && run.attempt < run.maxAttempts && <button className="btn btn-ghost" onClick={() => retry(run.id)}>Retry</button>}
+                      <span className="muted ui-static-6cb285c6" > · attempt {run.attempt}/{run.maxAttempts}</span>
+                    </button>
+                    {(run.status === "retry_scheduled" || run.status === "failed") && run.attempt < run.maxAttempts && <UiButton variant="tertiary"  onClick={() => retry(run.id)}>Retry</UiButton>}
                   </div>
-                  {run.error && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 4 }}>{run.error}</div>}
+                  {run.error && <div className="ui-static-5f638055">{run.error}</div>}
                   {expanded === run.id && (
-                    <div style={{ marginTop: 8 }}>
-                      {deliveries.map((d) => <div key={d.id} style={{ fontSize: 12, padding: "2px 0" }}>{d.recipient} — <span className={d.status === "delivered" ? "h-on_track" : "h-off_track"}>{d.status}</span>{d.error ? ` (${d.error})` : ""}</div>)}
+                    <div className="ui-static-8a77e5a3">
+                      {deliveries.map((d) => <div key={d.id} className="ui-static-6cc78029">{d.recipient} — <span className={d.status === "delivered" ? "h-on_track" : "h-off_track"}>{d.status}</span>{d.error ? ` (${d.error})` : ""}</div>)}
                     </div>
                   )}
                 </div>
@@ -74,21 +78,21 @@ export default function ReportsPage() {
 
         <div className="gpanel">
           <h3>New report</h3>
-          <input className="input" placeholder="Report name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ marginBottom: 6 }} />
-          <select className="input" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value, refId: "" })} style={{ marginBottom: 6 }}>
+          <UiInput className="input ui-static-4e420aff" placeholder="Report name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}  />
+          <UiSelect className="input ui-static-4e420aff" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value, refId: "" })} >
             <option value="dashboard">Dashboard</option><option value="portfolio">Portfolio</option><option value="metric">Metric</option>
-          </select>
-          <select className="input" value={form.refId} onChange={(e) => setForm({ ...form, refId: e.target.value })} style={{ marginBottom: 6 }}>
+          </UiSelect>
+          <UiSelect className="input ui-static-4e420aff" value={form.refId} onChange={(e) => setForm({ ...form, refId: e.target.value })} >
             <option value="">Select {form.kind}…</option>{currentRefs.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-          <select className="input" value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value })} style={{ marginBottom: 6 }}>
+          </UiSelect>
+          <UiSelect className="input ui-static-4e420aff" value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value })} >
             <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
-          </select>
-          <input className="input" placeholder="Recipients (comma separated)" value={form.recipients} onChange={(e) => setForm({ ...form, recipients: e.target.value })} style={{ marginBottom: 8 }} />
-          <button className="btn btn-primary" onClick={create} style={{ width: "100%" }}>Create report</button>
+          </UiSelect>
+          <UiInput className="input ui-static-fdf33f23" placeholder="Recipients (comma separated)" value={form.recipients} onChange={(e) => setForm({ ...form, recipients: e.target.value })}  />
+          <UiButton variant="primary" className="ui-static-0466783d" onClick={create} >Create report</UiButton>
 
-          <h3 style={{ marginTop: 18 }}>Reports</h3>
-          {defs.map((d) => <button key={d.id} className="btn btn-ghost" style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 6, borderColor: sel === d.id ? "var(--primary)" : undefined }} onClick={() => openHistory(d.id)}>{d.name} <span className="muted" style={{ fontSize: 11 }}>{d.frequency}</span></button>)}
+          <h3 className="ui-static-86de7ac6">Reports</h3>
+          {defs.map((d) => <UiButton variant="tertiary" key={d.id} className="ui-selection-row" data-selected={sel === d.id || undefined} onClick={() => openHistory(d.id)}>{d.name} <span className="muted ui-static-11a50812" >{d.frequency}</span></UiButton>)}
         </div>
       </div>
     </>

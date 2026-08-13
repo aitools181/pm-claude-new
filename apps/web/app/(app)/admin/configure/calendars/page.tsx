@@ -1,4 +1,6 @@
 "use client";
+
+import { Button as UiButton } from "../../../../../components/ui";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../../../../lib/api";
 import { Field, Input } from "../../../../../components/ui/Field";
@@ -39,33 +41,33 @@ export default function CalendarsAdmin() {
     <>
       <h1 className="page-title">Working Calendars</h1>
       <p className="page-sub">Define working days and holidays; used for working-day calculations.</p>
-      {msg && <div className="callout callout-danger" style={{ marginBottom: 14 }}>{msg}</div>}
+      {msg && <div className="callout callout-danger ui-static-2b583d73" >{msg}</div>}
 
-      <div className="card card-p" style={{ marginBottom: 20 }}>
+      <div className="card card-p ui-static-49f14f8f" >
         <strong>New calendar</strong>
-        <div className="cfg-form" style={{ margin: "12px 0" }}>
+        <div className="cfg-form ui-static-d60550f6" >
           <Field label="Name"><Input value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} placeholder="India (Mon–Fri)" /></Field>
           <Field label="Timezone"><Input className="mono" value={nc.timezone} onChange={(e) => setNc({ ...nc, timezone: e.target.value })} /></Field>
         </div>
-        <div className="chips" style={{ marginBottom: 14 }}>
-          {DOW.map(([n, label]) => <span key={n} className="chip" data-on={!!nc.days[+n]} onClick={() => setNc({ ...nc, days: { ...nc.days, [+n]: !nc.days[+n] } })}>{label}</span>)}
+        <div className="chips ui-static-2b583d73" >
+          {DOW.map(([n, label]) => <button type="button" key={n} className="chip ui-reset-button" aria-pressed={!!nc.days[+n]} data-on={!!nc.days[+n]} onClick={() => setNc({ ...nc, days: { ...nc.days, [+n]: !nc.days[+n] } })}>{label}</button>)}
         </div>
-        <button className="btn btn-primary" disabled={!nc.name} onClick={create}>Create calendar</button>
+        <UiButton variant="primary"  disabled={!nc.name} onClick={create}>Create calendar</UiButton>
       </div>
 
       {cals.map((c) => (
-        <div key={c.id} className="card card-p" style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between" }}><strong>{c.name}</strong><span className="badge mono">{(c.workingDays as number[]).map((d) => DOW[d][1]).join(" ")}</span></div>
-          <div style={{ display: "flex", gap: 8, alignItems: "end", marginTop: 12, flexWrap: "wrap" }}>
+        <div key={c.id} className="card card-p ui-static-2b583d73" >
+          <div className="ui-static-a3d12b9b"><strong>{c.name}</strong><span className="badge mono">{(c.workingDays as number[]).map((d) => DOW[d][1]).join(" ")}</span></div>
+          <div className="ui-static-35c9f583">
             <Field label="Holiday date"><Input type="date" value={hol[c.id]?.date ?? ""} onChange={(e) => setHol({ ...hol, [c.id]: { ...(hol[c.id] ?? { name: "" }), date: e.target.value } })} /></Field>
             <Field label="Name"><Input value={hol[c.id]?.name ?? ""} onChange={(e) => setHol({ ...hol, [c.id]: { ...(hol[c.id] ?? { date: "" }), name: e.target.value } })} placeholder="Diwali" /></Field>
-            <button className="btn" style={{ marginBottom: 16 }} onClick={() => addHoliday(c.id)}>Add holiday</button>
+            <UiButton variant="secondary" className="ui-static-87c136df"  onClick={() => addHoliday(c.id)}>Add holiday</UiButton>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+          <div className="ui-static-e86689cc">
             <Field label="From"><Input type="date" value={calc[c.id]?.start ?? ""} onChange={(e) => setCalc({ ...calc, [c.id]: { ...(calc[c.id] ?? { end: "" }), start: e.target.value } })} /></Field>
             <Field label="To"><Input type="date" value={calc[c.id]?.end ?? ""} onChange={(e) => setCalc({ ...calc, [c.id]: { ...(calc[c.id] ?? { start: "" }), end: e.target.value } })} /></Field>
-            <button className="btn btn-ghost" style={{ marginBottom: 16 }} onClick={() => computeDays(c.id)}>Count working days</button>
-            {calc[c.id]?.result != null && <span className="badge" style={{ marginBottom: 16 }}>{calc[c.id].result} working days</span>}
+            <UiButton variant="tertiary" className="ui-static-87c136df"  onClick={() => computeDays(c.id)}>Count working days</UiButton>
+            {calc[c.id]?.result != null && <span className="badge ui-static-87c136df" >{calc[c.id].result} working days</span>}
           </div>
         </div>
       ))}

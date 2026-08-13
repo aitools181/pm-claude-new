@@ -34,8 +34,8 @@ export default function ModulesPage() {
       <h1 className="page-title">Optional modules</h1>
       <p className="page-sub">Enable or disable optional modules. Core project management is never affected.</p>
       {Object.keys(META).map((m) => (
-        <div key={m} className="fieldcard" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ textTransform: "capitalize" }}><strong>{m}</strong><span className="muted" style={{ display: "block", fontSize: 12 }}>{META[m]}</span></span>
+        <div key={m} className="fieldcard ui-static-13313b1a" >
+          <span className="ui-static-6fedee39"><strong>{m}</strong><span className="muted ui-static-31b1b5a9" >{META[m]}</span></span>
           <button className={mods[m] ? "btn btn-primary" : "btn"} onClick={() => toggle(m, !mods[m])}>{mods[m] ? "Enabled" : "Disabled"}</button>
         </div>
       ))}

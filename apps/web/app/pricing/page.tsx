@@ -12,33 +12,33 @@ export default function PricingPage() {
   useEffect(() => { api<Plan[]>("/pricing").then(setPlans).catch(() => setPlans([])).finally(() => setLoaded(true)); }, []);
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "48px 24px" }}>
-      <h1 style={{ fontSize: 32, marginBottom: 6 }}>Plans &amp; pricing</h1>
-      <p className="muted" style={{ marginTop: 0 }}>Every plan includes the core work management experience. Higher tiers raise limits and unlock optional modules.</p>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "20px 0 28px" }}>
+    <div className="ui-static-3335a645">
+      <h1 className="ui-static-b7ae515f">Plans &amp; pricing</h1>
+      <p className="muted ui-static-d462248a" >Every plan includes the core work management experience. Higher tiers raise limits and unlock optional modules.</p>
+      <div className="ui-static-97355caf">
         <button className={`btn ${!yearly ? "btn-primary" : ""}`} onClick={() => setYearly(false)}>Monthly</button>
         <button className={`btn ${yearly ? "btn-primary" : ""}`} onClick={() => setYearly(true)}>Yearly</button>
       </div>
       {loaded && plans.length === 0 && <div className="fieldcard"><p>Pricing has not been published yet. A platform administrator can install plans from the platform console.</p></div>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 16 }}>
+      <div className="ui-static-97e5a4e4">
         {plans.map((p) => (
-          <div className="fieldcard" key={p.key} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="fieldcard ui-static-a56c85e3" key={p.key} >
             <div>
-              <h2 style={{ margin: "0 0 4px", fontSize: 20 }}>{p.name}</h2>
-              <p className="muted" style={{ margin: 0, fontSize: 13, minHeight: 38 }}>{p.description}</p>
+              <h2 className="ui-static-b3740685">{p.name}</h2>
+              <p className="muted ui-static-55cac5e0" >{p.description}</p>
             </div>
-            <div style={{ fontSize: 28, fontWeight: 600 }}>
+            <div className="ui-static-44e3110e">
               {money(yearly ? p.priceYearly : p.priceMonthly, p.currency)}
-              <span className="muted" style={{ fontSize: 13, fontWeight: 400 }}>{yearly ? "/year" : "/month"}</span>
+              <span className="muted ui-static-57a3141d" >{yearly ? "/year" : "/month"}</span>
             </div>
-            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.8 }}>
+            <ul className="ui-static-9e267c89">
               <li>{p.limits?.maxMembers ?? "Unlimited"} members</li>
               <li>{p.limits?.maxProjects ?? "Unlimited"} projects</li>
               <li>{p.limits?.maxWorkItems ?? "Unlimited"} work items</li>
               <li>{p.modules.length ? `${p.modules.length} optional modules` : "Core modules"}</li>
             </ul>
-            {p.modules.length > 0 && <p className="muted mono" style={{ fontSize: 11, margin: 0 }}>{p.modules.join(" · ")}</p>}
-            <a className="btn btn-primary" href="/setup" style={{ marginTop: "auto", textAlign: "center" }}>Get started</a>
+            {p.modules.length > 0 && <p className="muted mono ui-static-1b014dc5" >{p.modules.join(" · ")}</p>}
+            <a className="btn btn-primary ui-static-2e5cdd67" href="/setup" >Get started</a>
           </div>
         ))}
       </div>

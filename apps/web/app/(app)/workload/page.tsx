@@ -1,6 +1,9 @@
 "use client";
+
+import { Input as UiInput } from "../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
+import { RuntimeStyle } from "../../../components/ui/RuntimeStyle";
 
 type WL = { userId: string; workingDays: number; holidayDays: number; leaveDays: number; netCapacityMin: number; allocatedMin: number; estimatedWorkMin: number; unestimatedItems: number; utilizationPct: number; overAllocated: boolean };
 type Member = { userId: string; displayName?: string; email?: string };
@@ -35,29 +38,29 @@ export default function WorkloadPage() {
       <h1 className="page-title">Workload</h1>
       <p className="page-sub">{scope === "me" ? "Your capacity and allocation." : "Team capacity, leave and allocation over a period."}</p>
       <div className="wk-nav">
-        <span className="muted">From</span><input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <span className="muted">To</span><input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        <span className="muted">From</span><UiInput className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <span className="muted">To</span><UiInput className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
       </div>
 
-      <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "4px 16px", background: "var(--surface)" }}>
-        <div className="wl-row" style={{ fontSize: 12, color: "var(--ink-3)", fontWeight: 500 }}>
-          <span>Member</span><span>Allocation vs net capacity</span><span style={{ textAlign: "right" }}>Utilization</span>
+      <div className="ui-static-d3a18013">
+        <div className="wl-row ui-static-8510ee31" >
+          <span>Member</span><span>Allocation vs net capacity</span><span className="ui-static-54c2afb7">Utilization</span>
         </div>
-        {rows.length === 0 && <div className="muted" style={{ padding: "12px 0" }}>No data for this range.</div>}
+        {rows.length === 0 && <div className="muted ui-static-21568317" >No data for this range.</div>}
         {rows.map((r) => (
           <div key={r.userId} className="wl-row">
             <div>
-              <div style={{ fontWeight: 500 }}>{names[r.userId] ?? r.userId.slice(0, 8)}</div>
-              <div className="muted" style={{ fontSize: 11 }}>{r.workingDays}d · {h(r.netCapacityMin)} net{r.leaveDays ? ` · ${r.leaveDays}d leave` : ""}{r.holidayDays ? ` · ${r.holidayDays} hol` : ""}</div>
+              <div className="ui-static-02a2d333">{names[r.userId] ?? r.userId.slice(0, 8)}</div>
+              <div className="muted ui-static-11a50812" >{r.workingDays}d · {h(r.netCapacityMin)} net{r.leaveDays ? ` · ${r.leaveDays}d leave` : ""}{r.holidayDays ? ` · ${r.holidayDays} hol` : ""}</div>
             </div>
             <div>
-              <div className="util-bar"><div className={`util-fill ${r.overAllocated ? "over" : ""}`} style={{ width: `${Math.min(100, r.utilizationPct)}%` }} /></div>
-              <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+              <div className="util-bar"><RuntimeStyle className={`util-fill runtime-width ${r.overAllocated ? "over" : ""}`} vars={{ "--runtime-width": `${Math.min(100, r.utilizationPct)}%` }} /></div>
+              <div className="muted ui-static-65480ca8" >
                 {h(r.allocatedMin)} allocated · est {h(r.estimatedWorkMin)}
-                {r.unestimatedItems > 0 && <span style={{ color: "var(--danger)" }}> · {r.unestimatedItems} unestimated</span>}
+                {r.unestimatedItems > 0 && <span className="ui-static-497726e8"> · {r.unestimatedItems} unestimated</span>}
               </div>
             </div>
-            <div style={{ textAlign: "right", fontWeight: 600, color: r.overAllocated ? "var(--danger)" : "var(--ink)" }}>{r.utilizationPct}%</div>
+            <div className="ui-util-value" data-over={r.overAllocated || undefined}>{r.utilizationPct}%</div>
           </div>
         ))}
       </div>

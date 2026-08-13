@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../components/ui";
+import { Input as UiInput } from "../../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui/Toast";
@@ -30,13 +34,13 @@ export default function ApiTokensPage() {
       <p className="page-sub">Scoped bearer tokens for the public API. The full token is shown once, at creation.</p>
 
       {issued && (
-        <div className="metric-card" style={{ borderColor: "var(--primary)" }}>
+        <div className="metric-card ui-static-9a300ca6" >
           <h3>New token — copy it now</h3>
-          <p className="muted" style={{ fontSize: 12 }}>This is the only time the full token is shown.</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input className="input mono" readOnly value={issued} style={{ flex: 1 }} onFocus={(e) => e.target.select()} />
-            <button className="btn" onClick={() => { navigator.clipboard?.writeText(issued); toast({ message: "Copied" }); }}>Copy</button>
-            <button className="btn btn-ghost" onClick={() => setIssued(null)}>Done</button>
+          <p className="muted ui-static-6cb285c6" >This is the only time the full token is shown.</p>
+          <div className="ui-static-a76d597a">
+            <UiInput className="input mono ui-static-97445a8d" readOnly value={issued}  onFocus={(e) => e.target.select()} />
+            <UiButton variant="secondary"  onClick={() => { navigator.clipboard?.writeText(issued); toast({ message: "Copied" }); }}>Copy</UiButton>
+            <UiButton variant="tertiary"  onClick={() => setIssued(null)}>Done</UiButton>
           </div>
         </div>
       )}
@@ -49,9 +53,9 @@ export default function ApiTokensPage() {
               {tokens.length === 0 && <tr><td colSpan={5} className="muted">No tokens yet.</td></tr>}
               {tokens.map((t) => (
                 <tr key={t.id}>
-                  <td>{t.name}</td><td className="mono">{t.masked}</td><td className="muted" style={{ fontSize: 12 }}>{t.scopes.join(", ")}</td>
+                  <td>{t.name}</td><td className="mono">{t.masked}</td><td className="muted ui-static-6cb285c6" >{t.scopes.join(", ")}</td>
                   <td>{t.revokedAt ? <span className="pill rejected">revoked</span> : t.expiresAt && new Date(t.expiresAt) < new Date() ? <span className="pill rejected">expired</span> : <span className="pill approved">active</span>}</td>
-                  <td style={{ textAlign: "right" }}>{!t.revokedAt && <button className="btn btn-ghost" onClick={() => revoke(t.id)}>Revoke</button>}</td>
+                  <td className="ui-static-54c2afb7">{!t.revokedAt && <UiButton variant="tertiary"  onClick={() => revoke(t.id)}>Revoke</UiButton>}</td>
                 </tr>
               ))}
             </tbody>
@@ -59,10 +63,10 @@ export default function ApiTokensPage() {
         </div>
         <div className="gpanel">
           <h3>New token</h3>
-          <input className="input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} style={{ marginBottom: 8 }} />
-          <div style={{ marginBottom: 8 }}>{SCOPES.map((sc) => <label key={sc} style={{ display: "block", fontSize: 13 }}><input type="checkbox" checked={scopes.includes(sc)} onChange={(e) => setScopes(e.target.checked ? [...scopes, sc] : scopes.filter((x) => x !== sc))} /> {sc}</label>)}</div>
-          <input className="input" type="number" placeholder="Expires in days (optional)" value={expires} onChange={(e) => setExpires(e.target.value)} style={{ marginBottom: 8 }} />
-          <button className="btn btn-primary" onClick={create} style={{ width: "100%" }}>Create token</button>
+          <UiInput className="input ui-static-fdf33f23" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)}  />
+          <div className="ui-static-fdf33f23">{SCOPES.map((sc) => <label key={sc} className="ui-static-277e3db9"><input type="checkbox" checked={scopes.includes(sc)} onChange={(e) => setScopes(e.target.checked ? [...scopes, sc] : scopes.filter((x) => x !== sc))} /> {sc}</label>)}</div>
+          <UiInput className="input ui-static-fdf33f23" type="number" placeholder="Expires in days (optional)" value={expires} onChange={(e) => setExpires(e.target.value)}  />
+          <UiButton variant="primary" className="ui-static-0466783d" onClick={create} >Create token</UiButton>
         </div>
       </div>
     </>

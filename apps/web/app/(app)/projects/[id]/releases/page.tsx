@@ -1,4 +1,9 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../../components/ui";
+import { Select as UiSelect } from "../../../../../components/ui";
+import { appPrompt } from "../../../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "../../../../../lib/api";
@@ -28,8 +33,8 @@ export default function ReleasesPage() {
   }, []);
 
   async function create() {
-    const name = prompt("Release name (e.g. v1.2)"); if (!name) return;
-    const version = prompt("Version (optional, e.g. 1.2.0)") || undefined;
+    const name = await appPrompt("Release name (e.g. v1.2)"); if (!name) return;
+    const version = await appPrompt("Version (optional, e.g. 1.2.0)") || undefined;
     const r = await api<Release>(`/projects/${id}/releases`, { method: "POST", org: true, body: JSON.stringify({ name, version }) });
     await loadList(); open(r.id);
   }
@@ -45,8 +50,8 @@ export default function ReleasesPage() {
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 className="page-title" style={{ marginBottom: 4 }}>Releases</h1>
+      <div className="ui-static-13313b1a">
+        <h1 className="page-title ui-static-c81ce4b2" >Releases</h1>
         <a className="btn" href={`/projects/${id}`}>← Project</a>
       </div>
 
@@ -55,37 +60,37 @@ export default function ReleasesPage() {
           {!detail && <p className="muted">Select or create a release.</p>}
           {detail && (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <strong style={{ fontSize: 16 }}>{detail.release.name}</strong>
+              <div className="ui-static-a522af54">
+                <strong className="ui-static-1444c6ea">{detail.release.name}</strong>
                 {detail.release.version && <span className="mono muted">{detail.release.version}</span>}
                 <span className={`pill ${released ? "approved" : "open"}`}>{detail.release.status}</span>
-                {!released && <button className="btn btn-primary" style={{ marginLeft: "auto" }} onClick={publish} disabled={detail.items.length === 0}>Publish</button>}
+                {!released && <UiButton variant="primary" className="ui-static-6d000617"  onClick={publish} disabled={detail.items.length === 0}>Publish</UiButton>}
               </div>
 
               {!released && (
-                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                  <select className="input" value={pick} onChange={(e) => setPick(e.target.value)} style={{ flex: 1 }}>
+                <div className="ui-static-bb2693cf">
+                  <UiSelect className="input ui-static-97445a8d" value={pick} onChange={(e) => setPick(e.target.value)} >
                     <option value="">Add work item from backlog…</option>
                     {backlog.filter((b) => !detail.items.find((i) => i.id === b.id)).map((b) => <option key={b.id} value={b.id}>{b.key} — {b.title}</option>)}
-                  </select>
-                  <button className="btn" onClick={addItem} disabled={!pick}>Add</button>
+                  </UiSelect>
+                  <UiButton variant="secondary"  onClick={addItem} disabled={!pick}>Add</UiButton>
                 </div>
               )}
 
-              <h3 style={{ fontSize: 14 }}>Included work ({detail.items.length})</h3>
+              <h3 className="ui-static-433de30b">Included work ({detail.items.length})</h3>
               {detail.items.length === 0 && <p className="muted">No work included yet.</p>}
               {detail.items.map((it) => (
                 <div key={it.id} className="bl-row">
                   <span className="key">{it.key}</span><span className="title">{it.title}</span>
                   <span className={`pill ${it.statusCategory === "done" ? "approved" : "open"}`}>{it.statusCategory}</span>
-                  {!released && <button className="btn btn-ghost" onClick={() => removeItem(it.id)}>✕</button>}
+                  {!released && <UiButton variant="tertiary"  onClick={() => removeItem(it.id)}>✕</UiButton>}
                 </div>
               ))}
 
               {notes && notes.itemCount > 0 && (
-                <div className="metric-card" style={{ marginTop: 16 }}>
+                <div className="metric-card ui-static-1b0f4999" >
                   <h3>Release notes (auto-generated)</h3>
-                  <pre style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--ink-2)", margin: 0 }}>{notes.generated}</pre>
+                  <pre className="ui-static-7f12eb0b">{notes.generated}</pre>
                 </div>
               )}
             </>
@@ -93,11 +98,11 @@ export default function ReleasesPage() {
         </div>
 
         <div className="gpanel">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h3>Releases</h3><button className="btn btn-ghost" onClick={create}>+ New</button></div>
+          <div className="ui-static-13313b1a"><h3>Releases</h3><UiButton variant="tertiary"  onClick={create}>+ New</UiButton></div>
           {releases.map((r) => (
-            <button key={r.id} className="btn btn-ghost" style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 6, borderColor: sel === r.id ? "var(--primary)" : undefined }} onClick={() => open(r.id)}>
-              {r.name} <span className={`pill ${r.status === "released" ? "approved" : "open"}`} style={{ marginLeft: 4 }}>{r.status}</span>
-            </button>
+            <UiButton variant="tertiary" key={r.id} className="ui-selection-row" data-selected={sel === r.id || undefined} onClick={() => open(r.id)}>
+              {r.name} <span className={[`pill ${r.status === "released" ? "approved" : "open"}`, "ui-static-46cec891"].filter(Boolean).join(" ")} >{r.status}</span>
+            </UiButton>
           ))}
         </div>
       </div>

@@ -1,5 +1,10 @@
 "use client";
 
+
+import { Button as UiButton } from "../../../../../components/ui";
+import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "../../../../../components/ui";
+import { appPrompt } from "../../../../../components/ui/AppDialog";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "../../../../../lib/api";
@@ -68,7 +73,7 @@ export default function BoardPage() {
   }
 
   async function saveView() {
-    const name = window.prompt("View name", "Board view");
+    const name = await appPrompt("View name", "Board view");
     if (!name) return;
     await api("/ui/saved-views", { method: "POST", org: true, body: JSON.stringify({ scopeType: "project", scopeId: id, name, viewType: "board", filters: { priorityFilter, search, hideDone }, sortSpec: { sortBy }, groupBy: "status" }) });
     toast({ message: "Board view saved" });
@@ -87,7 +92,7 @@ export default function BoardPage() {
   return (
     <>
       {project && <ProjectChrome project={project} view="board" onAddTask={(typeKey) => { setAddingTo("todo"); setDraft(typeKey === "approval" ? "Approval: " : typeKey === "milestone" ? "Milestone: " : ""); }} onProjectChange={load} />}
-      <div className="view-toolbar project-toolbar"><label className="toolbar-button"><Icon name="filter" size={15}/>Filter<select value={priorityFilter} onChange={(e)=>setPriorityFilter(e.target.value)}><option value="all">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select></label><label className="toolbar-button"><Icon name="sort" size={15}/>Sort<select value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)}><option value="custom">Custom</option><option value="due">Due date</option><option value="priority">Priority</option><option value="name">Alphabetical</option></select></label><span className="toolbar-button static-control"><Icon name="list" size={15}/>Group: Status</span><button className="toolbar-button" data-on={hideDone} onClick={()=>setHideDone(!hideDone)}><Icon name="sliders" size={15}/>Options</button><label className="toolbar-search"><Icon name="search" size={15}/><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search tasks"/></label><button className="toolbar-button primary-link" onClick={saveView}>Save view</button></div>
+      <div className="view-toolbar project-toolbar"><label className="toolbar-button"><Icon name="filter" size={15}/>Filter<UiSelect value={priorityFilter} onChange={(e)=>setPriorityFilter(e.target.value)}><option value="all">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></UiSelect></label><label className="toolbar-button"><Icon name="sort" size={15}/>Sort<UiSelect value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)}><option value="custom">Custom</option><option value="due">Due date</option><option value="priority">Priority</option><option value="name">Alphabetical</option></UiSelect></label><span className="toolbar-button static-control"><Icon name="list" size={15}/>Group: Status</span><button className="toolbar-button" data-on={hideDone} onClick={()=>setHideDone(!hideDone)}><Icon name="sliders" size={15}/>Options</button><label className="toolbar-search"><Icon name="search" size={15}/><UiInput value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search tasks"/></label><button className="toolbar-button primary-link" onClick={saveView}>Save view</button></div>
 
       {error && <div className="callout callout-danger project-error"><span>{error}</span><button className="icon-btn" onClick={() => setError(null)} aria-label="Dismiss error"><Icon name="close" size={15} /></button></div>}
 
@@ -100,11 +105,11 @@ export default function BoardPage() {
             <header className="asana-column-head"><div><span className="column-status-dot" /><strong>{column.label}</strong><span className="column-count">{visibleCards(board[column.cat]).length}</span></div><button className="icon-btn" aria-label={`Add task to ${column.label}`} onClick={() => { setAddingTo(column.cat); setDraft(""); }}><Icon name="plus" size={17} /></button></header>
 
             {addingTo === column.cat && <form className="board-quick-card" onSubmit={(event) => { event.preventDefault(); createInColumn(column); }}>
-              <textarea autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a task name…" onKeyDown={(event) => {
+              <UiTextarea autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a task name…" onKeyDown={(event) => {
                 if (event.key === "Escape") { setAddingTo(null); setDraft(""); }
                 if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); createInColumn(column); }
               }} />
-              <div><span>Enter to add</span><div><button type="button" className="btn btn-ghost btn-small" onClick={() => { setAddingTo(null); setDraft(""); }}>Cancel</button><button className="btn btn-primary btn-small" disabled={!draft.trim() || creating}>{creating ? "Adding…" : "Add task"}</button></div></div>
+              <div><span>Enter to add</span><div><UiButton variant="tertiary" size="compact" type="button"  onClick={() => { setAddingTo(null); setDraft(""); }}>Cancel</UiButton><UiButton variant="primary" size="compact"  disabled={!draft.trim() || creating}>{creating ? "Adding…" : "Add task"}</UiButton></div></div>
             </form>}
 
             <div className="asana-column-cards">
@@ -112,19 +117,20 @@ export default function BoardPage() {
                 <article key={item.id} className="asana-task-card" draggable data-dragging={drag?.id === item.id}
                   onDragStart={() => setDrag({ id: item.id, version: item.version })} onDragEnd={() => { setDrag(null); setOver(null); }}
                   onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => { event.stopPropagation(); drop(column.status, item.id); }}
-                  onClick={() => setOpenId(item.id)}>
-                  <div className="board-card-top"><span className="mono">{item.key}</span><button className="icon-btn" aria-label="Task options" onClick={(event) => event.stopPropagation()}><Icon name="more" size={16} /></button></div>
-                  <h3>{item.title}</h3>
-                  {item.parentId && <span className="board-subtask-label"><Icon name="subtask" size={13} />Subtask</span>}
-                  <footer>
-                    <span className={`priority-chip priority-${item.priority}`}><Icon name="flag" size={13} />{item.priority}</span>
-                    <div className="board-card-meta">
-                      {item.dueDate && <span><Icon name="calendar" size={14} />{new Date(`${item.dueDate}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>}
-                      <span className="mini-avatar">{item.primaryOwnerUserId?.slice(0, 1).toUpperCase() ?? "–"}</span>
-                    </div>
-                  </footer>
-                  {item.linked && <span className="linked-project-badge"><Icon name="link" size={12} />Linked item</span>}
+                  onDrop={(event) => { event.stopPropagation(); drop(column.status, item.id); }}>
+                  <button type="button" className="board-card-open ui-reset-button" onClick={() => setOpenId(item.id)} aria-label={`Open ${item.title}`}>
+                    <div className="board-card-top"><span className="mono">{item.key}</span></div>
+                    <h3>{item.title}</h3>
+                    {item.parentId && <span className="board-subtask-label"><Icon name="subtask" size={13} />Subtask</span>}
+                    <footer>
+                      <span className={`priority-chip priority-${item.priority}`}><Icon name="flag" size={13} />{item.priority}</span>
+                      <div className="board-card-meta">
+                        {item.dueDate && <span><Icon name="calendar" size={14} />{new Date(`${item.dueDate}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>}
+                        <span className="mini-avatar">{item.primaryOwnerUserId?.slice(0, 1).toUpperCase() ?? "–"}</span>
+                      </div>
+                    </footer>
+                    {item.linked && <span className="linked-project-badge"><Icon name="link" size={12} />Linked item</span>}
+                  </button>
                 </article>
               ))}
               {visibleCards(board[column.cat]).length === 0 && addingTo !== column.cat && <button className="board-empty-column" onClick={() => setAddingTo(column.cat)}><Icon name="plus" size={18} /><strong>Add a task</strong><span>or drag one here</span></button>}

@@ -1,9 +1,16 @@
 "use client";
 
+
+import { Button as UiButton } from "../ui";
+import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "../ui";
+import { appPrompt, appConfirm } from "../ui/AppDialog";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, apiDownload, apiUpload, ApiError } from "../../lib/api";
 import { Icon } from "../ui/Icon";
 import { useToast } from "../ui/Toast";
+import { useModalDialog } from "../ui/useModalDialog";
+import { RuntimeStyle } from "../ui/RuntimeStyle";
 
 type Item = {
   id: string;
@@ -106,6 +113,11 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
   const [error, setError] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const drawerRef = useModalDialog<HTMLElement>(true, () => {
+    if (history.length) goBack();
+    else onClose();
+  }, ".drawer-title");
+  const shareDialogRef = useModalDialog<HTMLDivElement>(shareOpen, () => setShareOpen(false), ".share-collab-picker input");
 
   useEffect(() => {
     setCurrentId(id);
@@ -157,19 +169,6 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
 
   useEffect(() => { load(currentId); }, [currentId]);
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (history.length) {
-        event.preventDefault();
-        const previous = history[history.length - 1];
-        setHistory((rows) => rows.slice(0, -1));
-        setCurrentId(previous);
-      } else onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [history, onClose]);
 
   useEffect(() => {
     if (!picker.trim()) { setResults([]); return; }
@@ -353,7 +352,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
   }
 
   async function remove() {
-    if (!window.confirm(`Move ${item?.key ?? "this task"} to the recycle bin?`)) return;
+    if (!await appConfirm(`Move ${item?.key ?? "this task"} to the recycle bin?`)) return;
     try {
       await api(`/work-items/${currentId}`, { method: "DELETE", org: true });
       onSaved();
@@ -419,8 +418,8 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
   }
 
   async function mergeDuplicate() {
-    const query = window.prompt("Search for the task to keep (key or title)"); if (!query?.trim()) return;
-    try { const found = await api<{ workItems: SearchItem[] }>(`/search?q=${encodeURIComponent(query.trim())}`, { org: true }); const target = found.workItems.find((row) => row.id !== currentId); if (!target) throw new Error("No matching task found"); if (!window.confirm(`Merge ${item?.key} into ${target.key}? The duplicate will be closed and removed.`)) return; await api(`/work-items/${currentId}/merge`, { method: "POST", org: true, body: JSON.stringify({ targetId: target.id }) }); toast({ message: `Merged into ${target.key}` }); onSaved(); onClose(); }
+    const query = await appPrompt("Search for the task to keep (key or title)"); if (!query?.trim()) return;
+    try { const found = await api<{ workItems: SearchItem[] }>(`/search?q=${encodeURIComponent(query.trim())}`, { org: true }); const target = found.workItems.find((row) => row.id !== currentId); if (!target) throw new Error("No matching task found"); if (!await appConfirm(`Merge ${item?.key} into ${target.key}? The duplicate will be closed and removed.`)) return; await api(`/work-items/${currentId}/merge`, { method: "POST", org: true, body: JSON.stringify({ targetId: target.id }) }); toast({ message: `Merged into ${target.key}` }); onSaved(); onClose(); }
     catch (e) { setError(errorMessage(e, "Could not merge duplicate")); }
   }
 
@@ -437,7 +436,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
   return (
     <>
       <button className="drawer-overlay" aria-label="Close task" onClick={onClose} />
-      <aside className={`drawer task-drawer ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={item ? `${item.key}: ${item.title}` : "Work item"}>
+      <aside ref={drawerRef} tabIndex={-1} className={`drawer task-drawer ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={item ? `${item.key}: ${item.title}` : "Work item"}>
         <header className="drawer-head task-drawer-head asana-task-head">
           <div className="drawer-breadcrumb">
             {history.length > 0 && <button className="icon-btn" aria-label="Back to parent task" onClick={goBack}><Icon name="arrowLeft" /></button>}
@@ -446,10 +445,10 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
           </div>
           <div className="drawer-actions task-head-actions">
             <button className={`task-like-btn ${context.liked ? "liked" : ""}`} title="Like task" onClick={toggleLike}><span>♡</span>{context.likeCount > 0 && <small>{context.likeCount}</small>}</button>
-            <button className="icon-btn" title="Copy task link" onClick={() => { navigator.clipboard.writeText(location.href); toast({ message: "Task link copied" }); }}><Icon name="link" /></button>
-            <button className="btn btn-small task-share-btn" onClick={() => setShareOpen(true)}><Icon name="people" size={15} />Share</button>
-            <button className="icon-btn" title={wide ? "Narrow view" : "Wide view"} onClick={() => setWide(!wide)}><Icon name="sliders" /></button>
-            <div className="task-more-wrap"><button className="icon-btn" title="More actions" onClick={() => setMoreOpen(!moreOpen)}><Icon name="more" /></button>{moreOpen && <div className="task-more-menu">
+            <button className="icon-btn" title="Copy task link" aria-label="Copy task link" onClick={() => { navigator.clipboard.writeText(location.href); toast({ message: "Task link copied" }); }}><Icon name="link" /></button>
+            <UiButton variant="secondary" size="compact" className="task-share-btn" onClick={() => setShareOpen(true)}><Icon name="people" size={15} />Share</UiButton>
+            <button className="icon-btn" title={wide ? "Narrow view" : "Wide view"} aria-label={wide ? "Narrow task view" : "Wide task view"} onClick={() => setWide(!wide)}><Icon name="sliders" /></button>
+            <div className="task-more-wrap"><button className="icon-btn" title="More actions" aria-label="More task actions" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)}><Icon name="more" /></button>{moreOpen && <div className="task-more-menu">
               <button onClick={() => { setMoreOpen(false); document.querySelector<HTMLInputElement>('.project-picker-input')?.focus(); }}><Icon name="projects" size={15} />Add to another project</button>
               <button onClick={() => { setMoreOpen(false); document.querySelector<HTMLInputElement>('.subtask-create input')?.focus(); }}><Icon name="subtask" size={15} />Add subtask</button>
               <button onClick={() => { setMoreOpen(false); setTab("dependencies"); }}><Icon name="link" size={15} />Add dependencies</button>
@@ -479,7 +478,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
 
             <div className="task-visibility-line"><Icon name={item.publicToOrganization ? "people" : "lock"} size={13}/><span>{item.publicToOrganization ? "Visible to workspace members with access" : "Visible to project members"}</span><span>·</span><strong>{item.typeName}</strong></div>
             <div className="task-title-row asana-task-title-row">
-              <input ref={titleRef} className="drawer-title" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} onBlur={saveTitle} onKeyDown={(e) => {
+              <UiInput ref={titleRef} className="drawer-title" aria-label="Task title" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} onBlur={saveTitle} onKeyDown={(e) => {
                 if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
                 if (e.key === "Escape") { setTitleDraft(item.title); e.currentTarget.blur(); }
               }} />
@@ -488,23 +487,23 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
             {blocked && <div className="blocked-banner"><Icon name="lock" size={15} /><span>Blocked by an incomplete dependency</span></div>}
 
             <section className="task-meta-card asana-task-fields" aria-label="Task details">
-              <label className="task-meta-row"><span><Icon name="user" size={16}/>Assignee</span><select value={item.primaryOwnerUserId ?? ""} onChange={(e)=>patch({primaryOwnerUserId:e.target.value||null})}><option value="">Unassigned</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</select></label>
-              <label className="task-meta-row"><span><Icon name="calendar" size={16}/>Due date</span><input type="date" value={item.dueDate ?? ""} onChange={(e)=>patch({dueDate:e.target.value||null})}/></label>
-              <label className="task-meta-row"><span><Icon name="calendar" size={16}/>Start date</span><input type="date" value={item.startDate ?? ""} onChange={(e)=>patch({startDate:e.target.value||null})}/></label>
-              <div className="task-meta-row project-field-row"><span><Icon name="projects" size={16}/>Projects</span><div className="task-project-stack">{context.placements.map((placement)=><span className="task-project-pill" key={placement.id}><i style={{background:placement.color||"#5b5fc7"}}/>{placement.projectName}{!placement.isOwning&&<button onClick={()=>unlinkPlacement(placement.id)} aria-label={`Remove from ${placement.projectName}`}>×</button>}</span>)}<div className="task-project-picker"><input className="project-picker-input" value={projectQuery} onChange={(e)=>setProjectQuery(e.target.value)} placeholder="Add to project"/>{projectQuery&&<div className="task-picker-results">{projects.filter((p)=>!context.placements.some((x)=>x.projectId===p.id)&&p.name.toLowerCase().includes(projectQuery.toLowerCase())).slice(0,7).map((p)=><button key={p.id} onClick={()=>addToProject(p.id)}><span className="project-glyph" style={{background:p.color}}>{p.name.slice(0,1)}</span>{p.name}</button>)}</div>}</div></div></div>
-              <label className="task-meta-row"><span><Icon name="list" size={16}/>Section</span><select value={context.placements.find((p)=>p.isOwning)?.sectionId ?? ""} onChange={(e)=>moveSection(e.target.value || null)}><option value="">No section</option>{sections.map((section)=><option key={section.id} value={section.id}>{section.name}</option>)}</select></label>
-              <label className="task-meta-row"><span><Icon name="check" size={16}/>Status</span><select value={item.status} onChange={(e)=>patch({status:e.target.value})}>{STATUSES.map((status)=><option key={status}>{status}</option>)}</select></label>
-              <label className="task-meta-row"><span><Icon name="flag" size={16}/>Priority</span><select value={item.priority} onChange={(e)=>patch({priority:e.target.value})}>{PRIORITIES.map((priority)=><option key={priority} value={priority}>{priority[0].toUpperCase()+priority.slice(1)}</option>)}</select></label>
-              <label className="task-meta-row"><span><Icon name="time" size={16}/>Estimated time</span><input className="number-field" type="number" min="0" step="15" value={item.estimateMinutes ?? ""} placeholder="minutes" onChange={(e)=>patch({estimateMinutes:e.target.value?Number(e.target.value):null})}/></label>
-              <label className="task-meta-row"><span><Icon name="chart" size={16}/>Story points</span><input className="number-field" type="number" min="0" step="1" value={item.storyPoints ?? ""} placeholder="points" onChange={(e)=>patch({storyPoints:e.target.value?Number(e.target.value):null})}/></label>
+              <label className="task-meta-row"><span><Icon name="user" size={16}/>Assignee</span><UiSelect value={item.primaryOwnerUserId ?? ""} onChange={(e)=>patch({primaryOwnerUserId:e.target.value||null})}><option value="">Unassigned</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</UiSelect></label>
+              <label className="task-meta-row"><span><Icon name="calendar" size={16}/>Due date</span><UiInput type="date" value={item.dueDate ?? ""} onChange={(e)=>patch({dueDate:e.target.value||null})}/></label>
+              <label className="task-meta-row"><span><Icon name="calendar" size={16}/>Start date</span><UiInput type="date" value={item.startDate ?? ""} onChange={(e)=>patch({startDate:e.target.value||null})}/></label>
+              <div className="task-meta-row project-field-row"><span><Icon name="projects" size={16}/>Projects</span><div className="task-project-stack">{context.placements.map((placement)=><span className="task-project-pill" key={placement.id}><RuntimeStyle as="i" className="runtime-bg" vars={{ "--runtime-bg": placement.color || "var(--ui-action)" }} />{placement.projectName}{!placement.isOwning&&<button onClick={()=>unlinkPlacement(placement.id)} aria-label={`Remove from ${placement.projectName}`}>×</button>}</span>)}<div className="task-project-picker"><UiInput className="project-picker-input" value={projectQuery} onChange={(e)=>setProjectQuery(e.target.value)} placeholder="Add to project"/>{projectQuery&&<div className="task-picker-results">{projects.filter((p)=>!context.placements.some((x)=>x.projectId===p.id)&&p.name.toLowerCase().includes(projectQuery.toLowerCase())).slice(0,7).map((p)=><button key={p.id} onClick={()=>addToProject(p.id)}><RuntimeStyle as="span" className="project-glyph runtime-bg" vars={{ "--runtime-bg": p.color }}>{p.name.slice(0,1)}</RuntimeStyle>{p.name}</button>)}</div>}</div></div></div>
+              <label className="task-meta-row"><span><Icon name="list" size={16}/>Section</span><UiSelect value={context.placements.find((p)=>p.isOwning)?.sectionId ?? ""} onChange={(e)=>moveSection(e.target.value || null)}><option value="">No section</option>{sections.map((section)=><option key={section.id} value={section.id}>{section.name}</option>)}</UiSelect></label>
+              <label className="task-meta-row"><span><Icon name="check" size={16}/>Status</span><UiSelect value={item.status} onChange={(e)=>patch({status:e.target.value})}>{STATUSES.map((status)=><option key={status}>{status}</option>)}</UiSelect></label>
+              <label className="task-meta-row"><span><Icon name="flag" size={16}/>Priority</span><UiSelect value={item.priority} onChange={(e)=>patch({priority:e.target.value})}>{PRIORITIES.map((priority)=><option key={priority} value={priority}>{priority[0].toUpperCase()+priority.slice(1)}</option>)}</UiSelect></label>
+              <label className="task-meta-row"><span><Icon name="time" size={16}/>Estimated time</span><UiInput className="number-field" type="number" min="0" step="15" value={item.estimateMinutes ?? ""} placeholder="minutes" onChange={(e)=>patch({estimateMinutes:e.target.value?Number(e.target.value):null})}/></label>
+              <label className="task-meta-row"><span><Icon name="chart" size={16}/>Story points</span><UiInput className="number-field" type="number" min="0" step="1" value={item.storyPoints ?? ""} placeholder="points" onChange={(e)=>patch({storyPoints:e.target.value?Number(e.target.value):null})}/></label>
               <label className="task-meta-row task-progress-row"><span><Icon name="chart" size={16}/>Progress</span><span className="progress-control"><input type="range" min="0" max="100" step="10" value={item.progress} onChange={(e)=>setItem({...item,progress:Number(e.target.value)})} onMouseUp={(e)=>patch({progress:Number((e.target as HTMLInputElement).value)})}/><strong>{item.progress}%</strong></span></label>
-              <div className="task-meta-row collaborator-field-row"><span><Icon name="people" size={16}/>Collaborators</span><div className="collaborator-stack"><div className="collaborator-faces">{context.collaborators.slice(0,6).map((c)=><button key={c.userId} title={c.displayName} onClick={()=>removeCollaborator(c.userId)}>{c.displayName.slice(0,1).toUpperCase()}</button>)}<button className="collab-add" title="Add collaborator">+</button></div><div className="collab-picker"><input value={collabQuery} onChange={(e)=>setCollabQuery(e.target.value)} placeholder="Add collaborator"/>{collabQuery&&<div className="task-picker-results">{directory.filter((m)=>!context.collaborators.some((c)=>c.userId===m.id)&&m.displayName.toLowerCase().includes(collabQuery.toLowerCase())).slice(0,6).map((m)=><button key={m.id} onClick={()=>addCollaborator(m.id)}><span className="mini-avatar">{m.displayName.slice(0,1)}</span>{m.displayName}</button>)}</div>}</div><button className="follow-task-button" data-on={watching} onClick={toggleWatch}>{watching?"Following":"Follow"}</button></div></div>
+              <div className="task-meta-row collaborator-field-row"><span><Icon name="people" size={16}/>Collaborators</span><div className="collaborator-stack"><div className="collaborator-faces">{context.collaborators.slice(0,6).map((c)=><button key={c.userId} title={c.displayName} onClick={()=>removeCollaborator(c.userId)}>{c.displayName.slice(0,1).toUpperCase()}</button>)}<button className="collab-add" type="button" aria-label="Add collaborator" title="Add collaborator" onClick={()=>document.querySelector<HTMLInputElement>('.collaborator-field-row .collab-picker input')?.focus()}>+</button></div><div className="collab-picker"><UiInput value={collabQuery} onChange={(e)=>setCollabQuery(e.target.value)} placeholder="Add collaborator"/>{collabQuery&&<div className="task-picker-results">{directory.filter((m)=>!context.collaborators.some((c)=>c.userId===m.id)&&m.displayName.toLowerCase().includes(collabQuery.toLowerCase())).slice(0,6).map((m)=><button key={m.id} onClick={()=>addCollaborator(m.id)}><span className="mini-avatar">{m.displayName.slice(0,1)}</span>{m.displayName}</button>)}</div>}</div><button className="follow-task-button" data-on={watching} onClick={toggleWatch}>{watching?"Following":"Follow"}</button></div></div>
             </section>
             {customFields.length === 0 && <div className="task-custom-empty">No custom fields in this project</div>}
 
             <section className="drawer-section">
               <h3><Icon name="docs" size={17} />Description</h3>
-              <textarea className="description-editor" value={descriptionDraft} onChange={(e) => setDescriptionDraft(e.target.value)} onBlur={saveDescription} placeholder="Add a description, context, or acceptance criteria…" />
+              <UiTextarea className="description-editor" value={descriptionDraft} onChange={(e) => setDescriptionDraft(e.target.value)} onBlur={saveDescription} placeholder="Add a description, context, or acceptance criteria…" />
             </section>
 
             <section className="drawer-section subtask-section">
@@ -512,7 +511,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
                 <h3><Icon name="subtask" size={17} />Subtasks</h3>
                 <span>{completedSubtasks}/{subtasks.length} complete</span>
               </div>
-              {subtasks.length > 0 && <div className="subtask-progress" aria-label={`${completedSubtasks} of ${subtasks.length} subtasks complete`}><span style={{ width: `${subtasks.length ? (completedSubtasks / subtasks.length) * 100 : 0}%` }} /></div>}
+              {subtasks.length > 0 && <div className="subtask-progress" aria-label={`${completedSubtasks} of ${subtasks.length} subtasks complete`}><RuntimeStyle as="span" className="runtime-width" vars={{ "--runtime-width": `${subtasks.length ? (completedSubtasks / subtasks.length) * 100 : 0}%` }} /></div>}
               <div className="subtask-list">
                 {subtasks.map((subtask) => (
                   <button type="button" className="subtask-row" key={subtask.id} onClick={() => openChild(subtask.id)}>
@@ -525,8 +524,8 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
               </div>
               <form className="subtask-create" onSubmit={addSubtask}>
                 <Icon name="plus" size={17} />
-                <input value={subtaskDraft} onChange={(e) => setSubtaskDraft(e.target.value)} placeholder="Add a subtask and press Enter" aria-label="New subtask title" />
-                {subtaskDraft.trim() && <button className="btn btn-primary btn-small" disabled={addingSubtask}>{addingSubtask ? "Adding…" : "Add"}</button>}
+                <UiInput value={subtaskDraft} onChange={(e) => setSubtaskDraft(e.target.value)} placeholder="Add a subtask and press Enter" aria-label="New subtask title" />
+                {subtaskDraft.trim() && <UiButton variant="primary" size="compact"  disabled={addingSubtask}>{addingSubtask ? "Adding…" : "Add"}</UiButton>}
               </form>
             </section>
 
@@ -535,28 +534,28 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
               <div className="checklist-list">
                 {checklist.map((row) => <div className="checklist-row" key={row.id}>
                   <button className={`subtask-check ${row.done ? "done" : ""}`} aria-label={row.done ? "Mark incomplete" : "Mark complete"} onClick={() => updateChecklistItem(row, { done: !row.done })}><Icon name={row.done ? "check" : "circle"} size={17} /></button>
-                  <input value={row.text} onChange={(e) => setChecklist((items) => items.map((item) => item.id === row.id ? { ...item, text: e.target.value } : item))} onBlur={(e) => e.target.value.trim() && updateChecklistItem(row, { text: e.target.value.trim() })} />
+                  <UiInput value={row.text} onChange={(e) => setChecklist((items) => items.map((item) => item.id === row.id ? { ...item, text: e.target.value } : item))} onBlur={(e) => e.target.value.trim() && updateChecklistItem(row, { text: e.target.value.trim() })} />
                   <button className="icon-btn" aria-label="Remove checklist item" onClick={() => removeChecklistItem(row)}><Icon name="close" size={14} /></button>
                 </div>)}
               </div>
-              <form className="subtask-create" onSubmit={addChecklistItem}><Icon name="plus" size={17} /><input value={checklistDraft} onChange={(e) => setChecklistDraft(e.target.value)} placeholder="Add checklist item" />{checklistDraft.trim() && <button className="btn btn-primary btn-small">Add</button>}</form>
+              <form className="subtask-create" onSubmit={addChecklistItem}><Icon name="plus" size={17} /><UiInput value={checklistDraft} onChange={(e) => setChecklistDraft(e.target.value)} placeholder="Add checklist item" />{checklistDraft.trim() && <UiButton variant="primary" size="compact" >Add</UiButton>}</form>
             </section>
 
             <section className="drawer-section compact-detail-section">
               <div className="drawer-section-head"><h3><Icon name="tag" size={17} />Tags</h3><span>{tags.length}</span></div>
               <div className="task-tags">{tags.map((tag) => <span className="task-tag" key={tag.id}>{tag.name}<button aria-label={`Remove ${tag.name}`} onClick={() => removeTag(tag.id)}>×</button></span>)}</div>
-              <form className="inline-detail-form" onSubmit={addTag}><input value={tagDraft} onChange={(e) => setTagDraft(e.target.value)} placeholder="Add a tag" /><button className="btn btn-secondary btn-small" disabled={!tagDraft.trim()}>Add</button></form>
+              <form className="inline-detail-form" onSubmit={addTag}><UiInput value={tagDraft} onChange={(e) => setTagDraft(e.target.value)} placeholder="Add a tag" /><UiButton variant="secondary" size="compact" className="btn-secondary" disabled={!tagDraft.trim()}>Add</UiButton></form>
             </section>
 
             <section className="drawer-section compact-detail-section">
-              <div className="drawer-section-head"><h3><Icon name="paperclip" size={17} />Files</h3><button className="btn btn-secondary btn-small" disabled={uploading} onClick={() => fileInputRef.current?.click()}>{uploading ? "Uploading…" : "Attach file"}</button></div>
+              <div className="drawer-section-head"><h3><Icon name="paperclip" size={17} />Files</h3><UiButton variant="secondary" size="compact" className="btn-secondary" disabled={uploading} onClick={() => fileInputRef.current?.click()}>{uploading ? "Uploading…" : "Attach file"}</UiButton></div>
               <input ref={fileInputRef} type="file" hidden onChange={(e) => e.target.files?.[0] && uploadAttachment(e.target.files[0])} />
               {attachments.length === 0 ? <p className="muted compact-copy">No files attached.</p> : <div className="attachment-list">{attachments.map((row) => <button key={row.id} className="attachment-row" disabled={!row.currentVersionId} onClick={() => downloadAttachment(row)}><Icon name="paperclip" size={15} /><span>{row.filename}</span><Icon name="download" size={15} /></button>)}</div>}
             </section>
 
             {customFields.length > 0 && <section className="drawer-section compact-detail-section">
               <div className="drawer-section-head"><h3><Icon name="sliders" size={17} />Custom fields</h3><span>{customFields.length}</span></div>
-              <div className="custom-field-grid asana-custom-field-grid">{customFields.map((field) => <label key={field.key}><span>{field.name}{field.required ? <em>Required</em> : null}</span>{field.type === "checkbox" ? <input type="checkbox" checked={Boolean(field.value)} onChange={(e)=>updateCustomField(field,e.target.checked)}/> : field.type === "number" ? <input type="number" defaultValue={field.value == null ? "" : String(field.value)} onBlur={(e)=>updateCustomField(field,e.target.value === "" ? null : Number(e.target.value))}/> : field.type === "date" ? <input type="date" defaultValue={String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/> : field.type === "select" ? <select value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">None</option>{(field.options ?? []).map((option)=><option key={option.id} value={option.id}>{option.label}</option>)}</select> : field.type === "user" ? <select value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">No one</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</select> : <input type={field.type === "url" ? "url" : "text"} defaultValue={Array.isArray(field.value) ? field.value.join(", ") : String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/>}</label>)}</div>
+              <div className="custom-field-grid asana-custom-field-grid">{customFields.map((field) => <label key={field.key}><span>{field.name}{field.required ? <em>Required</em> : null}</span>{field.type === "checkbox" ? <input type="checkbox" checked={Boolean(field.value)} onChange={(e)=>updateCustomField(field,e.target.checked)}/> : field.type === "number" ? <UiInput type="number" defaultValue={field.value == null ? "" : String(field.value)} onBlur={(e)=>updateCustomField(field,e.target.value === "" ? null : Number(e.target.value))}/> : field.type === "date" ? <UiInput type="date" defaultValue={String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/> : field.type === "select" ? <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">None</option>{(field.options ?? []).map((option)=><option key={option.id} value={option.id}>{option.label}</option>)}</UiSelect> : field.type === "user" ? <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">No one</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</UiSelect> : <UiInput type={field.type === "url" ? "url" : "text"} defaultValue={Array.isArray(field.value) ? field.value.join(", ") : String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/>}</label>)}</div>
             </section>}
 
             <nav className="drawer-tabs" aria-label="Task collaboration tabs">
@@ -578,10 +577,10 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
                     </article>
                   ))}
                   <div className="comment-box modern-comment-box">
-                    <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Write a comment…" onKeyDown={(e) => {
+                    <UiTextarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Write a comment…" onKeyDown={(e) => {
                       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") addComment();
                     }} />
-                    <div><span><kbd>⌘</kbd> + <kbd>Enter</kbd> to send</span><button className="btn btn-primary btn-small" onClick={addComment} disabled={!commentDraft.trim()}>Comment</button></div>
+                    <div><span><kbd>⌘</kbd> + <kbd>Enter</kbd> to send</span><UiButton variant="primary" size="compact"  onClick={addComment} disabled={!commentDraft.trim()}>Comment</UiButton></div>
                   </div>
                 </>
               )}
@@ -602,7 +601,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
                     const otherId = dep.predecessorId === currentId ? dep.successorId : dep.predecessorId;
                     return <div key={dep.id} className="dependency-row"><span className="dependency-direction">{dep.predecessorId === currentId ? "Blocks" : "Blocked by"}</span><span className="mono">{otherId.slice(0, 8)}</span><button className="icon-btn" aria-label="Remove dependency" onClick={() => removeDependency(dep.id)}><Icon name="close" size={15} /></button></div>;
                   })}
-                  <div className="dependency-picker"><select value={dir} onChange={(e) => setDir(e.target.value as "blocks" | "blocked_by")}><option value="blocked_by">Blocked by</option><option value="blocks">Blocks</option></select><input placeholder="Search tasks…" value={picker} onChange={(e) => setPicker(e.target.value)} /></div>
+                  <div className="dependency-picker"><UiSelect value={dir} onChange={(e) => setDir(e.target.value as "blocks" | "blocked_by")}><option value="blocked_by">Blocked by</option><option value="blocks">Blocks</option></UiSelect><UiInput placeholder="Search tasks…" value={picker} onChange={(e) => setPicker(e.target.value)} /></div>
                   {results.length > 0 && <div className="dependency-results">{results.map((result) => <button key={result.id} onClick={() => addDependency(result.id)}><span className="mono">{result.key}</span><span>{result.title}</span></button>)}</div>}
                 </>
               )}
@@ -610,7 +609,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
           </div>
         )}
       </aside>
-      {shareOpen && <div className="modal-backdrop task-share-backdrop" onMouseDown={(e)=>e.target===e.currentTarget&&setShareOpen(false)}><div className="task-share-modal"><div className="modal-title-row"><div><h2>Share task</h2><p>{item?.key} · {item?.title}</p></div><button className="icon-btn" onClick={()=>setShareOpen(false)}><Icon name="close"/></button></div><div className="task-share-link"><input className="input" readOnly value={typeof location!=="undefined"?location.href:""}/><button className="btn" onClick={()=>{navigator.clipboard.writeText(location.href);toast({message:"Task link copied"})}}>Copy link</button></div><div className="share-section-title">Collaborators</div><div className="member-access-list compact-members">{context.collaborators.map((c)=><div key={c.userId}><span className="mini-avatar">{c.displayName.slice(0,1)}</span><span className="member-copy"><strong>{c.displayName}</strong><small>{c.email}</small></span><button className="text-button" onClick={()=>removeCollaborator(c.userId)}>Remove</button></div>)}</div><div className="collab-picker share-collab-picker"><input className="input" value={collabQuery} onChange={(e)=>setCollabQuery(e.target.value)} placeholder="Add people by name"/>{collabQuery&&<div className="task-picker-results static-results">{directory.filter((m)=>!context.collaborators.some((c)=>c.userId===m.id)&&(`${m.displayName} ${m.email}`).toLowerCase().includes(collabQuery.toLowerCase())).slice(0,6).map((m)=><button key={m.id} onClick={()=>addCollaborator(m.id)}><span className="mini-avatar">{m.displayName.slice(0,1)}</span>{m.displayName}<small>{m.email}</small></button>)}</div>}</div><label className="share-public-toggle"><input type="checkbox" checked={Boolean(item?.publicToOrganization)} onChange={togglePublic}/> Visible to workspace members who can access the project</label><div className="modal-foot right"><button className="btn btn-primary" onClick={()=>setShareOpen(false)}>Done</button></div></div></div>}
+      {shareOpen && <div className="modal-backdrop task-share-backdrop" onMouseDown={(e)=>e.target===e.currentTarget&&setShareOpen(false)}><div ref={shareDialogRef} tabIndex={-1} className="task-share-modal" role="dialog" aria-modal="true" aria-labelledby="task-share-title"><div className="modal-title-row"><div><h2 id="task-share-title">Share task</h2><p>{item?.key} · {item?.title}</p></div><button className="icon-btn" aria-label="Close share task dialog" onClick={()=>setShareOpen(false)}><Icon name="close"/></button></div><div className="task-share-link"><UiInput className="input" aria-label="Task link" readOnly value={typeof location!=="undefined"?location.href:""}/><UiButton variant="secondary"  onClick={()=>{navigator.clipboard.writeText(location.href);toast({message:"Task link copied"})}}>Copy link</UiButton></div><div className="share-section-title">Collaborators</div><div className="member-access-list compact-members">{context.collaborators.map((c)=><div key={c.userId}><span className="mini-avatar">{c.displayName.slice(0,1)}</span><span className="member-copy"><strong>{c.displayName}</strong><small>{c.email}</small></span><button className="text-button" onClick={()=>removeCollaborator(c.userId)}>Remove</button></div>)}</div><div className="collab-picker share-collab-picker"><UiInput className="input" aria-label="Add collaborators" value={collabQuery} onChange={(e)=>setCollabQuery(e.target.value)} placeholder="Add people by name"/>{collabQuery&&<div className="task-picker-results static-results">{directory.filter((m)=>!context.collaborators.some((c)=>c.userId===m.id)&&(`${m.displayName} ${m.email}`).toLowerCase().includes(collabQuery.toLowerCase())).slice(0,6).map((m)=><button key={m.id} onClick={()=>addCollaborator(m.id)}><span className="mini-avatar">{m.displayName.slice(0,1)}</span>{m.displayName}<small>{m.email}</small></button>)}</div>}</div><label className="share-public-toggle"><input type="checkbox" checked={Boolean(item?.publicToOrganization)} onChange={togglePublic}/> Visible to workspace members who can access the project</label><div className="modal-foot right"><UiButton variant="primary"  onClick={()=>setShareOpen(false)}>Done</UiButton></div></div></div>}
     </>
   );
 }

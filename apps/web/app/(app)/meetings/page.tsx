@@ -1,4 +1,9 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "../../../components/ui";
+import { appPrompt } from "../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
@@ -30,10 +35,10 @@ export default function MeetingsPage() {
   }, [load]);
   const open = useCallback(async (id: string) => { const dd = await api<Detail>(`/meetings/${id}`, { org: true }).catch(() => null); setSel(id); setD(dd); setNotes(dd?.meeting.notes ?? ""); }, []);
 
-  async function createMeeting() { const t = prompt("Meeting title"); if (!t) return; const m = await api<Meeting>("/meetings", { method: "POST", org: true, body: JSON.stringify({ title: t, scheduledAt: new Date().toISOString() }) }); await load(); open(m.id); }
+  async function createMeeting() { const t = await appPrompt("Meeting title"); if (!t) return; const m = await api<Meeting>("/meetings", { method: "POST", org: true, body: JSON.stringify({ title: t, scheduledAt: new Date().toISOString() }) }); await load(); open(m.id); }
   async function saveNotes() { if (!sel) return; await api(`/meetings/${sel}/notes`, { method: "PUT", org: true, body: JSON.stringify({ notes }) }); toast({ message: "Notes saved" }); }
-  async function addAgenda() { if (!sel) return; const t = prompt("Agenda item"); if (!t) return; await api(`/meetings/${sel}/agenda`, { method: "POST", org: true, body: JSON.stringify({ title: t, position: (d?.agenda.length ?? 0) + 1 }) }); open(sel); }
-  async function addDecision() { if (!sel) return; const t = prompt("Decision"); if (!t) return; await api(`/meetings/${sel}/decisions`, { method: "POST", org: true, body: JSON.stringify({ text: t }) }); open(sel); }
+  async function addAgenda() { if (!sel) return; const t = await appPrompt("Agenda item"); if (!t) return; await api(`/meetings/${sel}/agenda`, { method: "POST", org: true, body: JSON.stringify({ title: t, position: (d?.agenda.length ?? 0) + 1 }) }); open(sel); }
+  async function addDecision() { if (!sel) return; const t = await appPrompt("Decision"); if (!t) return; await api(`/meetings/${sel}/decisions`, { method: "POST", org: true, body: JSON.stringify({ text: t }) }); open(sel); }
   async function setAtt(userId: string, status: string) { if (!sel) return; await api(`/meetings/${sel}/attendance`, { method: "POST", org: true, body: JSON.stringify({ userId, status }) }); open(sel); }
   async function addAction() {
     if (!sel || !action.title) return;
@@ -48,59 +53,59 @@ export default function MeetingsPage() {
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 className="page-title" style={{ marginBottom: 4 }}>Meetings</h1>
-        <button className="btn btn-primary" onClick={createMeeting}>+ New meeting</button>
+      <div className="ui-static-13313b1a">
+        <h1 className="page-title ui-static-c81ce4b2" >Meetings</h1>
+        <UiButton variant="primary"  onClick={createMeeting}>+ New meeting</UiButton>
       </div>
       <div className="builder-grid">
         <div>
           {!d && <p className="muted">Select a meeting.</p>}
           {d && (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <h3 style={{ margin: 0 }}>{d.meeting.title}</h3>
+              <div className="ui-static-8d446200">
+                <h3 className="ui-static-11696618">{d.meeting.title}</h3>
                 <span className={`pill ${d.meeting.status === "held" ? "approved" : d.meeting.status === "cancelled" ? "rejected" : "submitted"}`}>{d.meeting.status}</span>
               </div>
 
-              <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 240 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}><h4 style={{ fontSize: 13 }}>Agenda</h4><button className="btn btn-ghost" onClick={addAgenda}>+ Add</button></div>
-                  {d.agenda.map((a) => <div key={a.id} style={{ fontSize: 13, padding: "3px 0" }}>{a.position}. {a.title}</div>)}
+              <div className="ui-static-f08f7c9e">
+                <div className="ui-static-9405df25">
+                  <div className="ui-static-a3d12b9b"><h4 className="ui-static-5e0faad2">Agenda</h4><UiButton variant="tertiary"  onClick={addAgenda}>+ Add</UiButton></div>
+                  {d.agenda.map((a) => <div key={a.id} className="ui-static-39e0897e">{a.position}. {a.title}</div>)}
 
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}><h4 style={{ fontSize: 13 }}>Decisions</h4><button className="btn btn-ghost" onClick={addDecision}>+ Add</button></div>
-                  {d.decisions.map((x) => <div key={x.id} style={{ fontSize: 13, padding: "3px 0" }}>✓ {x.text}</div>)}
+                  <div className="ui-static-73733a64"><h4 className="ui-static-5e0faad2">Decisions</h4><UiButton variant="tertiary"  onClick={addDecision}>+ Add</UiButton></div>
+                  {d.decisions.map((x) => <div key={x.id} className="ui-static-39e0897e">✓ {x.text}</div>)}
                 </div>
 
-                <div style={{ flex: 1, minWidth: 240 }}>
-                  <h4 style={{ fontSize: 13 }}>Notes</h4>
-                  <textarea className="input" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveNotes} />
-                  <h4 style={{ fontSize: 13, marginTop: 12 }}>Attendance</h4>
+                <div className="ui-static-9405df25">
+                  <h4 className="ui-static-5e0faad2">Notes</h4>
+                  <UiTextarea className="input" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveNotes} />
+                  <h4 className="ui-static-30a225d4">Attendance</h4>
                   {Object.entries(names).map(([id, n]) => {
                     const a = d.attendance.find((x) => x.userId === id);
-                    return <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, padding: "2px 0" }}>
+                    return <div key={id} className="ui-static-45e93ee8">
                       <span>{n}</span>
-                      <select className="input" value={a?.status ?? ""} onChange={(e) => setAtt(id, e.target.value)} style={{ width: 120 }}><option value="">—</option><option value="invited">invited</option><option value="attended">attended</option><option value="absent">absent</option></select>
+                      <UiSelect className="input ui-static-465bfea3" value={a?.status ?? ""} onChange={(e) => setAtt(id, e.target.value)} ><option value="">—</option><option value="invited">invited</option><option value="attended">attended</option><option value="absent">absent</option></UiSelect>
                     </div>;
                   })}
                 </div>
               </div>
 
-              <div className="mtg-actions" style={{ marginTop: 16 }}>
-                <h4 style={{ fontSize: 13 }}>Action items</h4>
+              <div className="mtg-actions ui-static-1b0f4999" >
+                <h4 className="ui-static-5e0faad2">Action items</h4>
                 {d.actions.map((a) => (
                   <div key={a.id} className="row">
                     <span>{a.title}{a.assigneeUserId && <span className="muted"> · {names[a.assigneeUserId] ?? "?"}</span>}{a.dueDate && <span className="muted"> · due {a.dueDate}</span>}</span>
-                    {a.status === "converted" ? <span className="pill approved">converted</span> : <button className="btn btn-ghost" onClick={() => convert(a)}>→ Work item</button>}
+                    {a.status === "converted" ? <span className="pill approved">converted</span> : <UiButton variant="tertiary"  onClick={() => convert(a)}>→ Work item</UiButton>}
                   </div>
                 ))}
-                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                  <input className="input" placeholder="New action" value={action.title} onChange={(e) => setAction({ ...action, title: e.target.value })} style={{ flex: 1, minWidth: 120 }} />
-                  <select className="input" value={action.assigneeUserId} onChange={(e) => setAction({ ...action, assigneeUserId: e.target.value })} style={{ width: 130 }}><option value="">Assignee…</option>{Object.entries(names).map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>
-                  <input className="input" type="date" value={action.dueDate} onChange={(e) => setAction({ ...action, dueDate: e.target.value })} style={{ width: 140 }} />
-                  <button className="btn" onClick={addAction}>Add</button>
+                <div className="ui-static-39c4d386">
+                  <UiInput className="input ui-static-f09611ef" placeholder="New action" value={action.title} onChange={(e) => setAction({ ...action, title: e.target.value })}  />
+                  <UiSelect className="input ui-static-c6fffdfe" value={action.assigneeUserId} onChange={(e) => setAction({ ...action, assigneeUserId: e.target.value })} ><option value="">Assignee…</option>{Object.entries(names).map(([id, n]) => <option key={id} value={id}>{n}</option>)}</UiSelect>
+                  <UiInput className="input ui-static-830eb986" type="date" value={action.dueDate} onChange={(e) => setAction({ ...action, dueDate: e.target.value })}  />
+                  <UiButton variant="secondary"  onClick={addAction}>Add</UiButton>
                 </div>
-                <div style={{ marginTop: 6 }}>
-                  <select className="input" value={action.projectId} onChange={(e) => setAction({ ...action, projectId: e.target.value })} style={{ width: 200 }}><option value="">Convert target project…</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                <div className="ui-static-fe7b4979">
+                  <UiSelect className="input ui-static-2acaf3b5" value={action.projectId} onChange={(e) => setAction({ ...action, projectId: e.target.value })} ><option value="">Convert target project…</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UiSelect>
                 </div>
               </div>
             </>
@@ -109,7 +114,7 @@ export default function MeetingsPage() {
 
         <div className="gpanel">
           <h3>Meetings</h3>
-          {meetings.map((m) => <button key={m.id} className="btn btn-ghost" style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 6, borderColor: sel === m.id ? "var(--primary)" : undefined }} onClick={() => open(m.id)}>{m.title}</button>)}
+          {meetings.map((m) => <UiButton variant="tertiary" key={m.id} className="ui-selection-row" data-selected={sel === m.id || undefined} onClick={() => open(m.id)}>{m.title}</UiButton>)}
         </div>
       </div>
     </>

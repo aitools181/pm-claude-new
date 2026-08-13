@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../../components/ui";
+import { Select as UiSelect, Textarea as UiTextarea } from "../../../../../components/ui";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../../../../lib/api";
 import { Field, Input } from "../../../../../components/ui/Field";
@@ -39,26 +43,26 @@ export default function DataCentre() {
     <>
       <h1 className="page-title">Import / Export</h1>
       <p className="page-sub">Import CSV with a dry-run preview; export a project with a checksummed manifest.</p>
-      {msg && <div className="callout callout-danger" style={{ marginBottom: 14 }}>{msg}</div>}
+      {msg && <div className="callout callout-danger ui-static-2b583d73" >{msg}</div>}
 
-      <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid var(--line)" }}>
+      <div className="ui-static-67715833">
         {(["import", "export"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className="btn btn-ghost" style={{ borderRadius: 0, textTransform: "capitalize", borderBottom: tab === t ? "2px solid var(--primary)" : "2px solid transparent", color: tab === t ? "var(--primary)" : "var(--ink-2)" }}>{t}</button>
+          <UiButton variant="tertiary" key={t} onClick={() => setTab(t)} className="ui-subtab-button" data-active={tab === t || undefined}>{t}</UiButton>
         ))}
       </div>
 
       {tab === "import" && (
         <div className="card card-p">
-          <Field label="CSV (Title, Priority)"><textarea className="input mono" style={{ height: 120, padding: 10, fontSize: 13 }} value={csv} onChange={(e) => setCsv(e.target.value)} /></Field>
-          <Field label="Target project"><select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn" onClick={doDry}>Dry run</button>
-            <button className="btn btn-primary" disabled={!dry || dry.valid === 0 || !projectId} onClick={doRun}>Import {dry?.valid ?? ""} valid rows</button>
+          <Field label="CSV (Title, Priority)"><UiTextarea className="input mono ui-static-34b7bdc6"  value={csv} onChange={(e) => setCsv(e.target.value)} /></Field>
+          <Field label="Target project"><UiSelect className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UiSelect></Field>
+          <div className="ui-static-a76d597a">
+            <UiButton variant="secondary"  onClick={doDry}>Dry run</UiButton>
+            <UiButton variant="primary"  disabled={!dry || dry.valid === 0 || !projectId} onClick={doRun}>Import {dry?.valid ?? ""} valid rows</UiButton>
           </div>
           {dry && (
-            <div className="preview-box" style={{ marginTop: 14 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>{dry.valid} valid · {dry.errors.length} error(s) of {dry.total}</div>
-              {dry.errors.map((e) => <div key={e.row} className="cap-line" style={{ color: "var(--danger)" }}>Row {e.row}: {e.message}</div>)}
+            <div className="preview-box ui-static-d6f2af6e" >
+              <div className="ui-static-85c71834">{dry.valid} valid · {dry.errors.length} error(s) of {dry.total}</div>
+              {dry.errors.map((e) => <div key={e.row} className="cap-line ui-static-497726e8" >Row {e.row}: {e.message}</div>)}
             </div>
           )}
         </div>
@@ -66,13 +70,13 @@ export default function DataCentre() {
 
       {tab === "export" && (
         <div className="card card-p">
-          <Field label="Project"><select className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-          <button className="btn btn-primary" disabled={!projectId} onClick={doExport}>Export</button>
+          <Field label="Project"><UiSelect className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UiSelect></Field>
+          <UiButton variant="primary"  disabled={!projectId} onClick={doExport}>Export</UiButton>
           {manifest && (
-            <div className="preview-box" style={{ marginTop: 14 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>Manifest</div>
+            <div className="preview-box ui-static-d6f2af6e" >
+              <div className="ui-static-d771512b">Manifest</div>
               {manifest.files.map((fl) => (
-                <div key={fl.name} className="cap-line">{fl.name} — {fl.count} record(s), {fl.bytes} bytes · <span style={{ color: "var(--ink-3)" }}>sha256 {fl.sha256.slice(0, 16)}…</span></div>
+                <div key={fl.name} className="cap-line">{fl.name} — {fl.count} record(s), {fl.bytes} bytes · <span className="ui-static-fbeb64b6">sha256 {fl.sha256.slice(0, 16)}…</span></div>
               ))}
             </div>
           )}

@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../components/ui";
+import { Input as UiInput } from "../../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui/Toast";
@@ -36,21 +40,21 @@ export default function WebhooksPage() {
         <div>
           {subs.map((s) => (
             <div key={s.id} className="fieldcard">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span><strong>{s.url}</strong> <span className="pill open" style={{ marginLeft: 6 }}>{s.active ? "active" : "paused"}</span></span>
-                <span style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost" onClick={() => toggle(s)}>{s.active ? "Pause" : "Resume"}</button><button className="btn btn-ghost" onClick={() => openDeliveries(s.id)}>Deliveries</button></span>
+              <div className="ui-static-13313b1a">
+                <span><strong>{s.url}</strong> <span className="pill open ui-static-391ef124" >{s.active ? "active" : "paused"}</span></span>
+                <span className="ui-static-49cd0921"><UiButton variant="tertiary"  onClick={() => toggle(s)}>{s.active ? "Pause" : "Resume"}</UiButton><UiButton variant="tertiary"  onClick={() => openDeliveries(s.id)}>Deliveries</UiButton></span>
               </div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{s.events.join(", ")} · secret {s.secretMasked}</div>
+              <div className="muted ui-static-70179e30" >{s.events.join(", ")} · secret {s.secretMasked}</div>
               {sel === s.id && (
-                <div style={{ marginTop: 8, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}><span className="muted" style={{ fontSize: 12 }}>Recent deliveries</span><button className="btn btn-ghost" onClick={emit}>Send test</button></div>
-                  {dels.length === 0 && <p className="muted" style={{ fontSize: 12 }}>No deliveries yet.</p>}
+                <div className="ui-static-03bfdfb1">
+                  <div className="ui-static-a3d12b9b"><span className="muted ui-static-6cb285c6" >Recent deliveries</span><UiButton variant="tertiary"  onClick={emit}>Send test</UiButton></div>
+                  {dels.length === 0 && <p className="muted ui-static-6cb285c6" >No deliveries yet.</p>}
                   {dels.map((dl) => (
-                    <div key={dl.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "3px 0" }}>
+                    <div key={dl.id} className="ui-static-b9d36068">
                       <span>{dl.eventType} · <span className={dl.status === "delivered" ? "h-on_track" : dl.status === "failed" ? "h-off_track" : "h-at_risk"}>{dl.status}</span> · attempt {dl.attempt}</span>
-                      <span style={{ display: "flex", gap: 4 }}>
-                        {(dl.status === "failed" || dl.status === "retry_scheduled") && <button className="btn btn-ghost" style={{ padding: "0 6px" }} onClick={() => retry(dl.id)}>Retry</button>}
-                        <button className="btn btn-ghost" style={{ padding: "0 6px" }} onClick={() => replay(dl.id)}>Replay</button>
+                      <span className="ui-static-74cac98b">
+                        {(dl.status === "failed" || dl.status === "retry_scheduled") && <UiButton variant="tertiary" className="ui-static-7c699c10"  onClick={() => retry(dl.id)}>Retry</UiButton>}
+                        <UiButton variant="tertiary" className="ui-static-7c699c10"  onClick={() => replay(dl.id)}>Replay</UiButton>
                       </span>
                     </div>
                   ))}
@@ -62,9 +66,9 @@ export default function WebhooksPage() {
         </div>
         <div className="gpanel">
           <h3>New subscription</h3>
-          <input className="input" placeholder="https://example.com/hook" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} style={{ marginBottom: 8 }} />
-          <div style={{ marginBottom: 8 }}>{EVENTS.map((ev) => <label key={ev} style={{ display: "block", fontSize: 13 }}><input type="checkbox" checked={form.events.includes(ev)} onChange={(e) => setForm({ ...form, events: e.target.checked ? [...form.events, ev] : form.events.filter((x) => x !== ev) })} /> {ev}</label>)}</div>
-          <button className="btn btn-primary" onClick={create} style={{ width: "100%" }}>Create</button>
+          <UiInput className="input ui-static-fdf33f23" placeholder="https://example.com/hook" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })}  />
+          <div className="ui-static-fdf33f23">{EVENTS.map((ev) => <label key={ev} className="ui-static-277e3db9"><input type="checkbox" checked={form.events.includes(ev)} onChange={(e) => setForm({ ...form, events: e.target.checked ? [...form.events, ev] : form.events.filter((x) => x !== ev) })} /> {ev}</label>)}</div>
+          <UiButton variant="primary" className="ui-static-0466783d" onClick={create} >Create</UiButton>
         </div>
       </div>
     </>

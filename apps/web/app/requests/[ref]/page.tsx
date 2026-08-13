@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Input as UiInput } from "../../../components/ui";
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { api } from "../../../lib/api";
@@ -22,30 +26,30 @@ export default function RequestPortalPage() {
   }
 
   return (
-    <div style={{ maxWidth: 640, margin: "48px auto", padding: "0 20px" }}>
+    <div className="ui-static-1a30c0a0">
       <h1 className="page-title">Your request</h1>
       <p className="page-sub">Track status and message the team about this request.</p>
 
       {thread?.submissions.map((s) => (
-        <div key={s.id} className="fieldcard" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span className="mono" style={{ fontSize: 13 }}>{new Date(s.createdAt).toLocaleString()}</span>
+        <div key={s.id} className="fieldcard ui-static-13313b1a" >
+          <span className="mono ui-static-5e0faad2" >{new Date(s.createdAt).toLocaleString()}</span>
           <span className={`pill ${s.status === "routed" ? "approved" : "submitted"}`}>{s.status === "routed" ? "received" : s.status}</span>
         </div>
       ))}
 
-      <h3 style={{ fontSize: 14, marginTop: 20 }}>Conversation</h3>
-      <div style={{ margin: "10px 0" }}>
-        {thread?.messages.length === 0 && <p className="muted" style={{ fontSize: 13 }}>No messages yet. Ask a question below.</p>}
+      <h3 className="ui-static-40b0ff8c">Conversation</h3>
+      <div className="ui-static-f4e719ae">
+        {thread?.messages.length === 0 && <p className="muted ui-static-5e0faad2" >No messages yet. Ask a question below.</p>}
         {thread?.messages.map((m) => (
           <div key={m.id} className={`thread-msg ${m.authorKind}`}>
-            <div style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 2 }}>{m.authorKind === "agent" ? "Team" : "You"} · {new Date(m.at).toLocaleString()}</div>
+            <div className="ui-static-f700e0f5">{m.authorKind === "agent" ? "Team" : "You"} · {new Date(m.at).toLocaleString()}</div>
             {m.body}
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input className="input" placeholder="Write a message…" value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} style={{ flex: 1 }} />
-        <button className="btn btn-primary" onClick={send}>Send</button>
+      <div className="ui-static-a76d597a">
+        <UiInput className="input ui-static-97445a8d" placeholder="Write a message…" value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}  />
+        <UiButton variant="primary"  onClick={send}>Send</UiButton>
       </div>
     </div>
   );

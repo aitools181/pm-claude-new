@@ -8,6 +8,7 @@ import { AuthzGuard } from "../authz/authz.guard.js";
 import { RequirePermission } from "../authz/require-permission.decorator.js";
 import { CAPABILITIES } from "../authz/capabilities.js";
 import { DataOpsService } from "./data-ops.service.js";
+import { BackgroundJobsService } from "../background-jobs/background-jobs.service.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
 const retentionDto = z.object({ entity: z.string().optional(), retentionDays: z.number().int().positive(), autoPurge: z.boolean().optional() });
@@ -15,7 +16,7 @@ const retentionDto = z.object({ entity: z.string().optional(), retentionDays: z.
 @Controller()
 @UseGuards(SessionGuard, OrgContextGuard, AuthzGuard)
 export class DataOpsController {
-  constructor(private readonly svc: DataOpsService) {}
+  constructor(private readonly svc: DataOpsService, private readonly jobs: BackgroundJobsService) {}
 
   @Get("recycle-bin") bin(@Req() r: Ctx) { return this.svc.listRecycleBin(r.organizationId); }
   @Post("recycle-bin/:id/restore") @RequirePermission(CAPABILITIES.ORG_SETTINGS_MANAGE)
@@ -28,6 +29,8 @@ export class DataOpsController {
   setRetention(@Req() r: Ctx, @Body(new ZodPipe(retentionDto)) b: z.infer<typeof retentionDto>) { return this.svc.setRetention(r.organizationId, b); }
   @Post("retention/purge") @RequirePermission(CAPABILITIES.ORG_SETTINGS_MANAGE)
   purgeExpired(@Req() r: Ctx) { return this.svc.purgeExpired(r.organizationId); }
+  @Post("retention/purge-async") @RequirePermission(CAPABILITIES.ORG_SETTINGS_MANAGE)
+  purgeExpiredAsync(@Req() r: Ctx) { return this.jobs.enqueueRetentionPurge(r.organizationId, r.userId); }
 
   @Get("export") @RequirePermission(CAPABILITIES.DATA_PORTABILITY)
   exportOrg(@Req() r: Ctx) { return this.svc.exportOrg(r.organizationId); }

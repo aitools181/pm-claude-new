@@ -1,4 +1,8 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../../../components/ui";
+import { Select as UiSelect } from "../../../../../components/ui";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../../../../lib/api";
 import { Field, Input } from "../../../../../components/ui/Field";
@@ -39,51 +43,51 @@ export default function AutomationBuilder() {
     <>
       <h1 className="page-title">Automation</h1>
       <p className="page-sub">WHEN an event happens → IF conditions hold → THEN run actions. Idempotent, retried, loop-guarded.</p>
-      {msg && <div className="callout callout-danger" style={{ marginBottom: 14 }}>{msg}</div>}
+      {msg && <div className="callout callout-danger ui-static-2b583d73" >{msg}</div>}
 
-      <div className="card card-p" style={{ marginBottom: 20 }}>
+      <div className="card card-p ui-static-49f14f8f" >
         <strong>New rule</strong>
-        <div className="cfg-form" style={{ marginTop: 12 }}>
+        <div className="cfg-form ui-static-56f43562" >
           <Field label="Name"><Input value={nr.name} onChange={(e) => setNr({ ...nr, name: e.target.value })} placeholder="Notify on high priority" /></Field>
-          <Field label="Trigger"><select className="input" value={nr.triggerType} onChange={(e) => setNr({ ...nr, triggerType: e.target.value })}><option value="event">event</option><option value="manual">manual</option><option value="schedule">schedule</option></select></Field>
+          <Field label="Trigger"><UiSelect className="input" value={nr.triggerType} onChange={(e) => setNr({ ...nr, triggerType: e.target.value })}><option value="event">event</option><option value="manual">manual</option><option value="schedule">schedule</option></UiSelect></Field>
           {nr.triggerType === "event" && <Field label="Event name"><Input className="mono" value={nr.eventName} onChange={(e) => setNr({ ...nr, eventName: e.target.value })} placeholder="work_item.created" /></Field>}
-          <button className="btn btn-primary" style={{ marginBottom: 16 }} disabled={!nr.name} onClick={create}>Create</button>
+          <UiButton variant="primary" className="ui-static-87c136df"  disabled={!nr.name} onClick={create}>Create</UiButton>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="ui-static-911b26ad">
         <div className="card">
           <table className="table"><thead><tr><th>Rule</th><th>Trigger</th><th>State</th></tr></thead>
             <tbody>
               {rules.map((r) => (
-                <tr key={r.id} onClick={() => setSel(r)} style={{ cursor: "pointer", background: sel?.id === r.id ? "var(--surface-2)" : undefined }}>
-                  <td style={{ fontWeight: 500 }}>{r.name}</td><td className="mono" style={{ fontSize: 12 }}>{r.triggerType}</td>
-                  <td><span className="badge" onClick={(e) => { e.stopPropagation(); toggle(r); }} style={{ cursor: "pointer" }}><span className={`dot ${r.enabled ? "dot-ok" : "dot-off"}`} />{r.enabled ? "on" : (r.disabledReason ?? "off")}</span></td>
+                <tr key={r.id} className="ui-click-row" data-selected={sel?.id === r.id || undefined}>
+                  <td className="ui-static-02a2d333"><button type="button" className="ui-row-link ui-reset-button" aria-pressed={sel?.id === r.id} onClick={() => setSel(r)}>{r.name}</button></td><td className="mono ui-static-6cb285c6">{r.triggerType}</td>
+                  <td><button type="button" className="badge ui-static-3b6a3a65 ui-reset-button" aria-pressed={r.enabled} onClick={() => toggle(r)}><span className={`dot ${r.enabled ? "dot-ok" : "dot-off"}`} />{r.enabled ? "on" : (r.disabledReason ?? "off")}</button></td>
                 </tr>
               ))}
-              {rules.length === 0 && <tr><td colSpan={3} style={{ color: "var(--ink-3)" }}>No rules yet.</td></tr>}
+              {rules.length === 0 && <tr><td colSpan={3} className="ui-static-fbeb64b6">No rules yet.</td></tr>}
             </tbody>
           </table>
         </div>
 
         <div className="card card-p">
-          {!sel && <div style={{ color: "var(--ink-3)" }}>Select a rule to add actions and see run logs.</div>}
+          {!sel && <div className="ui-static-fbeb64b6">Select a rule to add actions and see run logs.</div>}
           {sel && (
             <>
               <strong>{sel.name}</strong>
-              <div style={{ display: "flex", gap: 8, alignItems: "end", margin: "12px 0" }}>
-                <Field label="Action"><select className="input" value={act.kind} onChange={(e) => setAct({ ...act, kind: e.target.value })}><option value="add_comment">add_comment</option><option value="set_priority">set_priority</option><option value="emit_event">emit_event</option></select></Field>
+              <div className="ui-static-62ea735f">
+                <Field label="Action"><UiSelect className="input" value={act.kind} onChange={(e) => setAct({ ...act, kind: e.target.value })}><option value="add_comment">add_comment</option><option value="set_priority">set_priority</option><option value="emit_event">emit_event</option></UiSelect></Field>
                 <Field label="Config (body / value)"><Input value={act.body} onChange={(e) => setAct({ ...act, body: e.target.value })} /></Field>
-                <button className="btn" style={{ marginBottom: 16 }} onClick={addAction}>Add action</button>
+                <UiButton variant="secondary" className="ui-static-87c136df"  onClick={addAction}>Add action</UiButton>
               </div>
-              <button className="btn btn-ghost" onClick={dryRun}>Dry run</button>
-              <div style={{ marginTop: 16, fontSize: 13, fontWeight: 600 }}>Run logs</div>
-              {runs.length === 0 && <div style={{ color: "var(--ink-3)", fontSize: 13 }}>No runs yet.</div>}
+              <UiButton variant="tertiary"  onClick={dryRun}>Dry run</UiButton>
+              <div className="ui-static-dae7b464">Run logs</div>
+              {runs.length === 0 && <div className="ui-static-c3d3e812">No runs yet.</div>}
               {runs.map((run) => (
                 <div key={run.id} className="activity-item">
-                  <span className={`status-pill ${run.status === "succeeded" ? "st-done" : run.status === "failed" ? "" : "st-todo"}`} style={run.status === "failed" ? { background: "var(--danger-weak)", color: "#8f2b27" } : {}}>{run.status}</span>
-                  <span className="mono" style={{ marginLeft: "auto" }}>{new Date(run.startedAt).toLocaleTimeString()}</span>
-                  {run.status === "failed" && <button className="btn btn-ghost" onClick={() => replay(run.id)}>Replay</button>}
+                  <span className={`status-pill ${run.status === "succeeded" ? "st-done" : run.status === "failed" ? "" : "st-todo"}`} data-tone={run.status === "failed" ? "error" : undefined}>{run.status}</span>
+                  <span className="mono ui-static-6d000617" >{new Date(run.startedAt).toLocaleTimeString()}</span>
+                  {run.status === "failed" && <UiButton variant="tertiary"  onClick={() => replay(run.id)}>Replay</UiButton>}
                 </div>
               ))}
             </>

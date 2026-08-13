@@ -2,7 +2,7 @@ FROM node:20-alpine
 RUN corepack enable
 WORKDIR /app
 COPY . .
-RUN pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile
 # Build workspace libraries first, then the API (compiled to dist).
 RUN pnpm --filter @pm/shared build \
  && pnpm --filter @pm/db build \

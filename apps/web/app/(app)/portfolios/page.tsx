@@ -1,7 +1,13 @@
 "use client";
+
+
+import { Button as UiButton } from "../../../components/ui";
+import { Select as UiSelect } from "../../../components/ui";
+import { appPrompt } from "../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
+import { RuntimeStyle } from "../../../components/ui/RuntimeStyle";
 
 type Portfolio = { id: string; name: string };
 type ProjRow = { projectId: string | null; name: string; redacted: boolean; progress: number | null; done: number | null; total: number | null; start: string | null; end: string | null };
@@ -29,17 +35,17 @@ export default function PortfoliosPage() {
     setInits(await api<Initiative[]>(`/portfolios/${id}/initiatives`, { org: true }).catch(() => []));
   }, []);
 
-  async function create() { const name = prompt("Portfolio name"); if (!name) return; await api("/portfolios", { method: "POST", org: true, body: JSON.stringify({ name }) }); loadList(); }
+  async function create() { const name = await appPrompt("Portfolio name"); if (!name) return; await api("/portfolios", { method: "POST", org: true, body: JSON.stringify({ name }) }); loadList(); }
   async function addProject() { if (!sel || !pick) return; await api(`/portfolios/${sel}/projects`, { method: "POST", org: true, body: JSON.stringify({ projectId: pick }) }); setPick(""); open(sel); }
-  async function addMilestone() { if (!sel) return; const name = prompt("Milestone name"); if (!name) return; const dueDate = prompt("Due date (YYYY-MM-DD)") || undefined; await api(`/portfolios/${sel}/milestones`, { method: "POST", org: true, body: JSON.stringify({ name, dueDate }) }); open(sel); }
+  async function addMilestone() { if (!sel) return; const name = await appPrompt("Milestone name"); if (!name) return; const dueDate = await appPrompt("Due date (YYYY-MM-DD)") || undefined; await api(`/portfolios/${sel}/milestones`, { method: "POST", org: true, body: JSON.stringify({ name, dueDate }) }); open(sel); }
   async function markMs(id: string, status: string) { await api(`/milestones/${id}/status`, { method: "POST", org: true, body: JSON.stringify({ status }) }); if (sel) open(sel); }
-  async function addInitiative() { if (!sel) return; const name = prompt("Initiative name"); if (!name) return; await api(`/portfolios/${sel}/initiatives`, { method: "POST", org: true, body: JSON.stringify({ name }) }); open(sel); }
+  async function addInitiative() { if (!sel) return; const name = await appPrompt("Initiative name"); if (!name) return; await api(`/portfolios/${sel}/initiatives`, { method: "POST", org: true, body: JSON.stringify({ name }) }); open(sel); }
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 className="page-title" style={{ marginBottom: 4 }}>Portfolios</h1>
-        <button className="btn btn-primary" onClick={create}>+ New portfolio</button>
+      <div className="ui-static-13313b1a">
+        <h1 className="page-title ui-static-c81ce4b2" >Portfolios</h1>
+        <UiButton variant="primary"  onClick={create}>+ New portfolio</UiButton>
       </div>
       <div className="builder-grid">
         <div>
@@ -51,15 +57,15 @@ export default function PortfoliosPage() {
                   <div><span className="n">{roll.aggregateProgress}%</span><span className="l">Overall progress</span></div>
                   <div><span className="n">{roll.aggregateDone}/{roll.aggregateTotal}</span><span className="l">Items done</span></div>
                   <div><span className="n">{roll.milestones.hit}/{roll.milestones.total}</span><span className="l">Milestones hit</span></div>
-                  <div><span className="n" style={{ color: roll.milestones.overdue ? "var(--danger)" : undefined }}>{roll.milestones.overdue}</span><span className="l">Overdue</span></div>
+                  <div><span className="n" data-tone={roll.milestones.overdue ? "error" : undefined}>{roll.milestones.overdue}</span><span className="l">Overdue</span></div>
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
-                <select className="input" value={pick} onChange={(e) => setPick(e.target.value)} style={{ flex: 1 }}>
+              <div className="ui-static-73c5d6e9">
+                <UiSelect className="input ui-static-97445a8d" value={pick} onChange={(e) => setPick(e.target.value)} >
                   <option value="">Add project…</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <button className="btn" onClick={addProject} disabled={!pick}>Add</button>
+                </UiSelect>
+                <UiButton variant="secondary"  onClick={addProject} disabled={!pick}>Add</UiButton>
               </div>
 
               <table className="exec-table">
@@ -67,31 +73,31 @@ export default function PortfoliosPage() {
                 <tbody>
                   {roll.projects.map((p, i) => (
                     <tr key={i}>
-                      <td style={{ color: p.redacted ? "var(--ink-3)" : undefined }}>{p.name}</td>
-                      <td>{p.redacted ? "—" : <div className="prog-bar" style={{ width: 120 }}><div className="prog-fill" style={{ width: `${p.progress}%` }} /></div>}</td>
+                      <td data-redacted={p.redacted || undefined}>{p.name}</td>
+                      <td>{p.redacted ? "—" : <div className="prog-bar ui-static-465bfea3" ><RuntimeStyle className="prog-fill runtime-width" vars={{ "--runtime-width": `${p.progress}%` }} /></div>}</td>
                       <td>{p.redacted ? "—" : `${p.done}/${p.total}`}</td>
-                      <td className="muted" style={{ fontSize: 12 }}>{p.redacted ? "—" : `${p.start ?? "?"} → ${p.end ?? "?"}`}</td>
+                      <td className="muted ui-static-6cb285c6" >{p.redacted ? "—" : `${p.start ?? "?"} → ${p.end ?? "?"}`}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
-              <div style={{ display: "flex", gap: 18, marginTop: 18 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h3 style={{ fontSize: 14 }}>Milestones</h3><button className="btn btn-ghost" onClick={addMilestone}>+ Add</button></div>
+              <div className="ui-static-0cee3872">
+                <div className="ui-static-97445a8d">
+                  <div className="ui-static-13313b1a"><h3 className="ui-static-433de30b">Milestones</h3><UiButton variant="tertiary"  onClick={addMilestone}>+ Add</UiButton></div>
                   {ms.map((m) => (
-                    <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, padding: "5px 0", borderBottom: "1px solid var(--line)" }}>
+                    <div key={m.id} className="ui-static-9f3b9e48">
                       <span>{m.name} <span className="muted">{m.dueDate}</span></span>
-                      <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span className="ui-static-25b52886">
                         <span className={`pill ${m.status === "hit" ? "approved" : m.status === "missed" ? "rejected" : "open"}`}>{m.status}</span>
-                        {m.status === "planned" && <button className="btn btn-ghost" style={{ padding: "0 6px" }} onClick={() => markMs(m.id, "hit")}>✓</button>}
+                        {m.status === "planned" && <UiButton variant="tertiary" className="ui-static-7c699c10"  onClick={() => markMs(m.id, "hit")}>✓</UiButton>}
                       </span>
                     </div>
                   ))}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h3 style={{ fontSize: 14 }}>Initiatives</h3><button className="btn btn-ghost" onClick={addInitiative}>+ Add</button></div>
-                  {inits.map((it) => <div key={it.id} style={{ fontSize: 13, padding: "5px 0", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between" }}><span>{it.name}</span><span className="pill open">{it.status}</span></div>)}
+                <div className="ui-static-97445a8d">
+                  <div className="ui-static-13313b1a"><h3 className="ui-static-433de30b">Initiatives</h3><UiButton variant="tertiary"  onClick={addInitiative}>+ Add</UiButton></div>
+                  {inits.map((it) => <div key={it.id} className="ui-static-6ff59dcb"><span>{it.name}</span><span className="pill open">{it.status}</span></div>)}
                 </div>
               </div>
             </>
@@ -101,7 +107,7 @@ export default function PortfoliosPage() {
         <div className="gpanel">
           <h3>Portfolios</h3>
           {portfolios.map((p) => (
-            <button key={p.id} className="btn btn-ghost" style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 6, borderColor: sel === p.id ? "var(--primary)" : undefined }} onClick={() => open(p.id)}>{p.name}</button>
+            <UiButton variant="tertiary" key={p.id} className="ui-selection-row" data-selected={sel === p.id || undefined} onClick={() => open(p.id)}>{p.name}</UiButton>
           ))}
         </div>
       </div>
