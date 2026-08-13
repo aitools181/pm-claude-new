@@ -206,3 +206,7 @@ Current source gates after the final code/connectivity correction pass: F29-F42 
 - Public integration entry points are signed/scoped: SCIM uses an API token with `scim:write`; DevOps and inbound email hooks use `X-PM-Signature` HMAC over the submitted payload string.
 - Sandbox organizations seed default roles/capabilities and deliberately suppress outbound modules and secret copying.
 - External provider activation/certification is documented as a deployment boundary rather than reported as a mocked success.
+
+## 13. Asana missing-feature completion (2026-08-13)
+
+The 40-item decision list is resolved. See `docs/ASANA_MISSING_FEATURES_IMPLEMENTATION.md` and run `node scripts/verify-asana-missing-features.cjs` before release. The source gate verifies UI presence plus corresponding API/schema behavior for all 40 approved items. Navigation settings (#8) are deliberately labeled PM Platform-native because the supplied Asana capture did not show the tab's internal controls.

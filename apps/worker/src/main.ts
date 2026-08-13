@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { Worker, Queue, QueueEvents } from "bullmq";
-import { and, eq, isNotNull, lt } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { Redis } from "ioredis";
 import { getDb, schema } from "@pm/db";
 import { runIdempotent, type ScopedJob } from "./job-runner.js";
@@ -60,6 +60,100 @@ async function purgeOrgRetention(organizationId: string, now = new Date()) {
   return { organizationId, purged: ids.length, ids };
 }
 
+
+async function summarizeWithConfiguredProvider(prompt: string) {
+  const provider = process.env.AI_PROVIDER ?? "disabled";
+  if (provider !== "openai_compatible") return { text: "", tokens: 0, degraded: true };
+  const baseUrl = process.env.AI_BASE_URL ?? "";
+  const apiKey = process.env.AI_API_KEY ?? "";
+  const model = process.env.AI_MODEL ?? "";
+  if (!baseUrl || !apiKey || !model) return { text: "", tokens: 0, degraded: true };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, temperature: 0.2, max_tokens: 500, messages: [
+        { role: "system", content: "Summarize project-management information clearly and concisely. State risks and sources only when supplied. Do not invent facts." },
+        { role: "user", content: prompt },
+      ] }),
+    });
+    if (!response.ok) throw new Error(`provider_http_${response.status}`);
+    const body = await response.json() as any;
+    const text = String(body?.choices?.[0]?.message?.content ?? "").trim();
+    if (!text) throw new Error("provider_empty_response");
+    const tokens = Number(body?.usage?.total_tokens ?? Math.max(1, Math.ceil(prompt.length / 4)));
+    return { text, tokens: Number.isFinite(tokens) ? tokens : 0, degraded: false };
+  } catch {
+    return { text: "", tokens: 0, degraded: true };
+  } finally { clearTimeout(timer); }
+}
+
+async function consumeAiTokens(organizationId: string, tokens: number) {
+  if (!tokens) return true;
+  let [settings] = await database.select().from(schema.aiSettings).where(eq(schema.aiSettings.organizationId, organizationId)).limit(1);
+  if (!settings) [settings] = await database.insert(schema.aiSettings).values({ organizationId }).returning();
+  const [updated] = await database.update(schema.aiSettings).set({
+    usedTokens: sql`${schema.aiSettings.usedTokens} + ${tokens}`,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(schema.aiSettings.id, settings.id),
+    eq(schema.aiSettings.organizationId, organizationId),
+    sql`${schema.aiSettings.usedTokens} + ${tokens} <= ${schema.aiSettings.budgetTokens}`,
+  )).returning({ id: schema.aiSettings.id });
+  return Boolean(updated);
+}
+
+async function generateRegularProjectSummaries() {
+  const cutoff = new Date(Date.now() - 20 * 60 * 60 * 1000);
+  const rows = await database.select().from(schema.projectAiSummarySettings).where(and(
+    eq(schema.projectAiSummarySettings.regularUpdates, true),
+    sql`(${schema.projectAiSummarySettings.generatedAt} is null or ${schema.projectAiSummarySettings.generatedAt} < ${cutoff})`,
+  ));
+  let generated = 0, skipped = 0;
+  for (const pref of rows) {
+    const [flag] = await database.select({ enabled: schema.featureFlags.enabled }).from(schema.featureFlags).where(and(
+      eq(schema.featureFlags.organizationId, pref.organizationId),
+      eq(schema.featureFlags.key, "module:ai"),
+    )).limit(1);
+    if (!flag?.enabled) { skipped += 1; continue; }
+    const [project] = await database.select().from(schema.projects).where(and(
+      eq(schema.projects.organizationId, pref.organizationId),
+      eq(schema.projects.id, pref.projectId),
+      isNull(schema.projects.deletedAt),
+    )).limit(1);
+    if (!project) { skipped += 1; continue; }
+    const tasks = await database.select({ key: schema.workItems.key, title: schema.workItems.title, statusCategory: schema.workItems.statusCategory, dueDate: schema.workItems.dueDate })
+      .from(schema.workItems).where(and(eq(schema.workItems.organizationId, pref.organizationId), eq(schema.workItems.owningProjectId, pref.projectId), isNull(schema.workItems.deletedAt))).limit(300);
+    const updates = await database.select().from(schema.projectStatusUpdates).where(and(eq(schema.projectStatusUpdates.organizationId, pref.organizationId), eq(schema.projectStatusUpdates.projectId, pref.projectId))).orderBy(desc(schema.projectStatusUpdates.createdAt)).limit(10);
+    const done = tasks.filter((item) => item.statusCategory === "done").length;
+    const overdue = tasks.filter((item) => item.dueDate && new Date(item.dueDate) < new Date() && item.statusCategory !== "done").length;
+    const prompt = [
+      `Project: ${project.name}`,
+      `Description: ${project.description || "No description"}`,
+      `Status: ${project.status}; health: ${project.health}`,
+      `Tasks: ${tasks.length}; completed: ${done}; overdue: ${overdue}`,
+      `Recent status updates: ${updates.map((u) => `${u.health}: ${u.title} ${u.body || ""}`).join(" | ") || "none"}`,
+      pref.includeRiskReport ? `Risk facts: ${overdue} overdue tasks; project health ${project.health}.` : "",
+      pref.includeSources ? `Sources: project record, ${tasks.length} current work items, ${updates.length} recent status updates.` : "",
+      "Summarize current progress, next attention areas, and factual risks. Do not invent missing information.",
+    ].filter(Boolean).join("\n");
+    const fallback = `${project.name}: ${done} of ${tasks.length} tasks are complete; ${overdue} are overdue. Project health is ${project.health}. ${updates[0] ? `Latest update: ${updates[0].title}.` : "No status update has been posted yet."}`;
+    const provider = await summarizeWithConfiguredProvider(prompt);
+    const text = provider.text || fallback;
+    if (!await consumeAiTokens(pref.organizationId, provider.tokens)) { skipped += 1; continue; }
+    await database.update(schema.projectAiSummarySettings).set({ summary: text, generatedAt: new Date(), generatedBy: null, updatedAt: new Date() }).where(and(
+      eq(schema.projectAiSummarySettings.id, pref.id),
+      eq(schema.projectAiSummarySettings.organizationId, pref.organizationId),
+    ));
+    await database.insert(schema.aiAuditLog).values({ organizationId: pref.organizationId, userId: null, event: "project_summary_regular", detail: { projectId: pref.projectId, degraded: provider.degraded, tokens: provider.tokens } });
+    generated += 1;
+  }
+  return { candidates: rows.length, generated, skipped };
+}
+
 async function purgeAllRetention() {
   const policies = await database.select({ organizationId: schema.retentionPolicies.organizationId })
     .from(schema.retentionPolicies)
@@ -76,12 +170,12 @@ const worker = new Worker(
     const original = job.data as ScopedJob<Record<string, unknown>>;
     // Repeat occurrences share producer data, but BullMQ assigns a stable id per
     // occurrence. Fold it into the key so retries dedupe while future hours run.
-    const data = job.name === "retention-auto-purge"
-      ? { ...original, idempotencyKey: `${original.idempotencyKey}:${job.id}` }
-      : original;
+    const recurring = job.name === "retention-auto-purge" || job.name === "ai-project-summary-regular";
+    const data = recurring ? { ...original, idempotencyKey: `${original.idempotencyKey}:${job.id}` } : original;
 
     return runIdempotent(data, async (payload) => {
       if (job.name === "retention-auto-purge") return purgeAllRetention();
+      if (job.name === "ai-project-summary-regular") return generateRegularProjectSummaries();
       if (job.name === "retention-purge") {
         const organizationId = String(payload.organizationId ?? data.organizationId ?? "");
         if (!organizationId || organizationId !== data.organizationId) throw new Error("Retention job organization scope mismatch");

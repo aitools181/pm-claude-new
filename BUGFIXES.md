@@ -83,3 +83,17 @@ Fix: split the inner component and wrap it — `export default () => <Suspense><
 - Added reusable runtime CSS classes for width, size, position, rectangle geometry, indentation, donut progress, background swatches, and theme previews.
 - Strengthened `verify-ui-standards.cjs`: dynamic JSX style attributes are now release-blocking; authored CSS color literals outside `design-tokens.css` are release-blocking; style-layer import order and runtime-style exports are verified.
 - Current source gates: F29-F42 65/65, Asana parity 25/25, UI standards 94/94, production readiness 39/39; TS/TSX syntax parse 551/551 clean.
+
+## Asana missing-feature full-stack completion (2026-08-13)
+
+- Implemented all 40 approved missing Asana-reference fields/controls with frontend + backend persistence/connectivity as applicable.
+- Added migration `0033_asana_missing_features.sql` for personal UI preferences, project icons, portfolio metadata/custom columns, AI summary settings and secondary email identities.
+- Added saved project view rename/default/duplicate/deep-link/remove/custom-tab management.
+- Added Overview goal/portfolio connection flows, rich project brief, AI controls and project activity timeline.
+- Added Inbox relevance sort, AI summary/timeframe preference, bulk archive and filter recovery.
+- Added Browse Projects portfolio filter/column, last-modified sorting, row favorite and template suggestion strip.
+- Added additional email verification/login aliases, primary-email switching, account merge and embedded organization/workspace management.
+- Added portfolio Owner/Status/Budget/Service line/custom-column support.
+- Completed behavior of Display preferences: login now honors Default landing page, row numbers are consumed in multiple list surfaces, and color-blind mode adds non-color shape/text cues.
+- Fixed a stale Calendar import from `AppDialogProvider` to the canonical `AppDialog` module.
+- Added `scripts/verify-asana-missing-features.cjs` with 40/40 feature-contract checks.

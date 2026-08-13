@@ -14,6 +14,15 @@ export const userUiPreferences = pgTable("user_ui_preferences", {
   homeBackground: text("home_background").default("sunset").notNull(),
   density: text("density").default("comfortable").notNull(), // comfortable|compact
   locale: text("locale").default("en").notNull(),
+  personalWeekStart: integer("personal_week_start"),
+  notificationPopupSeconds: integer("notification_popup_seconds").default(5).notNull(),
+  defaultLanding: text("default_landing").default("/home").notNull(),
+  showRowNumbers: boolean("show_row_numbers").default(false).notNull(),
+  colorBlindMode: boolean("color_blind_mode").default(false).notNull(),
+  celebrations: boolean("celebrations").default(true).notNull(),
+  inboxSummaryEnabled: boolean("inbox_summary_enabled").default(true).notNull(),
+  inboxSummaryTimeframe: text("inbox_summary_timeframe").default("week").notNull(),
+  navigationPreferences: jsonb("navigation_preferences").default({}).notNull(),
   customTheme: jsonb("custom_theme").default({}).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({ unique: uniqueIndex("user_ui_preferences_unique").on(t.organizationId, t.userId) }));
@@ -45,6 +54,21 @@ export const savedUiViews = pgTable("saved_ui_views", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({ byScope: index("saved_ui_views_scope_idx").on(t.organizationId, t.userId, t.scopeType, t.scopeId) }));
+
+
+export const projectAiSummarySettings = pgTable("project_ai_summary_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  projectId: uuid("project_id").notNull().references(() => projects.id),
+  includeSources: boolean("include_sources").default(true).notNull(),
+  includeRiskReport: boolean("include_risk_report").default(true).notNull(),
+  regularUpdates: boolean("regular_updates").default(false).notNull(),
+  timeframe: text("timeframe").default("30d").notNull(),
+  summary: text("summary"),
+  generatedAt: timestamp("generated_at", { withTimezone: true }),
+  generatedBy: uuid("generated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ unique: uniqueIndex("project_ai_summary_settings_unique").on(t.organizationId, t.projectId) }));
 
 export const projectFavorites = pgTable("project_favorites", {
   id: uuid("id").primaryKey().defaultRandom(),

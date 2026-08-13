@@ -1027,3 +1027,36 @@ tr[data-tone="error"] { background:color-mix(in srgb,var(--ui-danger) 8%,var(--u
 .project-palette-swatch[data-palette-index="5"] { background: var(--pm-project-palette-6); }
 .project-palette-swatch[data-palette-index="6"] { background: var(--pm-project-palette-7); }
 .project-palette-swatch[data-palette-index="7"] { background: var(--pm-project-palette-8); }
+
+/* Color-blind friendly mode adds shape/text cues so status is never color-only. */
+html[data-color-blind="true"] :where(.health-chip,.project-status,.priority-chip,.pill,.error-text,.success-text,.warning-text) {
+  font-weight: 650;
+}
+html[data-color-blind="true"] .health-chip i,
+html[data-color-blind="true"] .project-status .status-dot {
+  border: 2px solid currentColor;
+  background: transparent;
+}
+html[data-color-blind="true"] :where(.health-on_track,.project-health-on_track) i,
+html[data-color-blind="true"] .project-health-on_track .status-dot {
+  border-radius: 999px;
+}
+html[data-color-blind="true"] :where(.health-at_risk,.project-health-at_risk) i,
+html[data-color-blind="true"] .project-health-at_risk .status-dot {
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+html[data-color-blind="true"] :where(.health-off_track,.project-health-off_track) i,
+html[data-color-blind="true"] .project-health-off_track .status-dot {
+  border-radius: 0;
+  clip-path: polygon(50% 0,100% 100%,0 100%);
+}
+html[data-color-blind="true"] .pill.approved::before { content: "✓ "; }
+html[data-color-blind="true"] .pill.rejected::before { content: "! "; }
+html[data-color-blind="true"] :where(.error-text,.field-error)::before { content: "! "; font-weight: 800; }
+html[data-color-blind="true"] :where(.success-text,.field-success)::before { content: "✓ "; font-weight: 800; }
+html[data-color-blind="true"] .priority-chip::before { content: "◆ "; font-size: .72em; }
+html[data-color-blind="true"] .priority-chip.priority-low::before { content: "◇ "; }
+html[data-color-blind="true"] .priority-chip.priority-normal::before { content: "● "; }
+html[data-color-blind="true"] .priority-chip.priority-high::before { content: "▲ "; }
+html[data-color-blind="true"] .priority-chip.priority-urgent::before { content: "▲▲ "; letter-spacing: -2px; }

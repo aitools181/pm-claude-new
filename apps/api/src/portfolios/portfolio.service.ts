@@ -25,11 +25,59 @@ export class PortfolioService {
 
   async addProject(organizationId: string, portfolioId: string, projectId: string) {
     await this.load(organizationId, portfolioId);
-    await this.db.insert(schema.portfolioProjects).values({ organizationId, portfolioId, projectId });
-    return { added: true };
+    const [project] = await this.db.select({ id: schema.projects.id }).from(schema.projects).where(and(eq(schema.projects.id, projectId), eq(schema.projects.organizationId, organizationId), isNull(schema.projects.deletedAt))).limit(1);
+    if (!project) throw new AppError("NOT_FOUND", "Project not found in this organization");
+    const rows = await this.db.insert(schema.portfolioProjects).values({ organizationId, portfolioId, projectId }).onConflictDoNothing({ target: [schema.portfolioProjects.portfolioId, schema.portfolioProjects.projectId] }).returning({ id: schema.portfolioProjects.id });
+    return { added: rows.length > 0, alreadyPresent: rows.length === 0 };
   }
   async removeProject(organizationId: string, portfolioId: string, projectId: string) {
     await this.db.delete(schema.portfolioProjects).where(and(eq(schema.portfolioProjects.portfolioId, portfolioId), eq(schema.portfolioProjects.projectId, projectId), eq(schema.portfolioProjects.organizationId, organizationId)));
+    return { removed: true };
+  }
+
+  async projectMemberships(organizationId: string, userId: string) {
+    const links = await this.db.select({ portfolioId: schema.portfolioProjects.portfolioId, portfolioName: schema.portfolios.name, projectId: schema.portfolioProjects.projectId, budgetCents: schema.portfolioProjects.budgetCents, serviceLine: schema.portfolioProjects.serviceLine, customFields: schema.portfolioProjects.customFields })
+      .from(schema.portfolioProjects).innerJoin(schema.portfolios, eq(schema.portfolios.id, schema.portfolioProjects.portfolioId))
+      .where(eq(schema.portfolioProjects.organizationId, organizationId));
+    const out = [];
+    for (const link of links) if (await canAccessProject(this.db, organizationId, link.projectId, userId)) out.push(link);
+    return out;
+  }
+
+  async updateProjectMeta(organizationId: string, portfolioId: string, projectId: string, patch: { budgetCents?: number | null; serviceLine?: string | null; customFields?: Record<string, unknown> }) {
+    await this.load(organizationId, portfolioId);
+    const [row] = await this.db.update(schema.portfolioProjects).set(patch).where(and(eq(schema.portfolioProjects.organizationId, organizationId), eq(schema.portfolioProjects.portfolioId, portfolioId), eq(schema.portfolioProjects.projectId, projectId))).returning();
+    if (!row) throw new AppError("NOT_FOUND", "Project is not in this portfolio");
+    return row;
+  }
+
+  listColumns(organizationId: string, portfolioId: string) {
+    return this.db.select().from(schema.portfolioColumns).where(and(eq(schema.portfolioColumns.organizationId, organizationId), eq(schema.portfolioColumns.portfolioId, portfolioId))).orderBy(schema.portfolioColumns.rank, schema.portfolioColumns.createdAt);
+  }
+  async createColumn(organizationId: string, portfolioId: string, input: { name: string; type?: string }) {
+    await this.load(organizationId, portfolioId);
+    const existing = await this.listColumns(organizationId, portfolioId);
+    const keyBase = input.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40) || "field";
+    let key = keyBase, suffix = 2;
+    const keys = new Set(existing.map((c) => c.key));
+    while (keys.has(key)) key = `${keyBase}_${suffix++}`;
+    const [row] = await this.db.insert(schema.portfolioColumns).values({ organizationId, portfolioId, key, name: input.name.trim(), type: input.type ?? "text", rank: existing.length }).returning();
+    return row;
+  }
+  async updateColumn(organizationId: string, portfolioId: string, columnId: string, patch: { name?: string; type?: string; rank?: number; config?: Record<string, unknown> }) {
+    const [row] = await this.db.update(schema.portfolioColumns).set(patch).where(and(eq(schema.portfolioColumns.id, columnId), eq(schema.portfolioColumns.organizationId, organizationId), eq(schema.portfolioColumns.portfolioId, portfolioId))).returning();
+    if (!row) throw new AppError("NOT_FOUND", "Portfolio column not found");
+    return row;
+  }
+  async removeColumn(organizationId: string, portfolioId: string, columnId: string) {
+    const [column] = await this.db.delete(schema.portfolioColumns).where(and(eq(schema.portfolioColumns.id, columnId), eq(schema.portfolioColumns.organizationId, organizationId), eq(schema.portfolioColumns.portfolioId, portfolioId))).returning();
+    if (!column) throw new AppError("NOT_FOUND", "Portfolio column not found");
+    const links = await this.db.select().from(schema.portfolioProjects).where(and(eq(schema.portfolioProjects.organizationId, organizationId), eq(schema.portfolioProjects.portfolioId, portfolioId)));
+    for (const link of links) {
+      const next = { ...((link.customFields || {}) as Record<string, unknown>) };
+      delete next[column.key];
+      await this.db.update(schema.portfolioProjects).set({ customFields: next }).where(eq(schema.portfolioProjects.id, link.id));
+    }
     return { removed: true };
   }
 
@@ -77,15 +125,16 @@ export class PortfolioService {
     for (const l of links) {
       const visible = await canAccessProject(this.db, organizationId, l.projectId, userId);
       if (!visible) { rows.push({ projectId: null, name: "Restricted", redacted: true, progress: null, done: null, total: null, start: null, end: null }); continue; }
-      const [proj] = await this.db.select({ name: schema.projects.name }).from(schema.projects).where(eq(schema.projects.id, l.projectId)).limit(1);
+      const [proj] = await this.db.select({ name: schema.projects.name, ownerUserId: schema.projects.ownerUserId, status: schema.projects.status, health: schema.projects.health, updatedAt: schema.projects.updatedAt }).from(schema.projects).where(eq(schema.projects.id, l.projectId)).limit(1);
       const st = await this.projectStats(l.projectId);
       aggDone += st.done; aggTotal += st.total;
-      rows.push({ projectId: l.projectId, name: proj?.name ?? "", redacted: false, ...st });
+      rows.push({ projectId: l.projectId, name: proj?.name ?? "", ownerUserId: proj?.ownerUserId ?? null, status: proj?.status ?? "active", health: proj?.health ?? "on_track", updatedAt: proj?.updatedAt ?? null, budgetCents: l.budgetCents ?? null, serviceLine: l.serviceLine ?? null, customFields: l.customFields ?? {}, redacted: false, ...st });
     }
     const milestones = await this.listMilestones(organizationId, portfolioId);
     const t = today();
     const msSummary = { total: milestones.length, hit: milestones.filter((m) => m.status === "hit").length, missed: milestones.filter((m) => m.status === "missed").length, overdue: milestones.filter((m) => m.status === "planned" && m.dueDate && m.dueDate < t).length };
-    return { portfolio: { id: portfolio.id, name: portfolio.name }, projects: rows, aggregateProgress: aggTotal ? Math.round((aggDone / aggTotal) * 100) : 0, aggregateDone: aggDone, aggregateTotal: aggTotal, milestones: msSummary };
+    const columns = await this.listColumns(organizationId, portfolioId);
+    return { portfolio: { id: portfolio.id, name: portfolio.name }, columns, projects: rows, aggregateProgress: aggTotal ? Math.round((aggDone / aggTotal) * 100) : 0, aggregateDone: aggDone, aggregateTotal: aggTotal, milestones: msSummary };
   }
 
   /** Timeline data for the executive view: project date spans + milestones (redacted-safe). */

@@ -10,9 +10,17 @@ import { CAPABILITIES } from "../authz/capabilities.js";
 import { UxService } from "./ux.service.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
-const preferencesDto = z.object({ themeMode: z.enum(["light","dark","system"]).optional(), chromeTone: z.enum(["black","gray","accent"]).optional(), colorPreset: z.string().max(40).optional(), customAccent: z.string().nullable().optional(), homeBackground: z.string().max(40).optional(), density: z.enum(["comfortable","compact"]).optional(), locale: z.string().max(12).optional(), customTheme: z.record(z.unknown()).optional() });
+const preferencesDto = z.object({
+  themeMode: z.enum(["light","dark","system"]).optional(), chromeTone: z.enum(["black","gray","accent"]).optional(),
+  colorPreset: z.string().max(40).optional(), customAccent: z.string().nullable().optional(), homeBackground: z.string().max(40).optional(),
+  density: z.enum(["comfortable","compact"]).optional(), locale: z.string().max(12).optional(), personalWeekStart: z.number().int().min(0).max(6).nullable().optional(),
+  notificationPopupSeconds: z.number().int().min(2).max(30).optional(), defaultLanding: z.enum(["/home","/my-tasks","/inbox","/projects","/goals","/portfolios"]).optional(),
+  showRowNumbers: z.boolean().optional(), colorBlindMode: z.boolean().optional(), celebrations: z.boolean().optional(), inboxSummaryEnabled: z.boolean().optional(),
+  inboxSummaryTimeframe: z.enum(["day","week","2weeks","month"]).optional(), navigationPreferences: z.record(z.unknown()).optional(), customTheme: z.record(z.unknown()).optional()
+});
 const widgetsDto = z.object({ widgets: z.array(z.object({ widgetKey: z.string(), enabled: z.boolean(), sortOrder: z.number().int(), size: z.string().optional(), config: z.record(z.unknown()).optional() })) });
 const viewDto = z.object({ scopeType: z.enum(["inbox","my_tasks","project"]), scopeId: z.string().uuid().optional(), name: z.string().trim().min(1).max(100), viewType: z.string().optional(), filters: z.record(z.unknown()).optional(), columns: z.array(z.unknown()).optional(), sortSpec: z.record(z.unknown()).optional(), groupBy: z.string().nullable().optional(), isDefault: z.boolean().optional() });
+const viewPatchDto = z.object({ name: z.string().trim().min(1).max(100).optional(), viewType: z.string().optional(), filters: z.record(z.unknown()).optional(), columns: z.array(z.unknown()).optional(), sortSpec: z.record(z.unknown()).optional(), groupBy: z.string().nullable().optional(), isDefault: z.boolean().optional() });
 const sectionDto = z.object({ name: z.string().trim().min(1).max(200) });
 const memberDto = z.object({ userId: z.string().uuid(), accessLevel: z.enum(["viewer","commenter","editor","project_admin"]).default("editor") });
 const memberPatchDto = z.object({ accessLevel: z.enum(["viewer","commenter","editor","project_admin"]).optional(), notifyTasks: z.boolean().optional() });
@@ -32,6 +40,13 @@ export class UxController {
 
   @Get("me/email-forwarding") emailForwarding(@Req() r: Ctx) { return this.ux.emailForwarding(r.organizationId, r.userId); }
   @Patch("me/email-forwarding") updateEmailForwarding(@Req() r: Ctx, @Body(new ZodPipe(z.object({ enabled: z.boolean().optional(), destinationProjectId: z.string().uuid().nullable().optional() }))) b: { enabled?: boolean; destinationProjectId?: string | null }) { return this.ux.updateEmailForwarding(r.organizationId, r.userId, b); }
+  @Get("me/emails") emailAddresses(@Req() r: Ctx) { return this.ux.emailAddresses(r.userId); }
+  @Post("me/emails") addEmailAddress(@Req() r: Ctx, @Body(new ZodPipe(z.object({ email: z.string().email(), label: z.string().trim().max(40).optional() }))) b: { email: string; label?: string }) { return this.ux.addEmailAddress(r.userId, b.email, b.label); }
+  @Post("me/emails/verify") verifyEmailAddress(@Req() r: Ctx, @Body(new ZodPipe(z.object({ token: z.string().min(20) }))) b: { token: string }) { return this.ux.verifyEmailAddress(r.userId, b.token); }
+  @Post("me/emails/:id/make-primary") makePrimaryEmail(@Req() r: Ctx, @Param("id") id: string) { return this.ux.makePrimaryEmail(r.userId, id); }
+  @Delete("me/emails/:id") removeEmailAddress(@Req() r: Ctx, @Param("id") id: string) { return this.ux.removeEmailAddress(r.userId, id).then(() => ({ ok: true })); }
+  @Post("me/account-merge") mergeAccount(@Req() r: Ctx, @Body(new ZodPipe(z.object({ email: z.string().email(), password: z.string().min(1) }))) b: { email: string; password: string }) { return this.ux.mergeAccount(r.userId, b.email, b.password); }
+  @Get("me/workspaces") myWorkspaces(@Req() r: Ctx) { return this.ux.myWorkspaces(r.userId); }
 
   @Get("ui/preferences") preferences(@Req() r: Ctx) { return this.ux.preferences(r.organizationId, r.userId); }
   @Patch("ui/preferences") updatePreferences(@Req() r: Ctx, @Body(new ZodPipe(preferencesDto)) b: z.infer<typeof preferencesDto>) { return this.ux.updatePreferences(r.organizationId, r.userId, b); }
@@ -39,6 +54,8 @@ export class UxController {
   @Put("ui/home-widgets") saveWidgets(@Req() r: Ctx, @Body(new ZodPipe(widgetsDto)) b: z.infer<typeof widgetsDto>) { return this.ux.saveHomeWidgets(r.organizationId, r.userId, b.widgets); }
   @Get("ui/saved-views") savedViews(@Req() r: Ctx, @Query("scopeType") scopeType: string, @Query("scopeId") scopeId?: string) { return this.ux.listSavedViews(r.organizationId, r.userId, scopeType, scopeId); }
   @Post("ui/saved-views") createSavedView(@Req() r: Ctx, @Body(new ZodPipe(viewDto)) b: z.infer<typeof viewDto>) { return this.ux.createSavedView(r.organizationId, r.userId, b); }
+  @Patch("ui/saved-views/:id") updateSavedView(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(viewPatchDto)) b: z.infer<typeof viewPatchDto>) { return this.ux.updateSavedView(r.organizationId, r.userId, id, b); }
+  @Post("ui/saved-views/:id/duplicate") duplicateSavedView(@Req() r: Ctx, @Param("id") id: string) { return this.ux.duplicateSavedView(r.organizationId, r.userId, id); }
   @Delete("ui/saved-views/:id") removeSavedView(@Req() r: Ctx, @Param("id") id: string) { return this.ux.deleteSavedView(r.organizationId, r.userId, id).then(() => ({ ok: true })); }
 
   @Get("directory/teams") teams(@Req() r: Ctx) { return this.ux.teams(r.organizationId); }
@@ -63,6 +80,9 @@ export class UxController {
   @Get("projects/:id/resources") resources(@Req() r: Ctx, @Param("id") id: string) { return this.ux.resources(r.organizationId, r.userId, id); }
   @Post("projects/:id/resources") @RequirePermission(CAPABILITIES.PROJECT_MANAGE) addResource(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(resourceDto)) b: z.infer<typeof resourceDto>) { return this.ux.addResource(r.organizationId, r.userId, id, b); }
   @Delete("projects/:id/resources/:resourceId") @RequirePermission(CAPABILITIES.PROJECT_MANAGE) removeResource(@Req() r: Ctx, @Param("id") id: string, @Param("resourceId") resourceId: string) { return this.ux.removeResource(r.organizationId, r.userId, id, resourceId).then(() => ({ ok: true })); }
+  @Get("projects/:id/brief") projectBrief(@Req() r: Ctx, @Param("id") id: string) { return this.ux.projectBrief(r.organizationId, r.userId, id); }
+  @Put("projects/:id/brief") @RequirePermission(CAPABILITIES.PROJECT_MANAGE) saveProjectBrief(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(z.object({ body: z.string().max(100000) }))) b: { body: string }) { return this.ux.saveProjectBrief(r.organizationId, r.userId, id, b.body); }
+  @Get("projects/:id/activity-timeline") projectActivityTimeline(@Req() r: Ctx, @Param("id") id: string) { return this.ux.projectActivityTimeline(r.organizationId, r.userId, id); }
   @Get("projects/:id/list-metadata") projectListMetadata(@Req() r: Ctx, @Param("id") id: string) { return this.ux.projectListMetadata(r.organizationId, r.userId, id); }
   @Get("projects/:id/messages") messages(@Req() r: Ctx, @Param("id") id: string) { return this.ux.projectMessages(r.organizationId, r.userId, id); }
   @Post("projects/:id/messages") addMessage(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(z.object({ subject: z.string().trim().min(1).max(300), body: z.string().max(20000).optional(), pinned: z.boolean().optional() }))) b: { subject: string; body?: string; pinned?: boolean }) { return this.ux.addProjectMessage(r.organizationId, r.userId, id, b); }

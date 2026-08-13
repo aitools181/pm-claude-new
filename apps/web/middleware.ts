@@ -8,7 +8,7 @@ const PROTECTED = [
   "/docs", "/goals", "/help", "/home", "/inbox", "/meetings", "/migration",
   "/mobility", "/my-tasks", "/portfolios", "/productivity", "/projects", "/proofing",
   "/quick", "/reports", "/scenarios", "/search", "/service", "/settings",
-  "/superadmin", "/time", "/whiteboard", "/workload",
+  "/superadmin", "/templates", "/time", "/whiteboard", "/workload",
 ];
 
 export function middleware(req: NextRequest) {
@@ -31,6 +31,6 @@ export const config = {
     "/docs/:path*", "/goals/:path*", "/help/:path*", "/home/:path*", "/inbox/:path*", "/meetings/:path*", "/migration/:path*",
     "/mobility/:path*", "/my-tasks/:path*", "/portfolios/:path*", "/productivity/:path*", "/projects/:path*", "/proofing/:path*",
     "/quick/:path*", "/reports/:path*", "/scenarios/:path*", "/search/:path*", "/service/:path*", "/settings/:path*",
-    "/superadmin/:path*", "/time/:path*", "/whiteboard/:path*", "/workload/:path*",
+    "/superadmin/:path*", "/templates/:path*", "/time/:path*", "/whiteboard/:path*", "/workload/:path*",
   ],
 };

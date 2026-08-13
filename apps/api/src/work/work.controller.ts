@@ -57,7 +57,7 @@ export class WorkController {
     patch: z.object({
       name: z.string().trim().min(1).max(200).optional(), status: z.enum(["active","on_hold","completed","archived"]).optional(),
       health: z.enum(["on_track","at_risk","off_track"]).optional(), privacy: z.enum(["workspace","private"]).optional(),
-      description: z.string().nullable().optional(), color: z.string().max(40).optional(),
+      description: z.string().nullable().optional(), color: z.string().max(40).optional(), icon: z.string().trim().min(1).max(40).optional(),
       startDate: z.string().nullable().optional(), dueDate: z.string().nullable().optional(),
     }),
   }))) b: { version: number; patch: any }) {
