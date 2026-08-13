@@ -21,6 +21,8 @@ const rel = (f) => path.relative(root, f).replace(/\\/g, '/');
 // 1. Compile-blocker regression and source syntax.
 const workflow = read('apps/web/app/(app)/admin/configure/workflows/[id]/page.tsx');
 check(!/<[^>]+\bclassName=[^>]+\bclassName=/.test(workflow), 'Workflow editor has no duplicate JSX className attributes');
+const appDialog = read('apps/web/components/ui/AppDialog.tsx');
+check(appDialog.includes('useModalDialog<HTMLFormElement>') && appDialog.includes('ref={ref}') && !appDialog.includes('RefObject<HTMLFormElement>'), 'AppDialog form ref is typed as HTMLFormElement without unsafe ref casts');
 const sourceFiles = ['apps', 'packages'].flatMap(d => walk(path.join(root, d))).filter(f => /\.(ts|tsx)$/.test(f) && !f.endsWith('.d.ts'));
 let syntaxErrors = 0;
 for (const file of sourceFiles) {
