@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "./Button";
 import { Field, Input } from "./Field";
 import { useModalDialog } from "./useModalDialog";
@@ -132,7 +132,7 @@ function AppDialog({ request, onFinish }: { request: DialogRequest; onFinish: (v
   const confirmOptions = request.kind === "confirm" ? request.options : undefined;
   const [value, setValue] = useState(promptOptions?.defaultValue ?? "");
   const close = () => onFinish(isPrompt ? null : false);
-  const ref = useModalDialog(true, close, isPrompt ? "[data-app-dialog-input]" : "[data-app-dialog-confirm]");
+  const ref = useModalDialog<HTMLFormElement>(true, close, isPrompt ? "[data-app-dialog-input]" : "[data-app-dialog-confirm]");
 
   useEffect(() => {
     setValue(promptOptions?.defaultValue ?? "");
@@ -160,7 +160,7 @@ function AppDialog({ request, onFinish }: { request: DialogRequest; onFinish: (v
   return (
     <div className="modal-backdrop ui-app-dialog-backdrop" aria-hidden={false}>
       <form
-        ref={ref as RefObject<HTMLFormElement>}
+        ref={ref}
         className="modal-card ui-app-dialog"
         role="dialog"
         aria-modal="true"
