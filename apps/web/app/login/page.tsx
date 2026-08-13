@@ -2,14 +2,12 @@
 
 import { Button as UiButton } from "../../components/ui";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { api, ApiError } from "../../lib/api";
 import { AuthAside } from "../../components/AuthAside";
 import { Field, Input } from "../../components/ui/Field";
 import { Callout } from "../../components/ui/Callout";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [expired, setExpired] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,22 +18,33 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   useEffect(() => { setExpired(new URLSearchParams(window.location.search).get("expired") === "1"); }, []);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true); setError(null);
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    // Read straight from the form. Browser autofill often populates the DOM
+    // without firing React's onChange, which would leave the state values empty
+    // and silently post blank credentials.
+    const data = new FormData(e.currentTarget);
+    const emailValue = (String(data.get("email") ?? "") || email).trim();
+    const passwordValue = String(data.get("password") ?? "") || password;
+    if (!emailValue || !passwordValue) { setError("Enter your email and password."); return; }
+    setBusy(true); setError(null);
     try {
       await api("/auth/login", { method: "POST", body: JSON.stringify({
-        email, password,
+        email: emailValue, password: passwordValue,
         totp: needs2fa && !useRecovery ? secondFactor || undefined : undefined,
         recoveryCode: needs2fa && useRecovery ? secondFactor || undefined : undefined,
       }) });
       const next = new URLSearchParams(window.location.search).get("next");
+      let landing = "/home";
       if (next?.startsWith("/") && !next.startsWith("//")) {
-        router.push(next);
+        landing = next;
       } else {
         const prefs = await api<{ defaultLanding?: string }>("/ui/preferences", { org: true }).catch(() => ({ defaultLanding: "/home" }));
-        const landing = prefs.defaultLanding?.startsWith("/") && !prefs.defaultLanding.startsWith("//") ? prefs.defaultLanding : "/home";
-        router.push(landing);
+        if (prefs.defaultLanding?.startsWith("/") && !prefs.defaultLanding.startsWith("//")) landing = prefs.defaultLanding;
       }
+      // Full navigation, not router.push: the session cookie was just issued and
+      // middleware must see it on a fresh document request.
+      window.location.assign(landing);
     } catch (err) {
       if (err instanceof ApiError && (err.message.toLowerCase().includes("2fa") || err.message.toLowerCase().includes("recovery"))) {
         setNeeds2fa(true);
@@ -54,9 +63,9 @@ export default function LoginPage() {
           {expired && !error && <div className="ui-static-87c136df"><Callout tone="warning">Your session expired. Sign in again to continue.</Callout></div>}
           {error && <div className="ui-static-87c136df"><Callout tone="danger">{error}</Callout></div>}
           <form onSubmit={submit}>
-            <Field label="Email"><Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+            <Field label="Email"><Input name="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
             <Field label="Password" hint={<a href="/recover" className="ui-static-dc2e428f">Forgot password?</a>}>
-              <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Input name="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
             {needs2fa && (
               <Field label={useRecovery ? "Recovery code" : "Authentication code"} hint={
@@ -68,7 +77,7 @@ export default function LoginPage() {
                   value={secondFactor} onChange={(e) => setSecondFactor(useRecovery ? e.target.value.toUpperCase() : e.target.value.replace(/\D/g, ""))} autoFocus />
               </Field>
             )}
-            <UiButton variant="primary" className="btn-block" disabled={busy || !email || !password || (needs2fa && !secondFactor)}>
+            <UiButton type="submit" variant="primary" className="btn-block" disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
             </UiButton>
           </form>
