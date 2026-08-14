@@ -53,8 +53,24 @@ services:
   api:
     build: { context: ., dockerfile: apps/api/Dockerfile }
     environment:
+      # ────────────────────────────────────────────────────────────────────
+      # PUBLIC URL. Two ways to get this right; the first needs no edits.
+      #
+      # 1. PUBLIC_ORIGIN_HINTS below forwards the domain Coolify assigns to the
+      #    web service. If that resolves, logins work with nothing changed.
+      # 2. If it does not resolve, replace http://localhost:3000 on the APP_URL
+      #    line with your public URL, e.g. https://pm.example.com - scheme
+      #    included, no trailing slash, no path. Commit and redeploy.
+      #
+      # Editing the compose file is the only route on Coolify 4.x: variables it
+      # generates from this file are marked "Managed by Docker Compose" and are
+      # read-only in the UI, so APP_URL otherwise keeps its default of
+      # http://localhost:3000, never matches the browser's Origin, and every
+      # login fails with "Origin is not allowed by CORS".
+      # ────────────────────────────────────────────────────────────────────
       APP_URL: ${APP_URL:-http://localhost:3000}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      PUBLIC_ORIGIN_HINTS: ${SERVICE_URL_WEB:-},${SERVICE_FQDN_WEB:-},${COOLIFY_URL:-},${COOLIFY_FQDN:-}
       DATABASE_URL: postgresql://pm:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/pm_platform
       REDIS_URL: redis://redis:6379
       SESSION_SECRET: ${SESSION_SECRET:?Set a random SESSION_SECRET of at least 32 characters in .env}

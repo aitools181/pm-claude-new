@@ -1,3 +1,62 @@
+# Coolify 4.x read-only variables (2026-08-14, v6.4)
+
+## I. APP_URL stuck at http://localhost:3000, so CORS rejected every login
+`printenv` in the api container showed:
+
+    APP_URL=http://localhost:3000
+    CORS_ORIGINS=
+
+Coolify creates an environment variable for every `${VAR}` in the compose file
+and seeds it with the text after the separator - for `${APP_URL:-http://localhost:3000}`
+that is the default, and for `${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}`
+that is the *guard message*, which explains the earlier 29-character database
+password reading `Set POSTGRES_PASSWORD in .env`. Each entry is then marked
+"Managed by Docker Compose" and is read-only in the UI on 4.x, so `APP_URL`
+could not be corrected there.
+
+Fixes:
+- `docker-compose.yml` forwards `SERVICE_URL_WEB`, `SERVICE_FQDN_WEB`,
+  `COOLIFY_URL` and `COOLIFY_FQDN` to the api service as `PUBLIC_ORIGIN_HINTS`.
+  Those hold the domain Coolify assigns to the web service, so a deployment can
+  work without editing anything.
+- `canonicalOrigin` accepts a bare hostname (`SERVICE_FQDN_WEB` carries no
+  scheme) by assuming `https://`.
+- Values that still read like a compose guard message (`/^Set\s/i`) are ignored
+  rather than added to the allow-list as garbage.
+- The API warns at boot when `SESSION_SECRET` is missing, shorter than 32
+  characters, or still a placeholder - that value is published in this
+  repository, so sessions signed with it are predictable.
+- The compose file marks the one line to edit if the hints do not resolve, and
+  `docs/operations/COOLIFY_DEPLOY.md` documents the whole mechanism.
+
+---
+
+# CORS rejection on login (2026-08-14, v6.3)
+
+## H. "Origin is not allowed by CORS"
+With the proxy fixed (G) the browser finally reached the API, and the API
+rejected it. `main.ts` built the allow-list from `APP_URL` plus `CORS_ORIGINS`
+and compared the incoming `Origin` header by exact string equality:
+
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+
+An `Origin` header is always bare - scheme, host and port, no trailing slash and
+no path. So `APP_URL=https://pm.example.com/` (or a URL with a path, or `http`
+where the site is served over `https`) never matched, and every login failed. A
+configuration typo, presented as a security decision, with a message that named
+neither the origin nor what was expected.
+
+Fixes:
+- Both sides are canonicalised through `new URL(value).origin`, so scheme, host
+  and port are compared and trailing slashes or paths in `APP_URL` no longer
+  matter. Genuinely different origins are still rejected.
+- The rejection message now names the offending origin and lists the allowed
+  ones, or says explicitly that `APP_URL` is unset.
+- The effective allow-list is logged at boot next to the listening line, so a
+  misconfiguration is visible before anyone tries to log in.
+
+---
+
 # API proxy misconfiguration (2026-08-13, v6.2)
 
 ## G. Every API call returned 500 - "Request failed" on login

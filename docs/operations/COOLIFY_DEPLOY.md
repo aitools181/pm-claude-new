@@ -104,3 +104,72 @@ done
 ```
 
 Start this before pressing Redeploy.
+
+## 5. Coolify 4.x: variables from this file are read-only
+
+Coolify parses `docker-compose.yml`, creates an environment variable for every
+`${VAR}` it finds, and **seeds it with whatever follows the separator**. Both
+compose default forms are treated the same way:
+
+| In the compose file | Value Coolify stores |
+|---|---|
+| `${APP_URL:-http://localhost:3000}` | `http://localhost:3000` |
+| `${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}` | `Set POSTGRES_PASSWORD in .env` |
+
+Note the second row: the `:?` guard message becomes the value. It does not fail
+the deploy the way plain `docker compose` would.
+
+Each entry is then marked *Managed by Docker Compose* and is **read-only in the
+UI** ("Update this value in the Compose file"). So on Coolify 4.x:
+
+- Editing these values in the Coolify UI is not possible.
+- Adding a new variable of the same name does not override the managed one.
+- The only place to change them is this compose file, in your repository.
+
+### Public URL
+
+Two routes, in order of preference:
+
+1. **No edit.** `PUBLIC_ORIGIN_HINTS` forwards `SERVICE_URL_WEB` /
+   `SERVICE_FQDN_WEB` / `COOLIFY_URL` / `COOLIFY_FQDN` - the domain Coolify
+   assigns to the web service - and the API accepts those as allowed origins.
+2. **One-line edit.** If none of those resolve, change the APP_URL default in
+   `docker-compose.yml` from `http://localhost:3000` to your public URL, then
+   commit and redeploy.
+
+Confirm which happened from the API log:
+
+```
+CORS allowed origins: https://pm.example.com
+```
+
+An empty list, or one containing only `http://localhost:3000`, means neither
+route worked and logins will be rejected.
+
+### Secrets
+
+`SESSION_SECRET`, `POSTGRES_PASSWORD`, `MINIO_ROOT_USER` and
+`MINIO_ROOT_PASSWORD` are subject to the same rule. If they were never set, they
+currently hold the guard message from this file - a value that is published in
+the repository. The API logs a warning at boot when `SESSION_SECRET` still looks
+like a placeholder.
+
+Preferred fix - Coolify's generated secrets, which stay out of git and persist
+across deploys:
+
+```yaml
+SESSION_SECRET: ${SERVICE_BASE64_64_SESSION}
+POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+```
+
+Verify these resolve on your Coolify version before relying on them; if they
+come through empty, put a generated value in the compose default instead
+(`openssl rand -hex 32`) and keep the repository private.
+
+Two consequences to plan for:
+
+- Changing `SESSION_SECRET` signs everyone out. Harmless; users log in again.
+- Changing `POSTGRES_PASSWORD` or the MinIO credentials against an **existing**
+  volume breaks authentication, because both only apply on first initialisation.
+  Follow the `ALTER USER` steps in section 2 for Postgres. Leave working
+  credentials alone unless you have a reason to rotate them.
