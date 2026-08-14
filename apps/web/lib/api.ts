@@ -22,7 +22,7 @@ async function request<T>(path: string, headers: Headers, opts: RequestInit): Pr
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const e = body?.error ?? {};
-    const error = new ApiError(res.status, e.code ?? "INTERNAL", e.message ?? "Request failed", e.details);
+    const error = new ApiError(res.status, e.code ?? "INTERNAL", e.message ?? `Request failed (HTTP ${res.status})`, e.details);
     if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/login")) {
       document.cookie = `${ORG_COOKIE}=; path=/; max-age=0; samesite=lax`;
       window.dispatchEvent(new CustomEvent("pm:auth-expired"));
@@ -91,7 +91,7 @@ export async function apiDownload(path: string, filename: string): Promise<void>
       const next = encodeURIComponent(window.location.pathname + window.location.search);
       window.location.assign(`/login?expired=1&next=${next}`);
     }
-    throw new ApiError(res.status, e.code ?? "INTERNAL", e.message ?? "Download failed", e.details);
+    throw new ApiError(res.status, e.code ?? "INTERNAL", e.message ?? `Download failed (HTTP ${res.status})`, e.details);
   }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
