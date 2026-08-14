@@ -1,3 +1,71 @@
+# API proxy misconfiguration (2026-08-13, v6.2)
+
+## G. Every API call returned 500 - "Request failed" on login
+Proved by comparing two calls from inside the web container:
+
+    fetch("http://api:4000/api/v1/auth/login")      -> 401 {"error":{"code":"UNAUTHENTICATED",...}}
+    fetch("http://127.0.0.1:3000/api/v1/auth/login") -> 500 Internal Server Error
+
+The API was healthy; the Next rewrite in front of it was not.
+
+`next.config.mjs` builds the rewrite destination from
+`process.env.INTERNAL_API_URL`. Next evaluates `rewrites()` **during
+`next build`** and writes the resolved destination into
+`.next/routes-manifest.json`; it is not re-read at runtime. `INTERNAL_API_URL`
+was supplied only in the compose `environment:` block, so at build time the
+fallback applied and the manifest was baked as:
+
+    /api/:path*       -> http://localhost:4000/api/:path*
+    /socket.io/:path* -> http://localhost:4000/socket.io/:path*
+
+The running web container therefore proxied to its own port 4000, where nothing
+listens. Next answered with a plain-text 500, which carries no `error.message`,
+so `lib/api.ts` fell back to its generic string. `/socket.io` was broken the same
+way, so realtime updates never worked either.
+
+Fixes:
+- `apps/web/Dockerfile` declares `ARG INTERNAL_API_URL=http://api:4000` and
+  promotes it to `ENV` before the build, so the manifest bakes correctly. The
+  default means the image is correct even if the arg is not passed.
+- The same `RUN` layer asserts the baked destination and fails the build if it
+  contains `localhost` - this class of bug can no longer ship silently.
+- `docker-compose.yml` passes `INTERNAL_API_URL` under `build.args` as well as
+  `environment`.
+- `next.config.mjs` documents the build-time evaluation at the point of use.
+
+Verified: rebuilding with the arg set produces
+`/api/:path* -> http://api:4000/api/:path*`.
+
+---
+
+# Opaque API errors (2026-08-13, v6.1)
+
+## F. Failed login showed only "Request failed"
+`AppErrorFilter` was declared `@Catch(AppError)`. Anything that is not an
+`AppError` - a driver error, a missing native binding, an unhandled bug - was
+never caught, so Nest's built-in filter answered with:
+
+    { "statusCode": 500, "message": "Internal server error" }
+
+`apps/web/lib/api.ts` reads `body.error.message`, found nothing there, and fell
+back to its generic string. Every genuine 500 therefore looked identical and
+carried no diagnostic value.
+
+Note the login path itself throws `AppError` for every expected outcome (bad
+credentials, lockout, rate limit, validation), so "Request failed" always meant
+an *unexpected* failure - or a non-JSON response from the proxy, e.g. a 502 when
+the API is unreachable.
+
+Fixes:
+- `AppErrorFilter` is now `@Catch()`. `AppError` and `HttpException` keep their
+  status and message; anything else is logged with its stack via the Nest logger
+  and returned as `{ error: { code: "INTERNAL", message: "<Name>: <message>" } }`.
+  One response shape for the whole API.
+- `lib/api.ts` falls back to `Request failed (HTTP <status>)`, so even a
+  malformed or empty error body still tells you the status code.
+
+---
+
 # Sign-in and sign-out (2026-08-13, v6.0)
 
 ## D. "Sign in" did nothing - no error, no network request
@@ -30,6 +98,37 @@ Fixes:
 - After a successful login the app performs a full navigation rather than
   `router.push`, so middleware sees the freshly issued session cookie on a real
   document request.
+
+## F. Any render failure produced a blank white page
+The app had no error boundaries at all — no `error.tsx`, `global-error.tsx` or
+`not-found.tsx`. In the App Router a single client render error unmounts the
+whole tree, so the user sees a blank page with nothing to act on and no
+indication that anything failed. This is the shape most "kai thatu nathi"
+reports take.
+
+Added:
+- `app/error.tsx` — segment-level boundary with a retry and a link home.
+- `app/(app)/error.tsx` — keeps the rail, sidebar and topbar mounted, so the
+  user can navigate away or sign out instead of being stranded.
+- `app/global-error.tsx` — last resort for failures in the root layout.
+- `app/not-found.tsx` — a styled 404 instead of the framework default.
+
+Verified in a real browser across all 96 routes: previously 17 of them rendered
+completely blank when an endpoint returned an unexpected shape; now all 17 show
+a readable message and none are blank.
+
+## G. Audit results — no further defects found
+Checked and clean:
+- `tsc --noEmit` passes for all five workspace packages.
+- All 499 frontend `api()` calls resolve to a real backend route with a matching
+  HTTP verb — no dead endpoints.
+- Every call to a route guarded by `OrgContextGuard` sends the organization
+  header (`apiUpload`/`apiDownload` set it internally).
+- Server-side rendering: all 96 routes return 200 (or an intentional redirect)
+  with no SSR exceptions, which matters now that the `(app)` group is
+  `force-dynamic` and renders per request.
+- No unguarded browser globals (`window`, `document`, `localStorage`) at render
+  time in client components.
 
 ## E. Sign out was hard to find
 Reachable from four places now, all calling the same `signOut()` helper:
