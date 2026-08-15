@@ -3,7 +3,7 @@ import { gte, and, desc, eq, isNull, sql } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
-import { OPTIONAL_MODULES, type OptionalModule } from "../modules/modules.service.js";
+import { OPTIONAL_MODULES, type OptionalModule } from "../modules/optional-modules.js";
 
 const ORG_STATUSES = ["active", "suspended", "archived"] as const;
 
