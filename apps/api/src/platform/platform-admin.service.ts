@@ -260,8 +260,8 @@ export class PlatformAdminService {
   async storageUsage(organizationId: string) {
     const [row] = await this.db.select({
       files: sql<number>`count(*)::int`,
-      bytes: sql<number>`coalesce(sum(${schema.files.bytes}), 0)::bigint`,
-    }).from(schema.files).where(eq(schema.files.organizationId, organizationId));
+      bytes: sql<number>`coalesce(sum(${schema.attachmentVersions.bytes}), 0)::bigint`,
+    }).from(schema.attachmentVersions).where(eq(schema.attachmentVersions.organizationId, organizationId));
     return { organizationId, files: Number(row.files), bytes: Number(row.bytes), megabytes: Math.round(Number(row.bytes) / 1048576 * 100) / 100 };
   }
 

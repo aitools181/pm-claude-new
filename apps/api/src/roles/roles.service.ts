@@ -14,6 +14,7 @@ export class RolesService {
     @Inject(DB) private readonly db: Database,
     private readonly resolver: PermissionResolver,
     private readonly audit: AuditService,
+    @Optional() private readonly sessionSvc?: SessionService,
   ) {}
 
   list(organizationId: string) {

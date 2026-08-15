@@ -360,9 +360,9 @@ export class UxService {
     const [projects, workItems, forms, automations, documents] = await Promise.all([
       this.db.select({ id: schema.projects.id, name: schema.projects.name }).from(schema.projects).where(and(eq(schema.projects.organizationId, org), eq(schema.projects.ownerUserId, targetUserId), isNull(schema.projects.deletedAt))),
       this.db.select({ n: count() }).from(schema.workItems).where(and(eq(schema.workItems.organizationId, org), eq(schema.workItems.primaryOwnerUserId, targetUserId), isNull(schema.workItems.deletedAt))).then((r) => Number(r[0]?.n ?? 0)),
-      this.db.select({ n: count() }).from(schema.forms).where(and(eq(schema.forms.organizationId, org), eq(schema.forms.createdBy, targetUserId), isNull(schema.forms.deletedAt))).then((r) => Number(r[0]?.n ?? 0)).catch(() => 0),
+      this.db.select({ n: count() }).from(schema.forms).where(and(eq(schema.forms.organizationId, org), eq(schema.forms.createdByUserId, targetUserId))).then((r) => Number(r[0]?.n ?? 0)).catch(() => 0),
       this.db.select({ n: count() }).from(schema.automationRules).where(and(eq(schema.automationRules.organizationId, org), eq(schema.automationRules.createdBy, targetUserId), isNull(schema.automationRules.deletedAt))).then((r) => Number(r[0]?.n ?? 0)).catch(() => 0),
-      this.db.select({ n: count() }).from(schema.documents).where(and(eq(schema.documents.organizationId, org), eq(schema.documents.createdBy, targetUserId), isNull(schema.documents.deletedAt))).then((r) => Number(r[0]?.n ?? 0)).catch(() => 0),
+      this.db.select({ n: count() }).from(schema.documents).where(and(eq(schema.documents.organizationId, org), eq(schema.documents.ownerUserId, targetUserId))).then((r) => Number(r[0]?.n ?? 0)).catch(() => 0),
     ]);
     return { projects, counts: { projects: projects.length, workItems, forms, automations, documents } };
   }
@@ -388,8 +388,8 @@ export class UxService {
 
   /** F01: file-storage footprint for the workspace settings page. */
   async storageUsage(org: string) {
-    const [row] = await this.db.select({ files: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${schema.files.bytes}), 0)::bigint` })
-      .from(schema.files).where(eq(schema.files.organizationId, org));
+    const [row] = await this.db.select({ files: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${schema.attachmentVersions.bytes}), 0)::bigint` })
+      .from(schema.attachmentVersions).where(eq(schema.attachmentVersions.organizationId, org));
     return { files: Number(row.files), bytes: Number(row.bytes), megabytes: Math.round(Number(row.bytes) / 1048576 * 100) / 100 };
   }
 
