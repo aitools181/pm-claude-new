@@ -55,6 +55,7 @@ node scripts/verify-asana-screenshot-parity.cjs
 node scripts/verify-ui-standards.cjs
 node scripts/verify-production-readiness.cjs
 node scripts/verify-css-bindings.cjs
+node scripts/verify-no-circular-imports.cjs
 ```
 
 This dependency-free gate checks TS/TSX syntax, relative imports, advanced migration coverage, UI/API registration, auth-security controls, Work Item detail controls and pure WQL/scenario/SLA/prioritisation/migration fixtures.
