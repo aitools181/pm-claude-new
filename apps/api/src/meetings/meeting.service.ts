@@ -83,4 +83,34 @@ export class MeetingService {
     await this.db.update(schema.meetingActions).set({ status: "converted", workItemId: item.id }).where(eq(schema.meetingActions.id, actionId));
     return { action: { id: action.id, status: "converted", workItemId: item.id }, workItem: item };
   }
+
+  // ---- F40: transcript capture + action extraction ----
+
+  async setTranscript(organizationId: string, id: string, transcript: string) {
+    const [row] = await this.db.update(schema.meetings).set({ transcript })
+      .where(and(eq(schema.meetings.id, id), eq(schema.meetings.organizationId, organizationId))).returning({ id: schema.meetings.id });
+    if (!row) throw new AppError("NOT_FOUND", "Meeting not found");
+    return { ok: true, characters: transcript.length };
+  }
+
+  /**
+   * Heuristic action extraction from a pasted transcript. Lines that carry an
+   * action signal become candidates the user can convert into meeting actions
+   * (and from there into work items via the existing convert endpoint).
+   */
+  async extractActions(organizationId: string, id: string) {
+    const [meeting] = await this.db.select({ transcript: schema.meetings.transcript }).from(schema.meetings)
+      .where(and(eq(schema.meetings.id, id), eq(schema.meetings.organizationId, organizationId))).limit(1);
+    if (!meeting) throw new AppError("NOT_FOUND", "Meeting not found");
+    if (!meeting.transcript) return { candidates: [] };
+    const signal = /^(?:-\s*\[\s?\]|\*|-)?\s*(?:action(?:\s*item)?\s*[:\-]|todo\s*[:\-]|@\w+\s+(?:to|will)\s+|\w+\s+will\s+|follow\s*up\s*[:\-])/i;
+    const candidates = meeting.transcript.split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length >= 8 && line.length <= 300 && signal.test(line))
+      .map((line) => line.replace(/^(?:-\s*\[\s?\]|\*|-)\s*/, "").replace(/^(?:action(?:\s*item)?|todo|follow\s*up)\s*[:\-]\s*/i, "").trim())
+      .filter((line, index, arr) => line && arr.indexOf(line) === index)
+      .slice(0, 30);
+    return { candidates };
+  }
+
 }

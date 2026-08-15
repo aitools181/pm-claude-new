@@ -8,7 +8,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
 
-type Meeting = { id: string; title: string; status: string; scheduledAt: string | null; notes: string | null };
+type Meeting = { id: string; title: string; status: string; scheduledAt: string | null; notes: string | null; transcript?: string | null };
 type Agenda = { id: string; title: string; position: number };
 type Decision = { id: string; text: string };
 type Attendance = { id: string; userId: string; status: string };
@@ -25,6 +25,8 @@ export default function MeetingsPage() {
   const [names, setNames] = useState<Record<string, string>>({});
   const [projects, setProjects] = useState<Project[]>([]);
   const [notes, setNotes] = useState("");
+  const [transcript, setTranscript] = useState("");
+  const [candidates, setCandidates] = useState<string[] | null>(null);
   const [action, setAction] = useState({ title: "", assigneeUserId: "", dueDate: "", projectId: "" });
 
   const load = useCallback(async () => setMeetings(await api<Meeting[]>("/meetings", { org: true }).catch(() => [])), []);
@@ -33,10 +35,13 @@ export default function MeetingsPage() {
     api<Member[]>("/members", { org: true }).then((m) => setNames(Object.fromEntries(m.map((x) => [x.userId, x.displayName || x.email || x.userId.slice(0, 8)])))).catch(() => {});
     api<Project[]>("/projects", { org: true }).then(setProjects).catch(() => {});
   }, [load]);
-  const open = useCallback(async (id: string) => { const dd = await api<Detail>(`/meetings/${id}`, { org: true }).catch(() => null); setSel(id); setD(dd); setNotes(dd?.meeting.notes ?? ""); }, []);
+  const open = useCallback(async (id: string) => { const dd = await api<Detail>(`/meetings/${id}`, { org: true }).catch(() => null); setSel(id); setD(dd); setNotes(dd?.meeting.notes ?? ""); setTranscript(dd?.meeting.transcript ?? ""); setCandidates(null); }, []);
 
   async function createMeeting() { const t = await appPrompt("Meeting title"); if (!t) return; const m = await api<Meeting>("/meetings", { method: "POST", org: true, body: JSON.stringify({ title: t, scheduledAt: new Date().toISOString() }) }); await load(); open(m.id); }
   async function saveNotes() { if (!sel) return; await api(`/meetings/${sel}/notes`, { method: "PUT", org: true, body: JSON.stringify({ notes }) }); toast({ message: "Notes saved" }); }
+  async function saveTranscript() { if (!sel) return; await api(`/meetings/${sel}/transcript`, { method: "POST", org: true, body: JSON.stringify({ transcript }) }); toast({ message: "Transcript saved" }); }
+  async function extract() { if (!sel) return; const r = await api<{ candidates: string[] }>(`/meetings/${sel}/extract-actions`, { method: "POST", org: true, body: JSON.stringify({}) }); setCandidates(r.candidates); if (!r.candidates.length) toast({ message: "No action-like lines found in the transcript" }); }
+  async function candidateToAction(title: string) { if (!sel) return; await api(`/meetings/${sel}/actions`, { method: "POST", org: true, body: JSON.stringify({ title }) }); setCandidates((c) => c ? c.filter((x) => x !== title) : c); toast({ message: "Added as meeting action" }); open(sel); }
   async function addAgenda() { if (!sel) return; const t = await appPrompt("Agenda item"); if (!t) return; await api(`/meetings/${sel}/agenda`, { method: "POST", org: true, body: JSON.stringify({ title: t, position: (d?.agenda.length ?? 0) + 1 }) }); open(sel); }
   async function addDecision() { if (!sel) return; const t = await appPrompt("Decision"); if (!t) return; await api(`/meetings/${sel}/decisions`, { method: "POST", org: true, body: JSON.stringify({ text: t }) }); open(sel); }
   async function setAtt(userId: string, status: string) { if (!sel) return; await api(`/meetings/${sel}/attendance`, { method: "POST", org: true, body: JSON.stringify({ userId, status }) }); open(sel); }
@@ -79,6 +84,10 @@ export default function MeetingsPage() {
                 <div className="ui-static-9405df25">
                   <h4 className="ui-static-5e0faad2">Notes</h4>
                   <UiTextarea className="input" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveNotes} />
+                  <h4 className="ui-static-5e0faad2">Transcript</h4>
+                  <UiTextarea className="input mono" rows={6} value={transcript} onChange={(e) => setTranscript(e.target.value)} onBlur={saveTranscript} placeholder={"Paste the meeting capture here.\nLines like \"Action: Ravi will…\", \"todo: …\" or \"Asha will …\" can be extracted."} />
+                  <div className="transcript-toolbar"><UiButton variant="secondary" size="compact" disabled={!transcript.trim()} onClick={extract}>Extract action items</UiButton>{candidates && <span className="muted">{candidates.length} candidate{candidates.length === 1 ? "" : "s"}</span>}</div>
+                  {candidates && candidates.length > 0 && <div className="transcript-candidates">{candidates.map((c) => <div key={c}><span>{c}</span><UiButton variant="primary" size="compact" onClick={() => candidateToAction(c)}>Add as action</UiButton></div>)}</div>}
                   <h4 className="ui-static-30a225d4">Attendance</h4>
                   {Object.entries(names).map(([id, n]) => {
                     const a = d.attendance.find((x) => x.userId === id);

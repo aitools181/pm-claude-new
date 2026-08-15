@@ -1,5 +1,6 @@
 import { pgTable, uuid, text, integer, timestamp, date, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { organizations, users } from "./identity.js";
+import { auditColumns } from "./_common.js";
 import { projects } from "./work.js";
 
 /* ============================================================
@@ -40,3 +41,19 @@ export const allocations = pgTable("allocations", {
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({ byUser: index("allocations_user_idx").on(t.organizationId, t.userId, t.startDate), byProject: index("allocations_project_idx").on(t.projectId) }));
+
+/**
+ * F16 Skills registry. Levels: 1 novice … 5 expert. Used for the org skills
+ * matrix and skill-aware assignment suggestions.
+ */
+export const userSkills = pgTable("user_skills", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  skill: text("skill").notNull(),
+  level: integer("level").default(3).notNull(),
+  ...auditColumns,
+}, (t) => ({
+  unique: uniqueIndex("user_skills_unique").on(t.organizationId, t.userId, t.skill),
+  bySkill: index("user_skills_skill_idx").on(t.organizationId, t.skill),
+}));

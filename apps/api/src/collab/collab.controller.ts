@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
 import { Request } from "express";
 import { z } from "zod";
 import { ZodPipe } from "../common/zod.pipe.js";
@@ -48,6 +48,10 @@ export class CollabController {
   inbox(@Req() r: Ctx, @Query("unread") unread?: string, @Query("tab") tab?: string, @Query("sort") sort?: "newest" | "relevance") { return this.notifications.inbox(r.organizationId, r.userId, { unreadOnly: unread === "true", tab, sort }); }
   @Get("notifications/unread-count")
   async count(@Req() r: Ctx) { return { count: await this.notifications.unreadCount(r.organizationId, r.userId) }; }
+  @Get("notifications/delivery-settings")
+  deliverySettings(@Req() r: Ctx) { return this.notifications.deliverySettings(r.organizationId, r.userId); }
+  @Put("notifications/delivery-settings")
+  setDeliverySettings(@Req() r: Ctx, @Body(new ZodPipe(z.object({ digestFrequency: z.enum(["off","daily","weekly"]), digestHour: z.number().int().min(0).max(23), quietFrom: z.number().int().min(0).max(23).nullable(), quietTo: z.number().int().min(0).max(23).nullable() }))) b: { digestFrequency: "off"|"daily"|"weekly"; digestHour: number; quietFrom: number | null; quietTo: number | null }) { return this.notifications.setDeliverySettings(r.organizationId, r.userId, b); }
   @Post("notifications/:id/read")
   read(@Req() r: Ctx, @Param("id") id: string) { return this.notifications.markRead(r.organizationId, r.userId, id).then(() => ({ ok: true })); }
 

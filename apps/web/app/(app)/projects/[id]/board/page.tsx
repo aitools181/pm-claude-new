@@ -42,12 +42,35 @@ export default function BoardPage() {
   const [draft, setDraft] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allItems, setAllItems] = useState<{ id: string; title: string; parentId: string | null; statusCategory: string }[]>([]);
+  const [directory, setDirectory] = useState<{ id: string; displayName: string }[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [assigneePop, setAssigneePop] = useState<string | null>(null);
+
+  const childrenOf = (pid: string) => allItems.filter((x) => x.parentId === pid);
+  const ownerName = (uid: string | null | undefined) => directory.find((m) => m.id === uid)?.displayName || "";
 
   async function load() {
-    try { const [nextBoard, nextProject] = await Promise.all([api<Board>(`/projects/${id}/board`, { org: true }), api<Project>(`/projects/${id}`, { org: true })]); setBoard(nextBoard); setProject(nextProject); }
+    try {
+      const [nextBoard, nextProject, items, people] = await Promise.all([
+        api<Board>(`/projects/${id}/board`, { org: true }),
+        api<Project>(`/projects/${id}`, { org: true }),
+        api<{ id: string; title: string; parentId: string | null; statusCategory: string }[]>(`/projects/${id}/work-items?limit=500`, { org: true }).catch(() => []),
+        api<{ id: string; displayName: string }[]>("/directory/members", { org: true }).catch(() => []),
+      ]);
+      setBoard(nextBoard); setProject(nextProject); setAllItems(items); setDirectory(people);
+    }
     catch (e) { setError(message(e, "Could not load the board")); }
   }
   useEffect(() => { load(); }, [id]);
+
+  async function assignTo(item: Item, userId: string | null) {
+    setAssigneePop(null);
+    try {
+      await api(`/work-items/${item.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: item.version, patch: { primaryOwnerUserId: userId } }) });
+      toast({ message: userId ? `Assigned to ${ownerName(userId)}` : "Assignee cleared" }); await load();
+    } catch (e) { setError(message(e, "Could not change the assignee")); await load(); }
+  }
 
   async function drop(status: string, beforeId?: string) {
     if (!drag) return;
@@ -126,11 +149,16 @@ export default function BoardPage() {
                       <span className={`priority-chip priority-${item.priority}`}><Icon name="flag" size={13} />{item.priority}</span>
                       <div className="board-card-meta">
                         {item.dueDate && <span><Icon name="calendar" size={14} />{new Date(`${item.dueDate}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>}
-                        <span className="mini-avatar">{item.primaryOwnerUserId?.slice(0, 1).toUpperCase() ?? "–"}</span>
                       </div>
                     </footer>
                     {item.linked && <span className="linked-project-badge"><Icon name="link" size={12} />Linked item</span>}
                   </button>
+                  <div className="board-card-tools">
+                    {childrenOf(item.id).length > 0 && <button type="button" className="board-expand-subtasks" aria-expanded={expanded.has(item.id)} aria-label={`${expanded.has(item.id) ? "Collapse" : "Expand"} ${childrenOf(item.id).length} subtask${childrenOf(item.id).length > 1 ? "s" : ""}`} onClick={() => setExpanded((s) => { const n = new Set(s); n.has(item.id) ? n.delete(item.id) : n.add(item.id); return n; })}><Icon name="subtask" size={13} />{childrenOf(item.id).length}<Icon name={expanded.has(item.id) ? "chevronDown" : "chevronRight"} size={12} /></button>}
+                    <span className="board-assignee-wrap"><button type="button" className="mini-avatar board-assignee-btn" aria-haspopup="menu" aria-expanded={assigneePop === item.id} aria-label={item.primaryOwnerUserId ? `Assignee ${ownerName(item.primaryOwnerUserId)}, change assignee` : "Set assignee"} title={ownerName(item.primaryOwnerUserId) || "Unassigned"} onClick={() => setAssigneePop(assigneePop === item.id ? null : item.id)}>{ownerName(item.primaryOwnerUserId).slice(0, 1).toUpperCase() || "–"}</button>
+                    {assigneePop === item.id && <div className="board-assignee-pop" role="menu">{directory.map((m) => <button key={m.id} data-on={m.id === item.primaryOwnerUserId} onClick={() => assignTo(item, m.id)}><span className="mini-avatar">{m.displayName.slice(0, 1)}</span>{m.displayName}</button>)}<button onClick={() => assignTo(item, null)}><Icon name="none" size={14} />No assignee</button></div>}</span>
+                  </div>
+                  {expanded.has(item.id) && <div className="board-subtask-list">{childrenOf(item.id).map((sub) => <button key={sub.id} type="button" onClick={() => setOpenId(sub.id)}><Icon name={sub.statusCategory === "done" ? "check" : "circle"} size={14} /><span>{sub.title}</span></button>)}</div>}
                 </article>
               ))}
               {visibleCards(board[column.cat]).length === 0 && addingTo !== column.cat && <button className="board-empty-column" onClick={() => setAddingTo(column.cat)}><Icon name="plus" size={18} /><strong>Add a task</strong><span>or drag one here</span></button>}

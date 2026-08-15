@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { date, pgTable, uuid, text, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { auditColumns } from "./_common.js";
 import { organizations, users } from "./identity.js";
 
@@ -10,10 +10,15 @@ export const teams = pgTable("teams", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   name: text("name").notNull(),
+  // F03 depth
+  leaderUserId: uuid("leader_user_id"),
+  parentTeamId: uuid("parent_team_id"),
+  description: text("description"),
   ...auditColumns,
 }, (t) => ({
   orgNameUnique: uniqueIndex("teams_org_name_unique").on(t.organizationId, t.name),
   byOrg: index("teams_org_idx").on(t.organizationId),
+  byParent: index("teams_parent_idx").on(t.parentTeamId),
 }));
 
 export const teamMembers = pgTable("team_members", {
@@ -21,6 +26,9 @@ export const teamMembers = pgTable("team_members", {
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   teamId: uuid("team_id").notNull().references(() => teams.id),
   userId: uuid("user_id").notNull().references(() => users.id),
+  // F03: membership effective window; null = open-ended
+  effectiveFrom: date("effective_from"),
+  effectiveTo: date("effective_to"),
   ...auditColumns,
 }, (t) => ({
   uniqueMember: uniqueIndex("team_members_unique").on(t.teamId, t.userId),

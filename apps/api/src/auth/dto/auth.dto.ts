@@ -9,7 +9,8 @@ export const setupDto = z.object({
 });
 
 export const loginDto = z.object({
-  email: z.string().email(),
+  // F02: accepts an email address OR a username handle
+  email: z.string().trim().min(3).max(320),
   password: z.string().min(1).max(256),
   totp: z.string().regex(/^\d{6,8}$/).optional(),
   recoveryCode: z.string().min(8).max(32).optional(),

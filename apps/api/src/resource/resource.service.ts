@@ -1,5 +1,5 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { and, eq, gte, lte, isNull, inArray } from "drizzle-orm";
+import { ne, count, asc, and, eq, gte, lte, isNull, inArray } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
@@ -135,4 +135,66 @@ export class ResourceService {
       .where(eq(schema.organizationMemberships.organizationId, organizationId));
     return Promise.all(members.map((m) => this.workload(organizationId, m.userId, from, to)));
   }
+
+
+  // ---- F16 skills registry ----
+
+  async mySkills(org: string, userId: string) {
+    return this.db.select({ skill: schema.userSkills.skill, level: schema.userSkills.level }).from(schema.userSkills)
+      .where(and(eq(schema.userSkills.organizationId, org), eq(schema.userSkills.userId, userId), isNull(schema.userSkills.deletedAt)))
+      .orderBy(asc(schema.userSkills.skill));
+  }
+
+  /** Replace a user's skill set atomically (self-service or RESOURCE_MANAGE). */
+  async setSkills(org: string, actorId: string, targetUserId: string, skills: { skill: string; level: number }[]) {
+    const clean = new Map<string, number>();
+    for (const s of skills) {
+      const name = s.skill.trim().toLowerCase();
+      if (name) clean.set(name, Math.min(5, Math.max(1, Math.round(s.level))));
+    }
+    return this.db.transaction(async (tx) => {
+      await tx.update(schema.userSkills).set({ deletedAt: new Date(), deletedBy: actorId })
+        .where(and(eq(schema.userSkills.organizationId, org), eq(schema.userSkills.userId, targetUserId), isNull(schema.userSkills.deletedAt)));
+      for (const [skill, level] of clean) {
+        await tx.insert(schema.userSkills).values({ organizationId: org, userId: targetUserId, skill, level, createdBy: actorId })
+          .onConflictDoUpdate({ target: [schema.userSkills.organizationId, schema.userSkills.userId, schema.userSkills.skill], set: { level, deletedAt: null, deletedBy: null, updatedAt: new Date(), updatedBy: actorId } });
+      }
+      return { ok: true, skills: clean.size };
+    });
+  }
+
+  /** Org-wide matrix: every member with their skills, for the People admin. */
+  async skillsMatrix(org: string) {
+    const rows = await this.db.select({ userId: schema.userSkills.userId, displayName: schema.users.displayName, skill: schema.userSkills.skill, level: schema.userSkills.level })
+      .from(schema.userSkills).innerJoin(schema.users, eq(schema.users.id, schema.userSkills.userId))
+      .where(and(eq(schema.userSkills.organizationId, org), isNull(schema.userSkills.deletedAt)))
+      .orderBy(asc(schema.users.displayName), asc(schema.userSkills.skill));
+    const byUser = new Map<string, { userId: string; displayName: string; skills: { skill: string; level: number }[] }>();
+    for (const r of rows) {
+      const entry = byUser.get(r.userId) ?? { userId: r.userId, displayName: r.displayName, skills: [] };
+      entry.skills.push({ skill: r.skill, level: r.level });
+      byUser.set(r.userId, entry);
+    }
+    return [...byUser.values()];
+  }
+
+  /** Skill-aware assignment suggestion: members with the skill, best level first,
+   *  least open work first — the two blueprint signals for F16 suggestions. */
+  async suggestAssignees(org: string, skill: string, limit = 8) {
+    const wanted = skill.trim().toLowerCase();
+    const skilled = await this.db.select({ userId: schema.userSkills.userId, displayName: schema.users.displayName, level: schema.userSkills.level })
+      .from(schema.userSkills).innerJoin(schema.users, eq(schema.users.id, schema.userSkills.userId))
+      .where(and(eq(schema.userSkills.organizationId, org), eq(schema.userSkills.skill, wanted), isNull(schema.userSkills.deletedAt)));
+    if (!skilled.length) return [];
+    const ids = skilled.map((s) => s.userId);
+    const open = await this.db.select({ ownerId: schema.workItems.primaryOwnerUserId, n: count() }).from(schema.workItems)
+      .where(and(eq(schema.workItems.organizationId, org), inArray(schema.workItems.primaryOwnerUserId, ids), ne(schema.workItems.statusCategory, "done"), isNull(schema.workItems.deletedAt)))
+      .groupBy(schema.workItems.primaryOwnerUserId);
+    const load = new Map(open.map((o) => [o.ownerId, Number(o.n)]));
+    return skilled
+      .map((s) => ({ ...s, openItems: load.get(s.userId) ?? 0 }))
+      .sort((a, b) => b.level - a.level || a.openItems - b.openItems)
+      .slice(0, limit);
+  }
+
 }

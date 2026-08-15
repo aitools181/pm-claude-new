@@ -53,6 +53,7 @@ export class AuthController {
       else if (body.recoveryCode) await this.twofa.verifyRecoveryCode(user.id, body.recoveryCode);
       else throw new AppError("UNAUTHENTICATED", "2FA code or recovery code required");
     }
+    await this.auth.flagSuspiciousLogin(user.id, req.ip, req.headers["user-agent"]);
     const raw = await this.sessions.create(user.id, { userAgent: req.headers["user-agent"], ip: req.ip });
     res.cookie(COOKIE, raw, this.cookieOpts());
     return { userId: user.id, displayName: user.displayName, emailVerified: Boolean(user.emailVerifiedAt) };

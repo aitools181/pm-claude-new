@@ -9,6 +9,7 @@ import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
 import { useModalDialog } from "../../../components/ui/useModalDialog";
 
+type Grant = { id: string; organizationId: string; organizationName: string; adminName: string; reason: string; expiresAt: string; revokedAt: string | null; createdAt: string };
 type Org = { id: string; name: string; slug: string; status: string; members: number; projects: number; workItems: number };
 type Admin = { userId: string; email: string; displayName: string; note: string | null };
 type Flag = { id: string; key: string; enabled: boolean };
@@ -19,7 +20,7 @@ type Version = { version: string; release: string };
 type Mail = { host: string; port: number; secure: boolean; username: string | null; hasPassword: boolean; fromName: string; fromEmail: string; replyTo: string | null; enabled: boolean; lastTestAt: string | null; lastTestOk: boolean | null; lastTestError: string | null } | null;
 const money = (minor: number, cur: string) => new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(minor / 100);
 
-const TABS = ["Organizations", "Plans & pricing", "Email (SMTP)", "Administrators", "Platform flags", "Audit"] as const;
+const TABS = ["Organizations", "Support access", "Plans & pricing", "Email (SMTP)", "Administrators", "Platform flags", "Audit"] as const;
 
 export default function SuperAdminPage() {
   const toast = useToast();
@@ -64,6 +65,34 @@ export default function SuperAdminPage() {
   async function setStatus(o: Org, status: string) {
     try { await api(`/superadmin/organizations/${o.id}/status`, { method: "POST", body: JSON.stringify({ status }) }); toast({ message: `${o.name} is now ${status}` }); load(); }
     catch (e) { err(e, "Could not change status"); }
+  }
+  async function archiveOrg(o: Org) {
+    if (!await appConfirm(`Archive ${o.name}? A completed export from the last 7 days is required first.`, { confirmLabel: "Archive" })) return;
+    try { await api(`/superadmin/organizations/${o.id}/status`, { method: "POST", body: JSON.stringify({ status: "archived" }) }); toast({ message: `${o.name} archived` }); load(); }
+    catch (e) { err(e, "Archive blocked — run Export first, then archive within 7 days"); }
+  }
+  async function exportOrg(o: Org) {
+    try {
+      const r = await api<{ exportedAt: string; bundle: unknown }>(`/superadmin/organizations/${o.id}/export`, { method: "POST", body: JSON.stringify({}) });
+      const blob = new Blob([JSON.stringify(r.bundle, null, 2)], { type: "application/json" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${o.slug}-export-${r.exportedAt.slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(a.href);
+      toast({ message: `${o.name} exported — archive is now unlocked for 7 days` });
+    } catch (e) { err(e, "Export failed"); }
+  }
+  async function startSupport(o: Org) {
+    const reason = await appPrompt(`Reason for support access to ${o.name} (recorded in the audit log)`, "");
+    if (!reason || reason.trim().length < 5) { if (reason !== null) toast({ message: "A reason of at least 5 characters is required", tone: "error" }); return; }
+    try {
+      await api("/superadmin/support-access", { method: "POST", body: JSON.stringify({ organizationId: o.id, reason: reason.trim(), minutes: 60 }) });
+      toast({ message: `Support access to ${o.name} active for 60 minutes` }); loadGrants();
+    } catch (e) { err(e, "Could not start support access"); }
+  }
+  const [grants, setGrants] = useState<Grant[]>([]);
+  const loadGrants = useCallback(() => { api<Grant[]>("/superadmin/support-access").then(setGrants).catch(() => {}); }, []);
+  useEffect(() => { loadGrants(); }, [loadGrants]);
+  async function endGrant(g: Grant) {
+    try { await api(`/superadmin/support-access/${g.id}`, { method: "DELETE" }); toast({ message: "Support access ended" }); loadGrants(); }
+    catch (e) { err(e, "Could not end grant"); }
   }
   async function openModules(o: Org) {
     try { setModulesFor({ org: o, modules: await api<Record<string, boolean>>(`/superadmin/organizations/${o.id}/modules`) }); }
@@ -172,13 +201,40 @@ export default function SuperAdminPage() {
               <td className="ui-static-4ede699f">
                 <UiButton variant="tertiary"  onClick={() => openPlanFor(o)}>Plan</UiButton>
                 <UiButton variant="tertiary"  onClick={() => openModules(o)}>Modules</UiButton>
+                <UiButton variant="tertiary"  onClick={() => exportOrg(o)}>Export</UiButton>
+                <UiButton variant="tertiary"  onClick={() => startSupport(o)}>Support access</UiButton>
                 {o.status === "active"
                   ? <UiButton variant="tertiary"  onClick={() => setStatus(o, "suspended")}>Suspend</UiButton>
                   : <UiButton variant="tertiary"  onClick={() => setStatus(o, "active")}>Reactivate</UiButton>}
+                {o.status !== "archived" && <UiButton variant="tertiary"  onClick={() => archiveOrg(o)}>Archive</UiButton>}
               </td>
             </tr>)}
           </tbody>
         </table>
+      )}
+
+      {tab === "Support access" && (
+        <div className="support-access-panel">
+          <p className="muted">Time-bound, reasoned entry into an organization without membership. Start a grant from the Organizations tab; every start and end is written to the audit log. Grants expire automatically.</p>
+          <table className="exec-table">
+            <thead><tr><th>Organization</th><th>Platform admin</th><th>Reason</th><th>Started</th><th>Expires</th><th>State</th><th></th></tr></thead>
+            <tbody>
+              {grants.length === 0 && <tr><td colSpan={7} className="muted">No support-access grants yet.</td></tr>}
+              {grants.map((g) => {
+                const active = !g.revokedAt && new Date(g.expiresAt) > new Date();
+                return <tr key={g.id}>
+                  <td><strong>{g.organizationName}</strong></td>
+                  <td>{g.adminName}</td>
+                  <td className="muted">{g.reason}</td>
+                  <td className="muted">{new Date(g.createdAt).toLocaleString()}</td>
+                  <td className="muted">{new Date(g.expiresAt).toLocaleString()}</td>
+                  <td><span className={`pill ${active ? "open" : "danger"}`}>{g.revokedAt ? "ended" : active ? "active" : "expired"}</span></td>
+                  <td>{active && <UiButton variant="tertiary" onClick={() => endGrant(g)}>End now</UiButton>}</td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {tab === "Plans & pricing" && (

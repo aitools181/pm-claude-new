@@ -6,6 +6,7 @@ import { APP_VERSION, APP_RELEASE_NAME } from "@pm/shared";
 import { SessionGuard } from "../auth/guards/session.guard.js";
 import { PlatformAdminGuard } from "./platform-admin.guard.js";
 import { PlatformAdminService } from "./platform-admin.service.js";
+import { DataOpsService } from "../data-ops/data-ops.service.js";
 
 type Ctx = Request & { userId: string };
 const grantDto = z.object({ email: z.string().email(), note: z.string().max(300).optional() });
@@ -16,7 +17,7 @@ const flagDto = z.object({ key: z.string().min(1).max(120), enabled: z.boolean()
 @Controller("superadmin")
 @UseGuards(SessionGuard)
 export class PlatformAdminController {
-  constructor(private readonly platform: PlatformAdminService) {}
+  constructor(private readonly platform: PlatformAdminService, private readonly dataOps: DataOpsService) {}
 
   /** Session-guarded only: lets the UI decide whether to show the console. */
   @Get("me")
@@ -44,4 +45,29 @@ export class PlatformAdminController {
   revoke(@Req() r: Ctx, @Param("userId") userId: string) { return this.platform.revokeAdmin(r.userId, userId); }
 
   @Get("audit") @UseGuards(PlatformAdminGuard) audit(@Query("limit") limit?: string) { return this.platform.auditLog(limit ? Number(limit) : 100); }
+
+  // ---- F01 support access ----
+  @Get("support-access") @UseGuards(PlatformAdminGuard) supportAccess() { return this.platform.listSupportAccess(); }
+  @Post("support-access") @UseGuards(PlatformAdminGuard)
+  startSupportAccess(@Req() r: Ctx, @Body(new ZodPipe(z.object({ organizationId: z.string().uuid(), reason: z.string().trim().min(5).max(500), minutes: z.number().int().min(15).max(480).default(60) }))) b: { organizationId: string; reason: string; minutes: number }) {
+    return this.platform.startSupportAccess(r.userId, b.organizationId, b.reason, b.minutes);
+  }
+  @Delete("support-access/:grantId") @UseGuards(PlatformAdminGuard)
+  endSupportAccess(@Req() r: Ctx, @Param("grantId") grantId: string) { return this.platform.endSupportAccess(r.userId, grantId); }
+
+  // ---- F01 export-before-archive ----
+  @Post("organizations/:id/export") @UseGuards(PlatformAdminGuard)
+  async exportOrganization(@Req() r: Ctx, @Param("id") id: string) {
+    const bundle = await this.dataOps.exportOrg(id);
+    const counts = Object.fromEntries(Object.entries(bundle as Record<string, unknown>).map(([k, v]) => [k, Array.isArray(v) ? v.length : typeof v]));
+    await this.platform.markOrganizationExported(r.userId, id, { counts });
+    return { exportedAt: new Date().toISOString(), bundle };
+  }
+
+  // ---- NFR 8.4 observability + F01 storage metering ----
+  @Get("metrics") @UseGuards(PlatformAdminGuard)
+  metrics(@Query("format") format?: string) { return this.platform.metrics(format === "prometheus"); }
+
+  @Get("organizations/:id/storage") @UseGuards(PlatformAdminGuard)
+  storage(@Param("id") id: string) { return this.platform.storageUsage(id); }
 }

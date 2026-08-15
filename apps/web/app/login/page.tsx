@@ -26,7 +26,7 @@ export default function LoginPage() {
     const data = new FormData(e.currentTarget);
     const emailValue = (String(data.get("email") ?? "") || email).trim();
     const passwordValue = String(data.get("password") ?? "") || password;
-    if (!emailValue || !passwordValue) { setError("Enter your email and password."); return; }
+    if (!emailValue || !passwordValue) { setError("Enter your email or username, and your password."); return; }
     setBusy(true); setError(null);
     try {
       await api("/auth/login", { method: "POST", body: JSON.stringify({
@@ -63,7 +63,7 @@ export default function LoginPage() {
           {expired && !error && <div className="ui-static-87c136df"><Callout tone="warning">Your session expired. Sign in again to continue.</Callout></div>}
           {error && <div className="ui-static-87c136df"><Callout tone="danger">{error}</Callout></div>}
           <form onSubmit={submit}>
-            <Field label="Email"><Input name="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+            <Field label="Email or username"><Input name="email" type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
             <Field label="Password" hint={<a href="/recover" className="ui-static-dc2e428f">Forgot password?</a>}>
               <Input name="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>

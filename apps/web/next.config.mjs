@@ -2,6 +2,34 @@
 const nextConfig = {
   reactStrictMode: true,
   env: { NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "" },
+  async headers() {
+    // NFR 8.1 security headers for the web app. CSP allows self plus inline
+    // styles (Next injects style tags) and data:/blob: images (avatars,
+    // generated previews). Websocket upgrades stay same-origin via the rewrite.
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' ws: wss:",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
+    return [{
+      source: "/:path*",
+      headers: [
+        { key: "Content-Security-Policy", value: csp },
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+      ],
+    }];
+  },
   async rewrites() {
     // Browser traffic stays same-origin by default. In Docker INTERNAL_API_URL
     // points at the api service; during local `next dev`, API_URL/localhost works.

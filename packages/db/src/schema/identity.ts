@@ -12,13 +12,22 @@ import { auditColumns } from "./_common.js";
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull(),
+  username: text("username"), // F02: optional unique handle, login alternative to email
   displayName: text("display_name").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  // F03 extended profile
+  avatarUrl: text("avatar_url"),
+  designation: text("designation"),
+  department: text("department"),
+  managerUserId: uuid("manager_user_id"),
+  workingHours: jsonb("working_hours"),   // { mon:{from,to}, ... } or null = org default
+  contactFields: jsonb("contact_fields"), // { phone, mobile, location, ... }
   ...auditColumns,
 }, (t) => ({
   // Global uniqueness of email (case-insensitive handled in app/citext later).
   emailUnique: uniqueIndex("users_email_unique").on(t.email),
+  usernameUnique: uniqueIndex("users_username_unique").on(t.username),
 }));
 
 
@@ -80,6 +89,13 @@ export const organizationSettings = pgTable("organization_settings", {
   timezone: text("timezone").default("UTC").notNull(),
   weekStart: integer("week_start").default(1).notNull(),
   dateFormat: text("date_format").default("YYYY-MM-DD").notNull(),
+  // F01 depth
+  timeFormat: text("time_format").default("24h").notNull(),          // 24h | 12h
+  numberFormat: text("number_format").default("1,234.56").notNull(), // display convention key
+  workingDays: jsonb("working_days"),                                 // [1,2,3,4,5] ISO weekday numbers
+  fiscalYearStartMonth: integer("fiscal_year_start_month").default(4).notNull(), // 1-12
+  retentionDays: integer("retention_days"),                           // null = keep forever
+  passwordPolicy: jsonb("password_policy"),                           // { minLength, requireUppercase, requireDigit, requireSymbol }
   branding: jsonb("branding"),
   ...auditColumns,
 });
@@ -90,6 +106,8 @@ export const organizationMemberships = pgTable("organization_memberships", {
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   status: text("status").default("active").notNull(),
+  // F03: member = full account; guest = external collaborator with reduced surface.
+  accountType: text("account_type").default("member").notNull(),
   ...auditColumns,
 }, (t) => ({
   // A user appears at most once per organization.

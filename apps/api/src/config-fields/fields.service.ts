@@ -7,6 +7,42 @@ import { coerceFieldValue, serializeValue, type FieldDef } from "./validation.js
 import { FieldSecurityService } from "./field-security.service.js";
 import { canAccessWorkItem } from "../collab/access.js";
 
+
+/**
+ * F11/F32 formula fields: a tiny, safe arithmetic evaluator.
+ * Grammar: numbers, identifiers (other field keys + item intrinsics
+ * story_points, estimate_minutes, progress), + - * / and parentheses.
+ * No function calls, no strings, no property access — nothing to inject.
+ */
+export function evaluateFormula(expression: string, vars: Record<string, number>): number | null {
+  const tokens = expression.match(/\d+(?:\.\d+)?|[A-Za-z_][A-Za-z0-9_]*|[()+\-*/]/g);
+  if (!tokens || tokens.join("").replace(/\s/g, "").length !== expression.replace(/\s/g, "").length) return null;
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+  function primary(): number {
+    const t = next();
+    if (t === undefined) throw new Error("unexpected end");
+    if (t === "(") { const v = expr(); if (next() !== ")") throw new Error("missing )"); return v; }
+    if (t === "-") return -primary();
+    if (/^\d/.test(t)) return Number(t);
+    if (/^[A-Za-z_]/.test(t)) { const v = vars[t.toLowerCase()]; return Number.isFinite(v) ? v : 0; }
+    throw new Error(`unexpected token ${t}`);
+  }
+  function term(): number {
+    let v = primary();
+    while (peek() === "*" || peek() === "/") { const op = next(); const r = primary(); v = op === "*" ? v * r : (r === 0 ? 0 : v / r); }
+    return v;
+  }
+  function expr(): number {
+    let v = term();
+    while (peek() === "+" || peek() === "-") { const op = next(); const r = term(); v = op === "+" ? v + r : v - r; }
+    return v;
+  }
+  try { const out = expr(); return pos === tokens.length && Number.isFinite(out) ? Math.round(out * 100) / 100 : null; }
+  catch { return null; }
+}
+
 @Injectable()
 export class FieldsService {
   constructor(@Inject(DB) private readonly db: Database, private readonly security: FieldSecurityService) {}
@@ -62,7 +98,7 @@ export class FieldsService {
   async valuesForItem(organizationId: string, userId: string, workItemId: string) {
     if (!(await canAccessWorkItem(this.db, organizationId, workItemId, userId))) throw new AppError("FORBIDDEN", "No access to this work item");
     const visible = await this.security.visibleFieldIds(organizationId, userId);
-    const [item] = await this.db.select({ typeId: schema.workItems.typeId, projectId: schema.workItems.owningProjectId })
+    const [item] = await this.db.select({ typeId: schema.workItems.typeId, projectId: schema.workItems.owningProjectId, storyPoints: schema.workItems.storyPoints, estimateMinutes: schema.workItems.estimateMinutes, progress: schema.workItems.progress })
       .from(schema.workItems).where(and(eq(schema.workItems.organizationId, organizationId), eq(schema.workItems.id, workItemId))).limit(1);
     if (!item) throw new AppError("NOT_FOUND", "Work item not found");
 
@@ -82,7 +118,7 @@ export class FieldsService {
       optionsByField.set(option.fieldId, list);
     }
 
-    return defs
+    const result = defs
       .filter((def) => visible.has(def.id))
       .filter((def) => def.scopeType === "organization" || (def.scopeType === "project" && def.scopeId === item.projectId) || (def.scopeType === "type" && def.scopeId === item.typeId))
       .map((def) => {
@@ -93,6 +129,19 @@ export class FieldsService {
           options: optionsByField.get(def.id) ?? [],
         };
       });
+    // Second pass: formula fields compute from intrinsics + sibling numeric values.
+    const vars: Record<string, number> = {
+      story_points: Number(item.storyPoints) || 0,
+      estimate_minutes: Number(item.estimateMinutes) || 0,
+      estimate_hours: (Number(item.estimateMinutes) || 0) / 60,
+      progress: Number(item.progress) || 0,
+    };
+    for (const f of result) if (f.type === "number" && typeof f.value === "number") vars[f.key.toLowerCase()] = f.value;
+    for (const f of result) if (f.type === "formula") {
+      const cfg = (defs.find((d) => d.id === f.id)?.config ?? {}) as { expression?: string };
+      f.value = cfg.expression ? evaluateFormula(cfg.expression, vars) : null;
+    }
+    return result;
   }
 
   /** Export (visible) custom values — same projection used by API/search/activity. */

@@ -14,6 +14,12 @@ export class ViewsController {
   @Get("my-work")
   myWork(@Req() r: Ctx) { return this.views.myWork(r.organizationId, r.userId); }
 
+  @Get("my-work/delegated")
+  delegated(@Req() r: Ctx) { return this.views.delegated(r.organizationId, r.userId); }
+
+  @Get("directory/overview")
+  peopleOverview(@Req() r: Ctx) { return this.views.peopleOverview(r.organizationId); }
+
   @Get("search")
   search(@Req() r: Ctx, @Query("q") q: string) { return this.views.search(r.organizationId, r.userId, (q ?? "").trim()); }
 }
