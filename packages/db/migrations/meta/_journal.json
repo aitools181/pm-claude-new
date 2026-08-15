@@ -239,6 +239,41 @@
       "when": 1786604024399,
       "tag": "0033_asana_missing_features",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786727312259,
+      "tag": "0034_people_org_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786766399008,
+      "tag": "0035_support_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786766842025,
+      "tag": "0036_skills_and_digest",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786767282003,
+      "tag": "0037_auth_depth",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786768001990,
+      "tag": "0038_guest_and_meetings",
+      "breakpoints": true
     }
   ]
 }

@@ -27,9 +27,20 @@ export class UxService {
     return row;
   }
 
-  async updateProfile(org: string, userId: string, patch: { displayName?: string }) {
+  async updateProfile(org: string, userId: string, patch: { displayName?: string; username?: string | null; avatarUrl?: string | null; designation?: string | null; department?: string | null; managerUserId?: string | null; workingHours?: Record<string, unknown> | null; contactFields?: Record<string, unknown> | null }) {
     await this.profile(org, userId);
-    const [row] = await this.db.update(schema.users).set({ ...patch, updatedBy: userId, updatedAt: new Date(), version: sql`${schema.users.version}+1` }).where(eq(schema.users.id, userId)).returning({ id: schema.users.id, displayName: schema.users.displayName, email: schema.users.email, emailVerifiedAt: schema.users.emailVerifiedAt });
+    if (patch.username) {
+      const [taken] = await this.db.select({ id: schema.users.id }).from(schema.users)
+        .where(and(eq(schema.users.username, patch.username), sql`${schema.users.id} <> ${userId}`)).limit(1);
+      if (taken) throw new AppError("CONFLICT", "That username is already taken");
+    }
+    if (patch.managerUserId) {
+      if (patch.managerUserId === userId) throw new AppError("VALIDATION", "A user cannot be their own manager");
+      const [mgr] = await this.db.select({ id: schema.organizationMemberships.id }).from(schema.organizationMemberships)
+        .where(and(eq(schema.organizationMemberships.organizationId, org), eq(schema.organizationMemberships.userId, patch.managerUserId), isNull(schema.organizationMemberships.deletedAt))).limit(1);
+      if (!mgr) throw new AppError("VALIDATION", "Manager must be a member of this organization");
+    }
+    const [row] = await this.db.update(schema.users).set({ ...patch, updatedBy: userId, updatedAt: new Date(), version: sql`${schema.users.version}+1` }).where(eq(schema.users.id, userId)).returning({ id: schema.users.id, displayName: schema.users.displayName, username: schema.users.username, email: schema.users.email, emailVerifiedAt: schema.users.emailVerifiedAt, avatarUrl: schema.users.avatarUrl, designation: schema.users.designation, department: schema.users.department, managerUserId: schema.users.managerUserId, workingHours: schema.users.workingHours, contactFields: schema.users.contactFields });
     return row;
   }
 
@@ -42,13 +53,19 @@ export class UxService {
     return { organization, settings };
   }
 
-  async updateWorkspaceSettings(org: string, userId: string, input: { name?: string; timezone?: string; weekStart?: number; dateFormat?: string; branding?: Record<string, unknown> }) {
+  async updateWorkspaceSettings(org: string, userId: string, input: { name?: string; timezone?: string; weekStart?: number; dateFormat?: string; timeFormat?: string; numberFormat?: string; workingDays?: number[] | null; fiscalYearStartMonth?: number; retentionDays?: number | null; passwordPolicy?: Record<string, unknown> | null; branding?: Record<string, unknown> }) {
     return this.db.transaction(async (tx) => {
       if (input.name) await tx.update(schema.organizations).set({ name: input.name, updatedBy: userId, updatedAt: new Date(), version: sql`${schema.organizations.version}+1` }).where(eq(schema.organizations.id, org));
       const settingsPatch: Record<string, unknown> = {};
       if (input.timezone !== undefined) settingsPatch.timezone = input.timezone;
       if (input.weekStart !== undefined) settingsPatch.weekStart = input.weekStart;
       if (input.dateFormat !== undefined) settingsPatch.dateFormat = input.dateFormat;
+      if (input.timeFormat !== undefined) settingsPatch.timeFormat = input.timeFormat;
+      if (input.numberFormat !== undefined) settingsPatch.numberFormat = input.numberFormat;
+      if (input.workingDays !== undefined) settingsPatch.workingDays = input.workingDays;
+      if (input.fiscalYearStartMonth !== undefined) settingsPatch.fiscalYearStartMonth = input.fiscalYearStartMonth;
+      if (input.retentionDays !== undefined) settingsPatch.retentionDays = input.retentionDays;
+      if (input.passwordPolicy !== undefined) settingsPatch.passwordPolicy = input.passwordPolicy;
       if (input.branding !== undefined) settingsPatch.branding = input.branding;
       if (Object.keys(settingsPatch).length) {
         const existing = await tx.select({ id: schema.organizationSettings.organizationId }).from(schema.organizationSettings).where(eq(schema.organizationSettings.organizationId, org)).limit(1);
@@ -272,8 +289,112 @@ export class UxService {
     return Promise.all(rows.map(async (team) => { const [{ n }] = await this.db.select({ n: count() }).from(schema.teamMembers).where(and(eq(schema.teamMembers.organizationId, org), eq(schema.teamMembers.teamId, team.id), isNull(schema.teamMembers.deletedAt))); return { ...team, memberCount: Number(n) }; }));
   }
 
+  private async assertOrgMember(org: string, userId: string, label: string) {
+    const [m] = await this.db.select({ id: schema.organizationMemberships.id }).from(schema.organizationMemberships)
+      .where(and(eq(schema.organizationMemberships.organizationId, org), eq(schema.organizationMemberships.userId, userId), isNull(schema.organizationMemberships.deletedAt))).limit(1);
+    if (!m) throw new AppError("VALIDATION", `${label} must be a member of this organization`);
+  }
+
+  async createTeam(org: string, userId: string, input: { name: string; leaderUserId?: string | null; parentTeamId?: string | null; description?: string | null }) {
+    if (input.leaderUserId) await this.assertOrgMember(org, input.leaderUserId, "Team leader");
+    if (input.parentTeamId) {
+      const [parent] = await this.db.select({ id: schema.teams.id }).from(schema.teams).where(and(eq(schema.teams.id, input.parentTeamId), eq(schema.teams.organizationId, org), isNull(schema.teams.deletedAt))).limit(1);
+      if (!parent) throw new AppError("VALIDATION", "Parent team not found");
+    }
+    const [row] = await this.db.insert(schema.teams).values({ organizationId: org, name: input.name, leaderUserId: input.leaderUserId ?? null, parentTeamId: input.parentTeamId ?? null, description: input.description ?? null, createdBy: userId }).returning();
+    return row;
+  }
+
+  async updateTeam(org: string, userId: string, teamId: string, patch: { name?: string; leaderUserId?: string | null; parentTeamId?: string | null; description?: string | null }) {
+    if (patch.leaderUserId) await this.assertOrgMember(org, patch.leaderUserId, "Team leader");
+    if (patch.parentTeamId) {
+      if (patch.parentTeamId === teamId) throw new AppError("VALIDATION", "A team cannot be its own parent");
+      // reject cycles: walk up from the proposed parent
+      let cursor: string | null = patch.parentTeamId;
+      for (let hop = 0; cursor && hop < 20; hop += 1) {
+        if (cursor === teamId) throw new AppError("VALIDATION", "Parent assignment would create a cycle");
+        const [p]: { parentTeamId: string | null }[] = await this.db.select({ parentTeamId: schema.teams.parentTeamId }).from(schema.teams).where(and(eq(schema.teams.id, cursor), eq(schema.teams.organizationId, org))).limit(1);
+        cursor = p?.parentTeamId ?? null;
+      }
+    }
+    const [row] = await this.db.update(schema.teams).set({ ...patch, updatedBy: userId, updatedAt: new Date(), version: sql`${schema.teams.version}+1` })
+      .where(and(eq(schema.teams.id, teamId), eq(schema.teams.organizationId, org), isNull(schema.teams.deletedAt))).returning();
+    if (!row) throw new AppError("NOT_FOUND", "Team not found");
+    return row;
+  }
+
+  async deleteTeam(org: string, userId: string, teamId: string) {
+    await this.db.update(schema.teams).set({ deletedAt: new Date(), deletedBy: userId }).where(and(eq(schema.teams.id, teamId), eq(schema.teams.organizationId, org)));
+    return { ok: true };
+  }
+
+  async teamMembers(org: string, teamId: string) {
+    return this.db.select({ userId: schema.teamMembers.userId, displayName: schema.users.displayName, email: schema.users.email, effectiveFrom: schema.teamMembers.effectiveFrom, effectiveTo: schema.teamMembers.effectiveTo })
+      .from(schema.teamMembers).innerJoin(schema.users, eq(schema.users.id, schema.teamMembers.userId))
+      .where(and(eq(schema.teamMembers.organizationId, org), eq(schema.teamMembers.teamId, teamId), isNull(schema.teamMembers.deletedAt)))
+      .orderBy(asc(schema.users.displayName));
+  }
+
+  async addTeamMember(org: string, userId: string, teamId: string, input: { userId: string; effectiveFrom?: string | null; effectiveTo?: string | null }) {
+    await this.assertOrgMember(org, input.userId, "Team member");
+    if (input.effectiveFrom && input.effectiveTo && input.effectiveTo < input.effectiveFrom) throw new AppError("VALIDATION", "Effective end date must be on or after the start date");
+    const [existing] = await this.db.select({ id: schema.teamMembers.id, deletedAt: schema.teamMembers.deletedAt }).from(schema.teamMembers)
+      .where(and(eq(schema.teamMembers.organizationId, org), eq(schema.teamMembers.teamId, teamId), eq(schema.teamMembers.userId, input.userId))).limit(1);
+    if (existing && !existing.deletedAt) throw new AppError("CONFLICT", "This person is already on the team");
+    if (existing) {
+      const [row] = await this.db.update(schema.teamMembers).set({ deletedAt: null, deletedBy: null, effectiveFrom: input.effectiveFrom ?? null, effectiveTo: input.effectiveTo ?? null, updatedBy: userId, updatedAt: new Date() }).where(eq(schema.teamMembers.id, existing.id)).returning();
+      return row;
+    }
+    const [row] = await this.db.insert(schema.teamMembers).values({ organizationId: org, teamId, userId: input.userId, effectiveFrom: input.effectiveFrom ?? null, effectiveTo: input.effectiveTo ?? null, createdBy: userId }).returning();
+    return row;
+  }
+
+  async removeTeamMember(org: string, actorId: string, teamId: string, memberUserId: string) {
+    await this.db.update(schema.teamMembers).set({ deletedAt: new Date(), deletedBy: actorId })
+      .where(and(eq(schema.teamMembers.organizationId, org), eq(schema.teamMembers.teamId, teamId), eq(schema.teamMembers.userId, memberUserId)));
+    return { ok: true };
+  }
+
+  /** F03 deactivation wizard step 1: everything this person still owns in the org. */
+  async ownedSummary(org: string, targetUserId: string) {
+    const [projects, workItems, forms, automations, documents] = await Promise.all([
+      this.db.select({ id: schema.projects.id, name: schema.projects.name }).from(schema.projects).where(and(eq(schema.projects.organizationId, org), eq(schema.projects.ownerUserId, targetUserId), isNull(schema.projects.deletedAt))),
+      this.db.select({ n: count() }).from(schema.workItems).where(and(eq(schema.workItems.organizationId, org), eq(schema.workItems.primaryOwnerUserId, targetUserId), isNull(schema.workItems.deletedAt))).then((r) => Number(r[0]?.n ?? 0)),
+      this.db.select({ n: count() }).from(schema.forms).where(and(eq(schema.forms.organizationId, org), eq(schema.forms.createdBy, targetUserId), isNull(schema.forms.deletedAt))).then((r) => Number(r[0]?.n ?? 0)).catch(() => 0),
+      this.db.select({ n: count() }).from(schema.automationRules).where(and(eq(schema.automationRules.organizationId, org), eq(schema.automationRules.createdBy, targetUserId), isNull(schema.automationRules.deletedAt))).then((r) => Number(r[0]?.n ?? 0)).catch(() => 0),
+      this.db.select({ n: count() }).from(schema.documents).where(and(eq(schema.documents.organizationId, org), eq(schema.documents.createdBy, targetUserId), isNull(schema.documents.deletedAt))).then((r) => Number(r[0]?.n ?? 0)).catch(() => 0),
+    ]);
+    return { projects, counts: { projects: projects.length, workItems, forms, automations, documents } };
+  }
+
+  /** F03 deactivation wizard step 2: transfer ownership, then suspend membership. */
+  async deactivateMember(org: string, actorId: string, targetUserId: string, input: { reassignToUserId: string; reason?: string }) {
+    if (targetUserId === actorId) throw new AppError("VALIDATION", "You cannot deactivate yourself");
+    if (input.reassignToUserId === targetUserId) throw new AppError("VALIDATION", "Ownership cannot be reassigned to the user being deactivated");
+    await this.assertOrgMember(org, targetUserId, "Target user");
+    await this.assertOrgMember(org, input.reassignToUserId, "Reassignment target");
+    const now = new Date();
+    return this.db.transaction(async (tx) => {
+      const [projMoved, itemsMoved] = await Promise.all([
+        tx.update(schema.projects).set({ ownerUserId: input.reassignToUserId, updatedBy: actorId, updatedAt: now }).where(and(eq(schema.projects.organizationId, org), eq(schema.projects.ownerUserId, targetUserId), isNull(schema.projects.deletedAt))).returning({ id: schema.projects.id }),
+        tx.update(schema.workItems).set({ primaryOwnerUserId: input.reassignToUserId, updatedBy: actorId, updatedAt: now }).where(and(eq(schema.workItems.organizationId, org), eq(schema.workItems.primaryOwnerUserId, targetUserId), isNull(schema.workItems.deletedAt))).returning({ id: schema.workItems.id }),
+      ]);
+      await tx.update(schema.organizationMemberships).set({ status: "suspended", updatedBy: actorId, updatedAt: now })
+        .where(and(eq(schema.organizationMemberships.organizationId, org), eq(schema.organizationMemberships.userId, targetUserId)));
+      await tx.insert(schema.auditEvents).values({ scopeType: "organization", organizationId: org, actorUserId: actorId, action: "member.deactivated", targetType: "user", targetId: targetUserId, metadata: { reassignToUserId: input.reassignToUserId, reason: input.reason ?? null, projectsReassigned: projMoved.length, workItemsReassigned: itemsMoved.length } });
+      return { ok: true, projectsReassigned: projMoved.length, workItemsReassigned: itemsMoved.length };
+    });
+  }
+
+  /** F01: file-storage footprint for the workspace settings page. */
+  async storageUsage(org: string) {
+    const [row] = await this.db.select({ files: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${schema.files.bytes}), 0)::bigint` })
+      .from(schema.files).where(eq(schema.files.organizationId, org));
+    return { files: Number(row.files), bytes: Number(row.bytes), megabytes: Math.round(Number(row.bytes) / 1048576 * 100) / 100 };
+  }
+
   async directory(org: string) {
-    return this.db.select({ id: schema.users.id, displayName: schema.users.displayName, email: schema.users.email, status: schema.organizationMemberships.status })
+    return this.db.select({ id: schema.users.id, displayName: schema.users.displayName, email: schema.users.email, status: schema.organizationMemberships.status, accountType: schema.organizationMemberships.accountType, avatarUrl: schema.users.avatarUrl, designation: schema.users.designation, department: schema.users.department, managerUserId: schema.users.managerUserId })
       .from(schema.organizationMemberships).innerJoin(schema.users, eq(schema.users.id, schema.organizationMemberships.userId))
       .where(and(eq(schema.organizationMemberships.organizationId, org), eq(schema.organizationMemberships.status, "active"), isNull(schema.organizationMemberships.deletedAt), eq(schema.users.isActive, true)))
       .orderBy(asc(schema.users.displayName));

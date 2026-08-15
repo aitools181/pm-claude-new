@@ -24,6 +24,7 @@ export const meetings = pgTable("meetings", {
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   status: text("status").default("scheduled").notNull(), // scheduled|held|cancelled
   notes: text("notes"),
+  transcript: text("transcript"), // F40: raw meeting capture / transcript text
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({ bySeries: index("meetings_series_idx").on(t.organizationId, t.seriesId) }));
 

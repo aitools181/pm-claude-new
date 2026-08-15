@@ -86,7 +86,8 @@ check(missingProtected.length === 0, `Middleware covers every top-level authenti
 const login = read('apps/web/app/login/page.tsx');
 const userMenu = read('apps/web/components/shell/UserMenu.tsx');
 check(!login.includes('document.cookie = "pm_session') && !login.includes("document.cookie = 'pm_session"), 'Login does not forge a client-side session sentinel');
-check(userMenu.includes('/auth/logout') && userMenu.includes('disconnectSocket()'), 'User menu provides server logout and realtime cleanup');
+const logoutHelper = read('apps/web/lib/logout.ts');
+check(userMenu.includes('signOut') && logoutHelper.includes('/auth/logout') && logoutHelper.includes('disconnectSocket()'), 'User menu provides server logout and realtime cleanup');
 const breakglass = read('apps/api/src/enterprise-identity/enterprise-identity-public.controller.ts');
 check(breakglass.includes('secure: this.env.NODE_ENV === "production"'), 'Break-glass session cookie is Secure in production');
 
@@ -246,8 +247,22 @@ check(hubMisses.length === 0, `All ${hubEndpointConfigs.length} configured Advan
 // Runtime certification is intentionally separated from static verification.
 warnings.push('Full semantic typecheck/build, Docker integration tests and browser Playwright/axe runs require the project dependencies, Node 20 and Docker. This verifier proves source/static contracts only.');
 
+// Bhaag 9.16: thrown WORK_ITEM_* codes must stay inside the shared catalogue.
+{
+  const catalogue = read('packages/shared/src/work-item-errors.ts');
+  const declared = new Set([...catalogue.matchAll(/WORK_ITEM_[A-Z_]+(?=:)/g)].map(m => m[0]));
+  const thrown = new Set();
+  for (const file of walk(path.join(root, 'apps/api/src')).filter(f => f.endsWith('.ts'))) {
+    for (const m of fs.readFileSync(file, 'utf8').matchAll(/"(WORK_ITEM_[A-Z_]+)"/g)) thrown.add(m[1]);
+  }
+  const missing = [...thrown].filter(c => !declared.has(c));
+  check(missing.length === 0, `Every thrown WORK_ITEM_* code is declared in the 9.16 catalogue${missing.length ? `: missing ${missing.join(', ')}` : ''}`);
+}
+
+
 console.log(`PASS ${passes.length} production-readiness source checks`);
 for (const p of passes) console.log(`  ✓ ${p}`);
 if (warnings.length) { console.log('\nNotes:'); for (const w of warnings) console.log(`  ! ${w}`); }
+
 if (failures.length) { console.error(`\nFAIL ${failures.length}`); for (const f of failures) console.error(`  ✗ ${f}`); process.exit(1); }
 console.log('\nProduction-readiness source verification passed.');

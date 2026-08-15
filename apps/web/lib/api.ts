@@ -53,9 +53,10 @@ async function ensureOrg(): Promise<string | null> {
   return orgResolving;
 }
 
-export async function api<T>(path: string, opts: RequestInit & { org?: boolean } = {}): Promise<T> {
+export async function api<T>(path: string, opts: RequestInit & { org?: boolean; idempotencyKey?: string } = {}): Promise<T> {
   const headers = new Headers(opts.headers);
   headers.set("Content-Type", "application/json");
+  if (opts.idempotencyKey) headers.set("Idempotency-Key", opts.idempotencyKey);
   if (opts.org) {
     const org = getCurrentOrg() ?? (await ensureOrg());
     if (org) headers.set("X-Organization-Id", org);

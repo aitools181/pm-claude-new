@@ -38,6 +38,10 @@ export class MeetingsController {
   @Put("meetings/:id/notes") @RequirePermission(CAPABILITIES.MEETING_MANAGE)
   notes(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(notesDto)) b: z.infer<typeof notesDto>) { return this.svc.updateNotes(r.organizationId, id, b.notes); }
 
+  @Post("meetings/:id/transcript") @RequirePermission(CAPABILITIES.MEETING_MANAGE)
+  setTranscript(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(z.object({ transcript: z.string().max(500_000) }))) b: { transcript: string }) { return this.svc.setTranscript(r.organizationId, id, b.transcript); }
+  @Post("meetings/:id/extract-actions") @RequirePermission(CAPABILITIES.MEETING_MANAGE)
+  extractActions(@Req() r: Ctx, @Param("id") id: string) { return this.svc.extractActions(r.organizationId, id); }
   @Post("meetings/:id/agenda") @RequirePermission(CAPABILITIES.MEETING_MANAGE)
   agenda(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(agendaDto)) b: z.infer<typeof agendaDto>) { return this.svc.addAgendaItem(r.organizationId, id, b); }
   @Post("meetings/:id/decisions") @RequirePermission(CAPABILITIES.MEETING_MANAGE)

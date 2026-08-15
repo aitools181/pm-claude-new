@@ -6,11 +6,12 @@ import { Input as UiInput, Select as UiSelect, Textarea as UiTextarea } from "..
 import { appPrompt } from "../ui/AppDialog";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "../../lib/api";
 import { Icon, type IconName } from "../ui/Icon";
 import { useToast } from "../ui/Toast";
 import { useModalDialog } from "../ui/useModalDialog";
+import { appConfirm } from "../ui/AppDialog";
 import { PROJECT_COLOR_PALETTE } from "../theme/themeTokens";
 import { RuntimeStyle } from "../ui/RuntimeStyle";
 
@@ -27,6 +28,7 @@ const tabs: { key: string; label: string; icon: IconName; suffix: string }[] = [
   { key: "overview", label: "Overview", icon: "home", suffix: "/overview" },
   { key: "list", label: "List", icon: "list", suffix: "" },
   { key: "board", label: "Board", icon: "board", suffix: "/board" },
+  { key: "workflow", label: "Workflow", icon: "integration", suffix: "/workflow" },
   { key: "timeline", label: "Timeline", icon: "timeline", suffix: "/timeline" },
   { key: "gantt", label: "Gantt", icon: "gantt", suffix: "/gantt" },
   { key: "dashboard", label: "Dashboard", icon: "chart", suffix: "/reports" },
@@ -39,6 +41,7 @@ export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjec
   project: Project; view: string; onAddTask?: (typeKey?: string) => void; onAddSection?: () => void; onProjectChange?: () => void;
 }) {
   const toast = useToast();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [share, setShare] = useState(false);
   const [customize, setCustomize] = useState(false);
@@ -48,6 +51,58 @@ export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjec
   const [favorite, setFavorite] = useState(false);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [viewMenu, setViewMenu] = useState<string | null>(null);
+  const [portfolioMenu, setPortfolioMenu] = useState(false);
+  const [portfolios, setPortfolios] = useState<{ id: string; name: string }[]>([]);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+
+  async function duplicateProject() {
+    if (busyAction) return; setBusyAction("duplicate");
+    try {
+      const created = await api<{ id: string; copiedItems: number; copiedSections: number }>(`/projects/${project.id}/duplicate`, { method: "POST", org: true, body: JSON.stringify({}) });
+      toast({ message: `Project duplicated — ${created.copiedSections} sections, ${created.copiedItems} tasks copied` });
+      setProjectMenu(false); router.push(`/projects/${created.id}`);
+    } catch (e) { toast({ message: e instanceof Error ? e.message : "Could not duplicate project", tone: "error" }); }
+    finally { setBusyAction(null); }
+  }
+  async function saveAsTemplate() {
+    if (busyAction) return; setBusyAction("template");
+    try {
+      const [sections, items] = await Promise.all([
+        api<{ id: string; name: string; rank: string }[]>(`/projects/${project.id}/sections`, { org: true }),
+        api<{ id: string; title: string; parentId: string | null; sectionId: string | null; priority: string; status: string; description?: string | null }[]>(`/projects/${project.id}/work-items?limit=500`, { org: true }),
+      ]);
+      await api("/templates", { method: "POST", org: true, body: JSON.stringify({ kind: "project", name: `${project.name} template`, content: {
+        sourceProjectId: project.id, name: project.name, description: project.description ?? null, color: project.color ?? null, icon: project.icon ?? null,
+        sections: sections.map((s) => ({ name: s.name, rank: s.rank })),
+        items: items.map((x) => ({ title: x.title, parentRef: x.parentId, ref: x.id, sectionName: sections.find((s) => s.id === x.sectionId)?.name ?? null, priority: x.priority, status: x.status, description: x.description ?? null })),
+      } }) });
+      toast({ message: "Saved as project template" }); setProjectMenu(false);
+    } catch (e) { toast({ message: e instanceof Error ? e.message : "Could not save template", tone: "error" }); }
+    finally { setBusyAction(null); }
+  }
+  async function openPortfolioMenu() {
+    setPortfolioMenu((v) => !v);
+    if (!portfolios.length) { try { setPortfolios(await api<{ id: string; name: string }[]>("/portfolios", { org: true })); } catch { setPortfolios([]); } }
+  }
+  async function addToPortfolio(pid: string, pname: string) {
+    try { await api(`/portfolios/${pid}/projects`, { method: "POST", org: true, body: JSON.stringify({ projectId: project.id }) }); toast({ message: `Added to ${pname}` }); }
+    catch (e) { toast({ message: e instanceof Error ? e.message : "Could not add to portfolio", tone: "error" }); }
+    setPortfolioMenu(false); setProjectMenu(false);
+  }
+  async function toggleArchive() {
+    const archiving = project.status !== "archived";
+    try {
+      const fresh = await api<Project>(`/projects/${project.id}`, { org: true });
+      await api(`/projects/${project.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: fresh.version, patch: { status: archiving ? "archived" : "active" } }) });
+      toast({ message: archiving ? "Project archived" : "Project unarchived" }); setProjectMenu(false); onProjectChange?.();
+    } catch (e) { toast({ message: e instanceof Error ? e.message : "Could not update project", tone: "error" }); }
+  }
+  async function deleteProject() {
+    const ok = await appConfirm(`Delete ${project.name}? Tasks stay recoverable by an admin, but the project disappears for everyone.`, { confirmLabel: "Delete project" });
+    if (!ok) return;
+    try { await api(`/projects/${project.id}`, { method: "DELETE", org: true }); toast({ message: "Project deleted" }); router.push("/projects"); }
+    catch (e) { toast({ message: e instanceof Error ? e.message : "Could not delete project", tone: "error" }); }
+  }
 
   useEffect(() => {
     api<{ projectId: string }[]>("/projects/favorites", { org: true })
@@ -100,6 +155,15 @@ export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjec
               <button onClick={() => { setCustomize(true); setProjectMenu(false); }}><Icon name="settings" size={15} />Edit project details</button>
               <button onClick={() => { navigator.clipboard.writeText(location.href); setProjectMenu(false); toast({ message: "Project link copied" }); }}><Icon name="link" size={15} />Copy project link</button>
               <a href={`/projects/${project.id}/overview`}><Icon name="activity" size={15} />Project status & activity</a>
+              <div className="menu-divider" />
+              <button onClick={duplicateProject} disabled={busyAction === "duplicate"}><Icon name="copy" size={15} />{busyAction === "duplicate" ? "Duplicating…" : "Duplicate project"}</button>
+              <button onClick={saveAsTemplate} disabled={busyAction === "template"}><Icon name="docs" size={15} />{busyAction === "template" ? "Saving…" : "Save as template"}</button>
+              <span className="portfolio-submenu-wrap"><button aria-haspopup="menu" aria-expanded={portfolioMenu} onClick={openPortfolioMenu}><Icon name="portfolio" size={15} />Add to portfolio…</button>
+              {portfolioMenu && <div className="project-submenu">{portfolios.map((p) => <button key={p.id} onClick={() => addToPortfolio(p.id, p.name)}>{p.name}</button>)}{!portfolios.length && <span className="submenu-empty">No portfolios yet</span>}<a href="/portfolios">New portfolio…</a></div>}</span>
+              <div className="menu-divider" />
+              <button onClick={toggleArchive}><Icon name="inbox" size={15} />{project.status === "archived" ? "Unarchive project" : "Archive project"}</button>
+              <button className="danger-menu-item" onClick={deleteProject}><Icon name="trash" size={15} />Delete project</button>
+              <div className="menu-divider" />
               <a href="/settings/workspace"><Icon name="people" size={15} />Workspace settings</a>
             </div>}
           </div>

@@ -1,9 +1,10 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject, Optional } from "@nestjs/common";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
 import { OPTIONAL_MODULES, type OptionalModule } from "../modules/optional-modules.js";
+import { PlatformAdminService } from "../platform/platform-admin.service.js";
 
 export type PlanLimits = { maxMembers?: number | null; maxProjects?: number | null; maxWorkItems?: number | null };
 const LIMIT_KEYS = ["maxMembers", "maxProjects", "maxWorkItems"] as const;
@@ -23,7 +24,16 @@ const SEED_PLANS = [
 
 @Injectable()
 export class PlansService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    @Optional() private readonly platform?: PlatformAdminService,
+  ) {}
+
+  /** Platform administrators bypass plan gating entirely. */
+  private async isPlatformAdmin(userId?: string) {
+    if (!userId || !this.platform) return false;
+    try { return await this.platform.isPlatformAdmin(userId); } catch { return false; }
+  }
 
   /** Idempotent: installs the shipped catalogue without overwriting edited prices. */
   async seedDefaults(userId?: string) {
@@ -118,7 +128,19 @@ export class PlansService {
   }
 
   /** What this organization is entitled to, plus what it is actually using. */
-  async entitlements(organizationId: string) {
+  async entitlements(organizationId: string, userId?: string) {
+    if (await this.isPlatformAdmin(userId)) {
+      return {
+        planKey: "platform_admin", planName: "Platform admin",
+        status: "active" as const,
+        currency: "INR", priceMonthly: 0, priceYearly: 0,
+        limits: { maxMembers: null, maxProjects: null, maxWorkItems: null },
+        modules: [...OPTIONAL_MODULES] as string[],
+        usage: await this.usage(organizationId),
+        currentPeriodEnd: null,
+        platformAdmin: true,
+      };
+    }
     const { plan, subscription } = await this.planFor(organizationId);
     const limits = (plan?.limits ?? {}) as PlanLimits;
     const seats = subscription?.seats ?? limits.maxMembers ?? null;
@@ -138,7 +160,8 @@ export class PlansService {
     const { plan } = await this.planFor(organizationId);
     return ((plan?.modules ?? []) as string[]).includes(module);
   }
-  async assertModuleAllowed(organizationId: string, module: string) {
+  async assertModuleAllowed(organizationId: string, module: string, userId?: string) {
+    if (await this.isPlatformAdmin(userId)) return;
     if (!(await this.isModuleAllowed(organizationId, module))) {
       const { plan } = await this.planFor(organizationId);
       throw new AppError("FORBIDDEN", `The ${module} module is not included in the ${plan?.name ?? "current"} plan`, { code: "module_not_in_plan" });
@@ -146,7 +169,8 @@ export class PlansService {
   }
 
   /** Enforced before creating billable records. null limit = unlimited. */
-  async assertWithinLimit(organizationId: string, resource: "members" | "projects" | "workItems") {
+  async assertWithinLimit(organizationId: string, resource: "members" | "projects" | "workItems", userId?: string) {
+    if (await this.isPlatformAdmin(userId)) return;
     const ent = await this.entitlements(organizationId);
     const limitKey = resource === "members" ? "maxMembers" : resource === "projects" ? "maxProjects" : "maxWorkItems";
     const limit = (ent.limits as Record<string, number | null | undefined>)[limitKey];

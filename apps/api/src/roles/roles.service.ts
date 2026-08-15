@@ -3,6 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
+import { Optional } from "@nestjs/common";
+import { SessionService } from "../auth/session.service.js";
 import { PermissionResolver } from "../authz/permission-resolver.js";
 import { AuditService } from "../audit/audit.service.js";
 
@@ -42,11 +44,17 @@ export class RolesService {
       scopeType: input.scopeType ?? "organization", scopeId: input.scopeId,
     });
     await this.audit.append({ scopeType: "organization", organizationId, actorUserId: userId, action: "role.assigned", targetType: "user", targetId: input.targetUserId, metadata: { roleKey: input.roleKey, scope: input.scopeType ?? "organization" } });
+    // F02 sensitive-session invalidation: permission changes take effect only
+    // after re-authentication, so stale sessions cannot keep old capabilities.
+    if (this.sessionSvc && input.targetUserId !== userId) await this.sessionSvc.revokeAll(input.targetUserId).catch(() => {});
   }
 
   async unassign(organizationId: string, assignmentId: string, userId: string) {
+    const [target] = await this.db.select({ userId: schema.userRoleAssignments.userId }).from(schema.userRoleAssignments)
+      .where(and(eq(schema.userRoleAssignments.id, assignmentId), eq(schema.userRoleAssignments.organizationId, organizationId))).limit(1);
     await this.db.delete(schema.userRoleAssignments).where(and(eq(schema.userRoleAssignments.id, assignmentId), eq(schema.userRoleAssignments.organizationId, organizationId)));
     await this.audit.append({ scopeType: "organization", organizationId, actorUserId: userId, action: "role.unassigned", targetType: "assignment", targetId: assignmentId });
+    if (this.sessionSvc && target?.userId && target.userId !== userId) await this.sessionSvc.revokeAll(target.userId).catch(() => {});
   }
 
   /** Permission preview — uses the SAME resolver the guard uses. */

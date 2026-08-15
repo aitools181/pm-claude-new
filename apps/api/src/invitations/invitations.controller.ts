@@ -35,6 +35,26 @@ export class InvitationsController {
   @RequirePermission(CAPABILITIES.USERS_INVITE)
   list(@Req() req: Request & { organizationId: string }) { return this.invites.list(req.organizationId); }
 
+  @Post("bulk")
+  @UseGuards(SessionGuard, OrgContextGuard, AuthzGuard)
+  @RequirePermission(CAPABILITIES.USERS_INVITE)
+  createBulk(
+    @Req() req: Request & { userId: string; organizationId: string },
+    @Body(new ZodPipe(z.object({ emails: z.array(z.string().trim().min(3).max(320)).min(1).max(200), roleKey: z.string().min(1) }))) body: { emails: string[]; roleKey: string },
+  ) {
+    return this.invites.createBulk(req.organizationId, req.userId, body.emails, body.roleKey, req.header("x-request-id"));
+  }
+
+  @Post("import-csv")
+  @UseGuards(SessionGuard, OrgContextGuard, AuthzGuard)
+  @RequirePermission(CAPABILITIES.USERS_INVITE)
+  importCsv(
+    @Req() req: Request & { userId: string; organizationId: string },
+    @Body(new ZodPipe(z.object({ csv: z.string().min(3).max(500_000), defaultRoleKey: z.string().min(1) }))) body: { csv: string; defaultRoleKey: string },
+  ) {
+    return this.invites.importCsv(req.organizationId, req.userId, body.csv, body.defaultRoleKey, req.header("x-request-id"));
+  }
+
   @Delete(":id")
   @UseGuards(SessionGuard, OrgContextGuard, AuthzGuard)
   @RequirePermission(CAPABILITIES.USERS_INVITE)

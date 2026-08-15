@@ -23,8 +23,20 @@ export default function WorkflowEditor() {
   const [transitions, setTransitions] = useState<Transition[]>([]);
   const [ns, setNs] = useState({ key: "", name: "", category: "todo", isInitial: false });
   const [nt, setNt] = useState({ name: "", fromStatusId: "", toStatusId: "" });
+  const [gateFor, setGateFor] = useState<string | null>(null);
+  const [gateKind, setGateKind] = useState("approval_required");
+  const [gateConfig, setGateConfig] = useState("");
   const [issues, setIssues] = useState<string[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+
+  async function addGate(transitionId: string) {
+    const ruleType = gateKind === "assign_actor" || gateKind === "set_progress" ? "post_action" : "validator";
+    const config = gateKind === "field_required" ? { fieldKey: gateConfig.trim() } : gateKind === "set_progress" ? { progress: Number(gateConfig) || 0 } : gateKind === "approval_required" && gateConfig.trim() ? { definitionId: gateConfig.trim() } : undefined;
+    try {
+      await api(`/workflows/transitions/${transitionId}/rules`, { method: "POST", org: true, body: JSON.stringify({ ruleType, kind: gateKind, config }) });
+      setMsg(`Gate added to transition — ${gateKind.replace(/_/g, " ")}`); setGateFor(null); setGateConfig("");
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : "Could not add gate"); }
+  }
 
   const editable = active?.status === "draft";
 
@@ -100,7 +112,22 @@ export default function WorkflowEditor() {
             {s.isInitial && <div className="init">● initial</div>}
             <div className="ui-static-8a77e5a3">
               {transitions.filter((t) => t.fromStatusId === s.id || t.fromStatusId === null).map((t) => (
-                <div key={t.id} className="wf-trans">{t.name} <span className="arrow">→</span> {statusName(t.toStatusId)}</div>
+                <div key={t.id} className="wf-trans">{t.name} <span className="arrow">→</span> {statusName(t.toStatusId)}
+                  {editable && <button type="button" className="wf-gate-btn" aria-expanded={gateFor === t.id} onClick={() => setGateFor(gateFor === t.id ? null : t.id)}>+ gate</button>}
+                  {gateFor === t.id && <div className="wf-gate-form">
+                    <UiSelect className="input" value={gateKind} onChange={(e) => { setGateKind(e.target.value); setGateConfig(""); }}>
+                      <option value="approval_required">Approval required (blocks until approved)</option>
+                      <option value="comment_required">Comment required</option>
+                      <option value="field_required">Field required</option>
+                      <option value="assign_actor">Assign actor (post-action)</option>
+                      <option value="set_progress">Set progress % (post-action)</option>
+                    </UiSelect>
+                    {gateKind === "field_required" && <Input value={gateConfig} onChange={(e) => setGateConfig(e.target.value)} placeholder="fieldKey" />}
+                    {gateKind === "set_progress" && <Input type="number" value={gateConfig} onChange={(e) => setGateConfig(e.target.value)} placeholder="100" />}
+                    {gateKind === "approval_required" && <Input value={gateConfig} onChange={(e) => setGateConfig(e.target.value)} placeholder="Approval definition id (optional)" />}
+                    <UiButton variant="primary" size="compact" onClick={() => addGate(t.id)}>Add</UiButton>
+                  </div>}
+                </div>
               ))}
             </div>
           </div>

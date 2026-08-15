@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { primaryKey, integer, pgTable, uuid, text, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { auditColumns } from "./_common.js";
 import { organizations, users } from "./identity.js";
 import { workItems } from "./work.js";
@@ -67,3 +67,26 @@ export const notificationPreferences = pgTable("notification_preferences", {
   channel: text("channel").default("inbox").notNull(),   // inbox|email
   enabled: text("enabled").default("true").notNull(),
 }, (t) => ({ unique: uniqueIndex("notification_prefs_unique").on(t.userId, t.type, t.channel) }));
+
+/** F23: per-user delivery behaviour — digest schedule and quiet hours. */
+export const notificationDeliverySettings = pgTable("notification_delivery_settings", {
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  digestFrequency: text("digest_frequency").default("off").notNull(), // off|daily|weekly
+  digestHour: integer("digest_hour").default(9).notNull(),
+  quietFrom: integer("quiet_from"),
+  quietTo: integer("quiet_to"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ pk: primaryKey({ columns: [t.organizationId, t.userId] }) }));
+
+/** F23: emails held back by quiet hours or batched into a digest. */
+export const notificationDigestQueue = pgTable("notification_digest_queue", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  queuedReason: text("queued_reason").notNull(), // digest|quiet_hours
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  flushedAt: timestamp("flushed_at", { withTimezone: true }),
+}, (t) => ({ byUser: index("notif_digest_queue_user_idx").on(t.organizationId, t.userId, t.flushedAt) }));

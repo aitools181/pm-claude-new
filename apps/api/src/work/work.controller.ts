@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { UseInterceptors, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { Request } from "express";
 import { z } from "zod";
 import { ZodPipe } from "../common/zod.pipe.js";
@@ -6,6 +6,7 @@ import { SessionGuard } from "../auth/guards/session.guard.js";
 import { OrgContextGuard } from "../org-context/org-context.guard.js";
 import { AuthzGuard } from "../authz/authz.guard.js";
 import { RequirePermission } from "../authz/require-permission.decorator.js";
+import { IdempotencyInterceptor } from "../api/idempotency.interceptor.js";
 import { CAPABILITIES } from "../authz/capabilities.js";
 import { WorkspacesService } from "./workspaces.service.js";
 import { ProjectsService } from "./projects.service.js";
@@ -70,14 +71,19 @@ export class WorkController {
     return this.projects.softDelete(r.organizationId, id, r.userId).then(() => ({ ok: true }));
   }
 
+  @Post("projects/:id/duplicate") @RequirePermission(CAPABILITIES.PROJECT_CREATE)
+  duplicateProject(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(z.object({ name: z.string().trim().min(1).max(200).optional() }))) b: { name?: string }) {
+    return this.projects.duplicate(r.organizationId, r.userId, id, b.name);
+  }
+
   // ---- Work items ----
-  @Post("work-items") @RequirePermission(CAPABILITIES.WORKITEM_CREATE)
+  @Post("work-items") @RequirePermission(CAPABILITIES.WORKITEM_CREATE) @UseInterceptors(IdempotencyInterceptor)
   async createItem(@Req() r: Ctx, @Body(new ZodPipe(createWorkItemDto)) b: z.infer<typeof createWorkItemDto>) {
     await this.projects.assertAccess(r.organizationId, b.projectId, r.userId);
     return this.items.create(r.organizationId, r.userId, b);
   }
 
-  @Post("work-items/:id/subtasks") @RequirePermission(CAPABILITIES.WORKITEM_CREATE)
+  @Post("work-items/:id/subtasks") @RequirePermission(CAPABILITIES.WORKITEM_CREATE) @UseInterceptors(IdempotencyInterceptor)
   async createSubtask(@Req() r: Ctx, @Param("id") parentId: string, @Body(new ZodPipe(createSubtaskDto)) b: z.infer<typeof createSubtaskDto>) {
     await this.items.assertAccess(r.organizationId, parentId, r.userId);
     const parent = await this.items.get(r.organizationId, parentId);

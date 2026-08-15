@@ -4,15 +4,18 @@ import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
 import { seedOrgDefaults } from "../seed/defaults.js";
+import { Optional } from "@nestjs/common";
+import { PlatformAdminService } from "../platform/platform-admin.service.js";
 
 /** Resolves & validates a user's membership in an organization. */
 @Injectable()
 export class OrgContextService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(@Inject(DB) private readonly db: Database, @Optional() private readonly platform?: PlatformAdminService) {}
 
-  /** Organizations the user actually belongs to (for the switcher). */
-  myOrganizations(userId: string) {
-    return this.db.select({ id: schema.organizations.id, name: schema.organizations.name, slug: schema.organizations.slug })
+  /** Organizations the user actually belongs to (for the switcher),
+   *  plus any org reachable through an active support-access grant. */
+  async myOrganizations(userId: string) {
+    const memberOf = await this.db.select({ id: schema.organizations.id, name: schema.organizations.name, slug: schema.organizations.slug })
       .from(schema.organizationMemberships)
       .innerJoin(schema.organizations, eq(schema.organizations.id, schema.organizationMemberships.organizationId))
       .where(and(
@@ -20,6 +23,9 @@ export class OrgContextService {
         eq(schema.organizationMemberships.status, "active"),
         isNull(schema.organizationMemberships.deletedAt),
       ));
+    const support = this.platform ? await this.platform.supportAccessOrganizations(userId) : [];
+    const known = new Set(memberOf.map((o) => o.id));
+    return [...memberOf, ...support.filter((o) => !known.has(o.id)).map((o) => ({ ...o, supportAccess: true }))];
   }
 
   listMembers(organizationId: string) {
@@ -51,7 +57,10 @@ export class OrgContextService {
     });
   }
 
-  /** Hard gate: user must have an active membership in the requested org. */
+  /** Hard gate: user must have an active membership in the requested org.
+   *  F01 exception: a platform admin with an ACTIVE support-access grant may
+   *  enter without membership (grant start/end is audited). Suspended orgs
+   *  stay closed to members but remain reachable through support access. */
   async assertMembership(userId: string, organizationId: string) {
     const [m] = await this.db.select().from(schema.organizationMemberships).where(and(
       eq(schema.organizationMemberships.userId, userId),
@@ -59,10 +68,18 @@ export class OrgContextService {
       eq(schema.organizationMemberships.status, "active"),
       isNull(schema.organizationMemberships.deletedAt),
     )).limit(1);
-    if (!m) throw new AppError("FORBIDDEN", "Not a member of this organization");
+    if (!m) {
+      if (this.platform && await this.platform.hasActiveSupportAccess(userId, organizationId)) {
+        return { supportAccess: true } as const;
+      }
+      throw new AppError("FORBIDDEN", "Not a member of this organization");
+    }
     // A suspended/archived organization is closed to all normal access.
     const [org] = await this.db.select().from(schema.organizations).where(eq(schema.organizations.id, organizationId)).limit(1);
-    if (org && org.status !== "active") throw new AppError("FORBIDDEN", `This organization is ${org.status}`, { code: "organization_suspended" });
+    if (org && org.status !== "active") {
+      if (this.platform && await this.platform.hasActiveSupportAccess(userId, organizationId)) return { supportAccess: true } as const;
+      throw new AppError("FORBIDDEN", `This organization is ${org.status}`, { code: "organization_suspended" });
+    }
     return m;
   }
 }

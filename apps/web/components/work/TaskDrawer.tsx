@@ -104,7 +104,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
   const [sections, setSections] = useState<Section[]>([]);
   const [moreOpen, setMoreOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [wide, setWide] = useState(false);
+  const [wide, setWide] = useState<"normal" | "wide" | "full">("normal");
   const [collabQuery, setCollabQuery] = useState("");
   const [projectQuery, setProjectQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -438,7 +438,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
   return (
     <>
       <button className="drawer-overlay" aria-label="Close task" onClick={onClose} />
-      <aside ref={drawerRef} tabIndex={-1} className={`drawer task-drawer ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={item ? `${item.key}: ${item.title}` : "Work item"}>
+      <aside ref={drawerRef} tabIndex={-1} className={`drawer task-drawer asana-task-drawer ${wide !== "normal" ? "wide" : ""}`} data-wide={wide === "full" ? "true" : undefined} role="dialog" aria-modal="true" aria-label={item ? `${item.key}: ${item.title}` : "Work item"}>
         <header className="drawer-head task-drawer-head asana-task-head">
           <div className="drawer-breadcrumb">
             {history.length > 0 && <button className="icon-btn" aria-label="Back to parent task" onClick={goBack}><Icon name="arrowLeft" /></button>}
@@ -449,7 +449,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
             <button className={`task-like-btn ${context.liked ? "liked" : ""}`} title="Like task" onClick={toggleLike}><span>♡</span>{context.likeCount > 0 && <small>{context.likeCount}</small>}</button>
             <button className="icon-btn" title="Copy task link" aria-label="Copy task link" onClick={() => { navigator.clipboard.writeText(location.href); toast({ message: "Task link copied" }); }}><Icon name="link" /></button>
             <UiButton variant="secondary" size="compact" className="task-share-btn" onClick={() => setShareOpen(true)}><Icon name="people" size={15} />Share</UiButton>
-            <button className="icon-btn" title={wide ? "Narrow view" : "Wide view"} aria-label={wide ? "Narrow task view" : "Wide task view"} onClick={() => setWide(!wide)}><Icon name="sliders" /></button>
+            <button className="icon-btn task-expand-btn" title={wide === "normal" ? "Expand task" : wide === "wide" ? "Full screen" : "Exit full screen"} aria-label={wide === "normal" ? "Expand task view" : wide === "wide" ? "Full screen task view" : "Exit full screen task view"} onClick={() => setWide(wide === "normal" ? "wide" : wide === "wide" ? "full" : "normal")}><span className="expand-glyph" data-state={wide} aria-hidden="true">⤢</span></button>
             <div className="task-more-wrap"><button className="icon-btn" title="More actions" aria-label="More task actions" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)}><Icon name="more" /></button>{moreOpen && <div className="task-more-menu">
               <button onClick={() => { setMoreOpen(false); document.querySelector<HTMLInputElement>('.project-picker-input')?.focus(); }}><Icon name="projects" size={15} />Add to another project</button>
               <button onClick={() => { setMoreOpen(false); document.querySelector<HTMLInputElement>('.subtask-create input')?.focus(); }}><Icon name="subtask" size={15} />Add subtask</button>
@@ -478,7 +478,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
           <div className="drawer-body task-drawer-body">
             {error && <div className="callout callout-danger drawer-error"><span>{error}</span><button className="icon-btn" aria-label="Dismiss error" onClick={() => setError(null)}><Icon name="close" size={15} /></button></div>}
 
-            <div className="task-visibility-line"><Icon name={item.publicToOrganization ? "people" : "lock"} size={13}/><span>{item.publicToOrganization ? "Visible to workspace members with access" : "Visible to project members"}</span><span>·</span><strong>{item.typeName}</strong></div>
+            <div className={`task-privacy-banner ${item.publicToOrganization ? "public" : ""}`}><span><Icon name={item.publicToOrganization ? "people" : "lock"} size={14}/>{item.publicToOrganization ? "This task is visible to workspace members with access." : "This task is private to members of this project."}<span className="privacy-type">· {item.typeName}</span></span><button className="text-button" onClick={togglePublic}>{item.publicToOrganization ? "Make private" : "Make public"}</button></div>
             <div className="task-title-row asana-task-title-row">
               <UiInput ref={titleRef} className="drawer-title" aria-label="Task title" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} onBlur={saveTitle} onKeyDown={(e) => {
                 if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
@@ -557,7 +557,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
 
             {customFields.length > 0 && <section className="drawer-section compact-detail-section">
               <div className="drawer-section-head"><h3><Icon name="sliders" size={17} />Custom fields</h3><span>{customFields.length}</span></div>
-              <div className="custom-field-grid asana-custom-field-grid">{customFields.map((field) => <label key={field.key}><span>{field.name}{field.required ? <em>Required</em> : null}</span>{field.type === "checkbox" ? <input type="checkbox" checked={Boolean(field.value)} onChange={(e)=>updateCustomField(field,e.target.checked)}/> : field.type === "number" ? <UiInput type="number" defaultValue={field.value == null ? "" : String(field.value)} onBlur={(e)=>updateCustomField(field,e.target.value === "" ? null : Number(e.target.value))}/> : field.type === "date" ? <UiInput type="date" defaultValue={String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/> : field.type === "select" ? <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">None</option>{(field.options ?? []).map((option)=><option key={option.id} value={option.id}>{option.label}</option>)}</UiSelect> : field.type === "user" ? <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">No one</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</UiSelect> : <UiInput type={field.type === "url" ? "url" : "text"} defaultValue={Array.isArray(field.value) ? field.value.join(", ") : String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/>}</label>)}</div>
+              <div className="custom-field-grid asana-custom-field-grid">{customFields.map((field) => <label key={field.key}><span>{field.name}{field.required ? <em>Required</em> : null}</span>{field.type === "formula" ? <span className="formula-value" title="Computed automatically">{field.value == null ? "—" : String(field.value)} <em>ƒ</em></span> : field.type === "checkbox" ? <input type="checkbox" checked={Boolean(field.value)} onChange={(e)=>updateCustomField(field,e.target.checked)}/> : field.type === "number" ? <UiInput type="number" defaultValue={field.value == null ? "" : String(field.value)} onBlur={(e)=>updateCustomField(field,e.target.value === "" ? null : Number(e.target.value))}/> : field.type === "date" ? <UiInput type="date" defaultValue={String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/> : field.type === "select" ? <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">None</option>{(field.options ?? []).map((option)=><option key={option.id} value={option.id}>{option.label}</option>)}</UiSelect> : field.type === "user" ? <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">No one</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</UiSelect> : <UiInput type={field.type === "url" ? "url" : "text"} defaultValue={Array.isArray(field.value) ? field.value.join(", ") : String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/>}</label>)}</div>
             </section>}
 
             <nav className="drawer-tabs" aria-label="Task collaboration tabs">

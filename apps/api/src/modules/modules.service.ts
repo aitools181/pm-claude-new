@@ -26,7 +26,7 @@ export class ModulesService {
   }
   async setEnabled(organizationId: string, module: OptionalModule, enabled: boolean, userId: string) {
     if (!OPTIONAL_MODULES.includes(module)) throw new AppError("VALIDATION", "Unknown module");
-    if (enabled && this.plans) await this.plans.assertModuleAllowed(organizationId, module);
+    if (enabled && this.plans) await this.plans.assertModuleAllowed(organizationId, module, userId);
     const [existing] = await this.db.select().from(schema.featureFlags).where(and(eq(schema.featureFlags.organizationId, organizationId), eq(schema.featureFlags.key, this.key(module)))).limit(1);
     if (existing) await this.db.update(schema.featureFlags).set({ enabled, updatedBy: userId, updatedAt: new Date() }).where(eq(schema.featureFlags.id, existing.id));
     else await this.db.insert(schema.featureFlags).values({ organizationId, key: this.key(module), enabled, createdBy: userId, updatedBy: userId });

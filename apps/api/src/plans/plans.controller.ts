@@ -25,7 +25,7 @@ export class PricingController {
 @UseGuards(SessionGuard, OrgContextGuard)
 export class BillingController {
   constructor(private readonly plans: PlansService) {}
-  @Get("entitlements") entitlements(@Req() r: Ctx) { return this.plans.entitlements(r.organizationId); }
+  @Get("entitlements") entitlements(@Req() r: Ctx) { return this.plans.entitlements(r.organizationId, r.userId); }
 }
 
 /** Plan management is platform-level, never organization-level. */

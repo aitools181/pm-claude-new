@@ -38,6 +38,23 @@ export async function validatorReason(db: Database, organizationId: string, work
       const [c] = await db.select().from(schema.comments).where(and(eq(schema.comments.organizationId, organizationId), eq(schema.comments.workItemId, workItemId))).limit(1);
       return c ? null : "A comment is required before this transition";
     }
+    case "approval_required": {
+      // F12/F18 approval gate: the transition succeeds only when an approval
+      // request on this work item is fully APPROVED. config.definitionId can
+      // pin the gate to one approval definition; otherwise any approved
+      // request on the item satisfies it. A rejected request blocks explicitly.
+      const definitionId = typeof rule.config?.definitionId === "string" ? rule.config.definitionId : null;
+      const where = [
+        eq(schema.approvalRequests.organizationId, organizationId),
+        eq(schema.approvalRequests.workItemId, workItemId),
+      ];
+      if (definitionId) where.push(eq(schema.approvalRequests.definitionId, definitionId));
+      const requests = await db.select({ status: schema.approvalRequests.status }).from(schema.approvalRequests).where(and(...where));
+      if (!requests.length) return "An approval is required before this transition — request one from the task's Approvals section";
+      if (requests.some((r) => r.status === "approved")) return null;
+      if (requests.some((r) => r.status === "rejected")) return "The linked approval was rejected — this transition is blocked until a new approval is granted";
+      return "The linked approval is still pending — this transition unlocks once it is approved";
+    }
     default: return null;
   }
 }

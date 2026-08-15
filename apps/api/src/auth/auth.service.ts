@@ -1,5 +1,5 @@
-import { Injectable, Inject } from "@nestjs/common";
-import { and, eq, sql } from "drizzle-orm";
+import { Optional, Injectable, Inject } from "@nestjs/common";
+import { count, isNull, inArray, and, eq, sql } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
@@ -7,6 +7,7 @@ import { hashPassword, sha256, verifyPassword } from "../common/crypto.js";
 import { TokenService } from "./token.service.js";
 import { SessionService } from "./session.service.js";
 import { MailService } from "../mail/mail.service.js";
+import { AuditService } from "../audit/audit.service.js";
 
 const MAX_DB_FAILURES = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
@@ -24,6 +25,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly sessions: SessionService,
     private readonly mail: MailService,
+    @Optional() private readonly audit?: AuditService,
   ) {}
 
   private rateKey(email: string, ip?: string) { return `${email.toLowerCase()}|${ip ?? "unknown"}`; }
@@ -42,14 +44,16 @@ export class AuthService {
 
   private clearRate(email: string, ip?: string) { this.attempts.delete(this.rateKey(email, ip)); }
 
-  /** Verifies credentials and enforces database-backed lockout. */
+  /** Verifies credentials and enforces database-backed lockout.
+   *  F02: `email` may also be a username (no @). */
   async verifyCredentials(email: string, password: string, ip?: string) {
     const normalizedEmail = email.trim().toLowerCase();
     this.checkRate(normalizedEmail, ip);
 
-    let [user] = await this.db.select().from(schema.users)
-      .where(eq(schema.users.email, normalizedEmail)).limit(1);
-    if (!user) {
+    let [user] = normalizedEmail.includes("@")
+      ? await this.db.select().from(schema.users).where(eq(schema.users.email, normalizedEmail)).limit(1)
+      : await this.db.select().from(schema.users).where(eq(schema.users.username, normalizedEmail)).limit(1);
+    if (!user && normalizedEmail.includes("@")) {
       const [alias] = await this.db.select({ userId: schema.userEmailAddresses.userId }).from(schema.userEmailAddresses)
         .where(and(eq(schema.userEmailAddresses.email, normalizedEmail), sql`${schema.userEmailAddresses.verifiedAt} is not null`)).limit(1);
       if (alias) [user] = await this.db.select().from(schema.users).where(eq(schema.users.id, alias.userId)).limit(1);
@@ -99,6 +103,7 @@ export class AuthService {
     const userId = await this.db.transaction(async (tx) => {
       const scopedDb = tx as unknown as Database;
       const consumedUserId = await this.tokens.consume(rawToken, "reset_password", scopedDb);
+      await this.assertPasswordPolicy(newPassword, await this.userOrgIds(consumedUserId));
       await scopedDb.update(schema.userCredentials).set({
         passwordHash: await hashPassword(newPassword),
         failedLoginCount: 0,
@@ -159,4 +164,46 @@ export class AuthService {
     });
     return { verified: true, userId };
   }
+
+  /** F02: strictest password policy across the user's organizations (or the one org given). */
+  async assertPasswordPolicy(password: string, orgIds: string[]) {
+    if (!orgIds.length) { if (password.length < 10) throw new AppError("VALIDATION", "Password must be at least 10 characters"); return; }
+    const rows = await this.db.select({ policy: schema.organizationSettings.passwordPolicy }).from(schema.organizationSettings)
+      .where(inArray(schema.organizationSettings.organizationId, orgIds));
+    let minLength = 10, upper = false, digit = false, symbol = false;
+    for (const r of rows) {
+      const pol = (r.policy ?? {}) as { minLength?: number; requireUppercase?: boolean; requireDigit?: boolean; requireSymbol?: boolean };
+      minLength = Math.max(minLength, Number(pol.minLength) || 10);
+      upper ||= Boolean(pol.requireUppercase); digit ||= Boolean(pol.requireDigit); symbol ||= Boolean(pol.requireSymbol);
+    }
+    if (password.length < minLength) throw new AppError("VALIDATION", `Password must be at least ${minLength} characters (organization policy)`);
+    if (upper && !/[A-Z]/.test(password)) throw new AppError("VALIDATION", "Password must contain an uppercase letter (organization policy)");
+    if (digit && !/[0-9]/.test(password)) throw new AppError("VALIDATION", "Password must contain a digit (organization policy)");
+    if (symbol && !/[^A-Za-z0-9]/.test(password)) throw new AppError("VALIDATION", "Password must contain a symbol (organization policy)");
+  }
+
+  private async userOrgIds(userId: string) {
+    const rows = await this.db.select({ organizationId: schema.organizationMemberships.organizationId }).from(schema.organizationMemberships)
+      .where(and(eq(schema.organizationMemberships.userId, userId), isNull(schema.organizationMemberships.deletedAt)));
+    return rows.map((r) => r.organizationId);
+  }
+
+  /** F02: alert on sign-in from an IP this account has never used before.
+   *  Call BEFORE the new session row is created. Fails soft — a mail outage
+   *  must never block a login. */
+  async flagSuspiciousLogin(userId: string, ip?: string, userAgent?: string) {
+    try {
+      if (!ip) return;
+      const [{ n: total }] = await this.db.select({ n: count() }).from(schema.userSessions).where(eq(schema.userSessions.userId, userId));
+      if (Number(total) === 0) return; // first ever session is not suspicious
+      const [known] = await this.db.select({ id: schema.userSessions.id }).from(schema.userSessions)
+        .where(and(eq(schema.userSessions.userId, userId), eq(schema.userSessions.ip, ip))).limit(1);
+      if (known) return;
+      const [user] = await this.db.select({ email: schema.users.email, displayName: schema.users.displayName }).from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+      if (this.audit) await this.audit.append({ scopeType: "instance", action: "auth.suspicious_login", actorUserId: userId, targetType: "user", targetId: userId, metadata: { ip, userAgent: userAgent ?? null } });
+      if (this.mail && user) await this.mail.send(user.email, "[PM] New sign-in to your account",
+        `Hi ${user.displayName},\n\nA sign-in to your account just happened from a new address:\n\n  IP: ${ip}\n  Device: ${userAgent ?? "unknown"}\n\nIf this was you, no action is needed. If not, change your password immediately and review your active sessions in Settings.`);
+    } catch { /* alerting must never block login */ }
+  }
+
 }
