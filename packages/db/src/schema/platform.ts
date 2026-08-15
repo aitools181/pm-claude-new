@@ -1,5 +1,5 @@
 import { index, pgTable, uuid, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
-import { users } from "./identity.js";
+import { users, organizations } from "./identity.js";
 
 /* ============================================================
  * PLATFORM ADMINISTRATION — instance-level (not org-scoped).
