@@ -7,16 +7,22 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../../../../lib/api";
 import { Field, Input } from "../../../../components/ui/Field";
 import { useToast } from "../../../../components/ui/Toast";
+import { appPrompt } from "../../../../components/ui/AppDialog";
 
 type MStatus = { active: boolean; reason: string | null; startedAt: string | null };
 type Schedule = { id: string; name: string; intervalMinutes: number; retentionDays: number; timezone: string; nextRunAt: string; missedRuns: number; lastStatus: string | null; enabled: boolean };
 type Backup = { id: string; status: string; note: string | null; startedAt: string; verified: boolean };
 type Alert = { id: string; kind: string; message: string; createdAt: string };
 type RestoreRun = { id: string; status: string; targetDatabase: string; cutoverStatus: string; evidence: any[] | null; startedAt: string };
+type Finding = { id: string; check: string; severity: "critical" | "high" | "medium"; count: number; sample: string[]; repairable: boolean };
+type RepairPreview = { checkId: string; wouldAffect: number; sample: { id: string; action: string }[] };
+type QueueStats = { waiting: number; active: number; completed: number; failed: number; delayed: number; oldestWaitingAgeMs: number; failureRatePercent: number; deadLetter: { waiting: number; failed: number }; scheduled: { name: string; pattern: string | null; every: string | null; next: number | null }[] };
+type JobRow = { id: string; name: string; timestamp: number; attemptsMade: number; failedReason: string | null; finishedOn: number | null; payload: Record<string, unknown> };
+type DlqRow = { id: string; name: string; timestamp: number; payload: Record<string, unknown> };
 
 export default function MaintenancePage() {
   const toast = useToast();
-  const [tab, setTab] = useState<"backups" | "restore">("backups");
+  const [tab, setTab] = useState<"backups" | "restore" | "integrity" | "jobs">("backups");
   const [m, setM] = useState<MStatus | null>(null);
   const [reason, setReason] = useState("");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -28,6 +34,18 @@ export default function MaintenancePage() {
   const [rr, setRr] = useState({ backupRunId: "", manifestPath: "/manifests/latest.json", requestedTargetDatabase: "", requestedObjectNamespace: "" });
   const [msg, setMsg] = useState<string | null>(null);
 
+  // ---- X04.2/X04.3 integrity ----
+  const [findings, setFindings] = useState<Finding[] | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [preview, setPreview] = useState<RepairPreview | null>(null);
+  const [repairReason, setRepairReason] = useState("");
+
+  // ---- X04.4 job/queue admin ----
+  const [queueStats, setQueueStats] = useState<QueueStats | null>(null);
+  const [jobStatus, setJobStatus] = useState<"failed" | "waiting" | "active" | "completed" | "delayed">("failed");
+  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [dlq, setDlq] = useState<DlqRow[]>([]);
+
   async function load() {
     setM(await api<MStatus>("/maintenance/status", { org: true }).catch(() => null));
     setSchedules(await api<Schedule[]>("/maintenance/backup-schedules", { org: true }).catch(() => []));
@@ -36,6 +54,42 @@ export default function MaintenancePage() {
     setRestores(await api<RestoreRun[]>("/maintenance/restore", { org: true }).catch(() => []));
   }
   useEffect(() => { load().catch((e) => setMsg(e.message)); }, []);
+
+  // ---- X04.2/X04.3 integrity handlers ----
+  async function runScan() {
+    setScanning(true); setFindings(null); setPreview(null);
+    try { setFindings(await api<Finding[]>("/maintenance/integrity/scan", { org: true })); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Scan failed", tone: "error" }); }
+    finally { setScanning(false); }
+  }
+  async function previewRepair(checkId: string) {
+    try { setPreview(await api<RepairPreview>(`/maintenance/integrity/${checkId}/preview`, { method: "POST", org: true })); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Preview failed", tone: "error" }); }
+  }
+  async function applyRepair(checkId: string) {
+    if (repairReason.trim().length < 5) { toast({ message: "A reason of at least 5 characters is required", tone: "error" }); return; }
+    try {
+      const r = await api<{ checkId: string; repaired: number }>(`/maintenance/integrity/${checkId}/repair`, { method: "POST", org: true, body: JSON.stringify({ reason: repairReason.trim() }) });
+      toast({ message: `Repaired ${r.repaired} row(s)` }); setPreview(null); setRepairReason(""); runScan();
+    } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Repair failed", tone: "error" }); }
+  }
+
+  // ---- X04.4 job/queue admin handlers ----
+  async function loadJobs() {
+    setQueueStats(await api<QueueStats>("/superadmin/jobs/stats").catch(() => null));
+    setJobs(await api<JobRow[]>(`/superadmin/jobs?status=${jobStatus}`).catch(() => []));
+    setDlq(await api<DlqRow[]>("/superadmin/jobs/dead-letter").catch(() => []));
+  }
+  useEffect(() => { if (tab === "jobs") loadJobs(); }, [tab, jobStatus]);
+  async function retryJob(id: string) { try { await api(`/superadmin/jobs/${id}/retry`, { method: "POST" }); toast({ message: "Job queued for retry" }); loadJobs(); } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Failed", tone: "error" }); } }
+  async function cancelJob(id: string) { try { await api(`/superadmin/jobs/${id}`, { method: "DELETE" }); toast({ message: "Job removed" }); loadJobs(); } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Failed", tone: "error" }); } }
+  async function redriveDlq(id: string) { try { await api(`/superadmin/jobs/dead-letter/${id}/redrive`, { method: "POST" }); toast({ message: "Re-driven to the live queue" }); loadJobs(); } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Failed", tone: "error" }); } }
+  async function discardDlq(id: string) {
+    const why = await appPrompt("Reason for discarding this dead-letter job (audited)", "");
+    if (!why || why.trim().length < 5) { if (why !== null) toast({ message: "A reason of at least 5 characters is required", tone: "error" }); return; }
+    try { await api(`/superadmin/jobs/dead-letter/${id}`, { method: "DELETE", body: JSON.stringify({ reason: why.trim() }) }); toast({ message: "Discarded" }); loadJobs(); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Failed", tone: "error" }); }
+  }
 
   async function toggleMaintenance() {
     try {
@@ -70,7 +124,7 @@ export default function MaintenancePage() {
       </div>
 
       <div className="ui-static-67715833">
-        {(["backups", "restore"] as const).map((t) => (
+        {(["backups", "restore", "integrity", "jobs"] as const).map((t) => (
           <UiButton variant="tertiary" key={t} onClick={() => setTab(t)} className="ui-subtab-button" data-active={tab === t || undefined}>{t}</UiButton>
         ))}
       </div>
@@ -162,6 +216,78 @@ export default function MaintenancePage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {tab === "integrity" && (
+        <div className="integrity-tab">
+          <div className="integrity-head">
+            <p className="muted">Read-only checks for orphan rows, hierarchy cycles and dangling permission config. Every repair requires a dry-run preview first.</p>
+            <UiButton variant="primary" disabled={scanning} onClick={runScan}>{scanning ? "Scanning…" : "Run scan"}</UiButton>
+          </div>
+          {findings && <table className="table">
+            <thead><tr><th>Check</th><th>Severity</th><th>Count</th><th></th></tr></thead>
+            <tbody>
+              {findings.map((f) => <tr key={f.id}>
+                <td>{f.check}</td>
+                <td><span className={`pill ${f.severity === "critical" ? "danger" : f.severity === "high" ? "warn" : "open"}`}>{f.severity}</span></td>
+                <td>{f.count}</td>
+                <td>{f.count > 0 && f.repairable && <UiButton variant="secondary" size="compact" onClick={() => previewRepair(f.id)}>Preview repair</UiButton>}</td>
+              </tr>)}
+            </tbody>
+          </table>}
+          {preview && <div className="integrity-preview">
+            <strong>Repair preview — {preview.checkId}</strong>
+            <p className="muted">{preview.wouldAffect} row(s) would be affected.</p>
+            <ul>{preview.sample.map((s) => <li key={s.id}><span className="mono">{s.id}</span> — {s.action}</li>)}</ul>
+            <Field label="Reason (required, audited)"><Input value={repairReason} onChange={(e) => setRepairReason(e.target.value)} placeholder="Cleaning up after project delete" /></Field>
+            <div className="button-row">
+              <UiButton variant="secondary" onClick={() => setPreview(null)}>Cancel</UiButton>
+              <UiButton variant="destructive" disabled={repairReason.trim().length < 5} onClick={() => applyRepair(preview.checkId)}>Apply repair</UiButton>
+            </div>
+          </div>}
+        </div>
+      )}
+
+      {tab === "jobs" && (
+        <div className="jobs-tab">
+          {queueStats && <div className="jobs-stats-grid">
+            <div><strong>{queueStats.waiting}</strong><span>Waiting</span></div>
+            <div><strong>{queueStats.active}</strong><span>Active</span></div>
+            <div><strong>{queueStats.failed}</strong><span>Failed</span></div>
+            <div><strong>{queueStats.delayed}</strong><span>Delayed</span></div>
+            <div><strong>{queueStats.failureRatePercent}%</strong><span>Failure rate</span></div>
+            <div><strong>{queueStats.deadLetter.waiting + queueStats.deadLetter.failed}</strong><span>Dead-letter</span></div>
+          </div>}
+          {queueStats && queueStats.scheduled.length > 0 && <div className="jobs-scheduled">
+            <strong>Scheduled jobs</strong>
+            {queueStats.scheduled.map((s) => <div key={s.name}>{s.name}{s.every ? ` — every ${Math.round(Number(s.every) / 60000)} min` : s.pattern ? ` — ${s.pattern}` : ""}{s.next && <span className="muted"> · next {new Date(s.next).toLocaleString()}</span>}</div>)}
+          </div>}
+          <div className="jobs-status-tabs" role="tablist">
+            {(["failed", "waiting", "active", "completed", "delayed"] as const).map((s) => <button key={s} role="tab" aria-selected={jobStatus === s} data-on={jobStatus === s} onClick={() => setJobStatus(s)}>{s}</button>)}
+          </div>
+          <table className="table">
+            <thead><tr><th>Job</th><th>Queued</th><th>Attempts</th><th>Reason</th><th></th></tr></thead>
+            <tbody>
+              {jobs.length === 0 && <tr><td colSpan={5} className="muted">No {jobStatus} jobs.</td></tr>}
+              {jobs.map((j) => <tr key={j.id}>
+                <td>{j.name}</td><td className="muted">{new Date(j.timestamp).toLocaleString()}</td><td>{j.attemptsMade}</td>
+                <td className="muted">{j.failedReason ?? "—"}</td>
+                <td className="ui-static-54c2afb7"><UiButton variant="secondary" size="compact" onClick={() => retryJob(j.id)}>Retry</UiButton><UiButton variant="destructive" size="compact" onClick={() => cancelJob(j.id)}>Cancel</UiButton></td>
+              </tr>)}
+            </tbody>
+          </table>
+          <strong className="jobs-dlq-title">Dead-letter queue</strong>
+          <table className="table">
+            <thead><tr><th>Job</th><th>Queued</th><th></th></tr></thead>
+            <tbody>
+              {dlq.length === 0 && <tr><td colSpan={3} className="muted">Dead-letter queue is empty.</td></tr>}
+              {dlq.map((j) => <tr key={j.id}>
+                <td>{j.name}</td><td className="muted">{new Date(j.timestamp).toLocaleString()}</td>
+                <td className="ui-static-54c2afb7"><UiButton variant="secondary" size="compact" onClick={() => redriveDlq(j.id)}>Re-drive</UiButton><UiButton variant="destructive" size="compact" onClick={() => discardDlq(j.id)}>Discard</UiButton></td>
+              </tr>)}
+            </tbody>
+          </table>
         </div>
       )}
     </>

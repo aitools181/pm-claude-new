@@ -26,6 +26,8 @@ type Item = {
   parentId: string | null;
   owningProjectId: string;
   primaryOwnerUserId: string | null;
+  coAssignees?: { userId: string; displayName: string }[];
+  securityLevelId?: string | null;
   startDate: string | null;
   dueDate: string | null;
   typeKey: string;
@@ -37,14 +39,14 @@ type Item = {
 };
 
 type Subtask = Pick<Item, "id" | "key" | "title" | "status" | "statusCategory" | "priority" | "progress" | "parentId">;
-type Comment = { id: string; body: string; authorUserId: string; createdAt: string };
+type Comment = { id: string; body: string; authorUserId: string; createdAt: string; visibility?: string };
 type Activity = { id: string; action: string; data: string | null; createdAt: string };
 type Dependency = { id: string; predecessorId: string; successorId: string };
 type SearchItem = { id: string; key: string; title: string };
 type ChecklistItem = { id: string; text: string; done: boolean; rank: string; checklistTitle: string };
 type Tag = { id: string; name: string };
 type Attachment = { id: string; filename: string; currentVersionId: string | null };
-type CustomField = { id: string; key: string; name: string; type: string; value: unknown; required?: boolean; options?: { id: string; value: string; label: string }[] };
+type CustomField = { id: string; key: string; name: string; type: string; value: unknown; required?: boolean; options?: { id: string; value: string; label: string }[]; sensitivity?: string; masked?: boolean; cascadeParentFieldId?: string | null };
 type DirectoryMember = { id: string; displayName: string; email: string };
 type Project = { id: string; name: string; color?: string };
 type WorkContext = { placements: { id: string; projectId: string; projectName: string; color?: string; isOwning: boolean; sectionId: string | null }[]; collaborators: { userId: string; displayName: string; email: string }[]; liked: boolean; likeCount: number };
@@ -93,12 +95,27 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
   const [results, setResults] = useState<SearchItem[]>([]);
   const [dir, setDir] = useState<"blocks" | "blocked_by">("blocked_by");
   const [commentDraft, setCommentDraft] = useState("");
+  const [revealedFields, setRevealedFields] = useState<Record<string, unknown>>({});
+  const [commentVisibility, setCommentVisibility] = useState<"all" | "internal">("all");
   const [subtaskDraft, setSubtaskDraft] = useState("");
   const [titleDraft, setTitleDraft] = useState("");
   const [descriptionDraft, setDescriptionDraft] = useState("");
   const [watching, setWatching] = useState(false);
   const [context, setContext] = useState<WorkContext>({ placements: [], collaborators: [], liked: false, likeCount: 0 });
   const [directory, setDirectory] = useState<DirectoryMember[]>([]);
+  const [coAssigneesEnabled, setCoAssigneesEnabled] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => { api<{ id: string }>("/me/profile", { org: true }).then((r) => setCurrentUserId(r.id)).catch(() => {}); }, []);
+  const [securityLevels, setSecurityLevels] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!item?.owningProjectId) { setSecurityLevels([]); return; }
+    api<{ id: string; name: string }[]>(`/projects/${item.owningProjectId}/security-levels`, { org: true }).then(setSecurityLevels).catch(() => setSecurityLevels([]));
+  }, [item?.owningProjectId]);
+  async function setSecurityLevel(securityLevelId: string | null) {
+    try { await api(`/work-items/${currentId}/security-level`, { method: "POST", org: true, body: JSON.stringify({ securityLevelId }) }); await load(currentId); }
+    catch (e) { setError(errorMessage(e, "Could not update the security level")); }
+  }
+  useEffect(() => { api<{ settings?: { coAssigneesEnabled?: boolean } }>("/workspace/settings", { org: true }).then((r) => setCoAssigneesEnabled(Boolean(r.settings?.coAssigneesEnabled))).catch(() => {}); }, []);
   const [projects, setProjects] = useState<Project[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -168,7 +185,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
     }
   }
 
-  useEffect(() => { load(currentId); }, [currentId]);
+  useEffect(() => { setRevealedFields({}); load(currentId); }, [currentId]);
 
 
   useEffect(() => {
@@ -222,6 +239,23 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
     } finally {
       setSaving(false);
     }
+  }
+
+  async function claimItem() {
+    try { await api(`/work-items/${currentId}/claim`, { method: "POST", org: true }); await load(currentId); toast({ message: "Claimed" }); }
+    catch (e) { setError(errorMessage(e, "Could not claim — someone else may have just claimed it")); }
+  }
+  async function unclaimItem() {
+    try { await api(`/work-items/${currentId}/unclaim`, { method: "POST", org: true }); await load(currentId); toast({ message: "Released back to the queue" }); }
+    catch (e) { setError(errorMessage(e, "Could not unclaim")); }
+  }
+  async function addCoAssignee(userId: string) {
+    try { await api(`/work-items/${currentId}/assignees`, { method: "POST", org: true, body: JSON.stringify({ userId }) }); await load(currentId); }
+    catch (e) { setError(errorMessage(e, "Could not add co-assignee — check that co-assignees are enabled for this organization")); }
+  }
+  async function removeCoAssignee(userId: string) {
+    try { await api(`/work-items/${currentId}/assignees/${userId}`, { method: "DELETE", org: true }); await load(currentId); }
+    catch (e) { setError(errorMessage(e, "Could not remove co-assignee")); }
   }
 
   async function saveTitle() {
@@ -321,11 +355,18 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
     catch (e) { setError(errorMessage(e, "Could not update custom field")); }
   }
 
+  async function revealField(field: CustomField) {
+    try {
+      const r = await api<{ value: unknown }>(`/work-items/${currentId}/custom-fields/${field.id}/reveal`, { method: "POST", org: true });
+      setRevealedFields((prev) => ({ ...prev, [field.id]: r.value }));
+    } catch (e) { setError(errorMessage(e, "Could not reveal this field")); }
+  }
+
   async function addComment() {
     if (!commentDraft.trim()) return;
     try {
-      await api(`/work-items/${currentId}/comments`, { method: "POST", org: true, body: JSON.stringify({ body: commentDraft.trim() }) });
-      setCommentDraft("");
+      await api(`/work-items/${currentId}/comments`, { method: "POST", org: true, body: JSON.stringify({ body: commentDraft.trim(), visibility: commentVisibility }) });
+      setCommentDraft(""); setCommentVisibility("all");
       await load(currentId);
     } catch (e) { setError(errorMessage(e, "Could not post the comment")); }
   }
@@ -354,11 +395,17 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
   }
 
   async function remove() {
-    if (!await appConfirm(`Move ${item?.key ?? "this task"} to the recycle bin?`)) return;
+    let impactLine = "";
     try {
-      await api(`/work-items/${currentId}`, { method: "DELETE", org: true });
+      const impact = await api<{ descendants: number; comments: number; files: number; dependencies: number }>(`/work-items/${currentId}/delete-impact`, { org: true });
+      const parts = [impact.descendants && `${impact.descendants} subtask${impact.descendants > 1 ? "s" : ""}`, impact.comments && `${impact.comments} comment${impact.comments > 1 ? "s" : ""}`, impact.files && `${impact.files} file${impact.files > 1 ? "s" : ""}`, impact.dependencies && `${impact.dependencies} dependency link${impact.dependencies > 1 ? "s" : ""}`].filter(Boolean);
+      if (parts.length) impactLine = ` This will also move ${parts.join(", ")} to the trash.`;
+    } catch { /* impact preview is best-effort */ }
+    if (!await appConfirm(`Move ${item?.key ?? "this task"} to the recycle bin?${impactLine}`)) return;
+    try {
+      await api(`/work-items/${currentId}/soft-delete`, { method: "POST", org: true, body: JSON.stringify({ source: "ui" }) });
       onSaved();
-      toast({ message: "Task moved to the recycle bin" });
+      toast({ message: "Task moved to the trash", action: { label: "Undo", run: async () => { try { await api("/undo", { method: "POST", org: true }); toast({ message: "Restored" }); onSaved(); } catch { toast({ message: "Could not undo — it may have expired", tone: "error" }); } } } });
       if (history.length) goBack(); else onClose();
     } catch (e) { setError(errorMessage(e, "Could not delete the task")); }
   }
@@ -489,7 +536,13 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
             {blocked && <div className="blocked-banner"><Icon name="lock" size={15} /><span>Blocked by an incomplete dependency</span></div>}
 
             <section className="task-meta-card asana-task-fields" aria-label="Task details">
-              <label className="task-meta-row"><span><Icon name="user" size={16}/>Assignee</span><UiSelect value={item.primaryOwnerUserId ?? ""} onChange={(e)=>patch({primaryOwnerUserId:e.target.value||null})}><option value="">Unassigned</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</UiSelect></label>
+              <label className="task-meta-row"><span><Icon name="user" size={16}/>Assignee</span><UiSelect value={item.primaryOwnerUserId ?? ""} onChange={(e)=>patch({primaryOwnerUserId:e.target.value||null})}><option value="">Unassigned</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</UiSelect>{!item.primaryOwnerUserId && <UiButton variant="tertiary" size="compact" onClick={claimItem}>Claim</UiButton>}{item.primaryOwnerUserId === currentUserId && <UiButton variant="tertiary" size="compact" onClick={unclaimItem}>Unclaim</UiButton>}</label>
+              {coAssigneesEnabled && <div className="task-meta-row co-assignee-block"><span><Icon name="people" size={16}/>Co-assignees</span><div className="co-assignee-list">
+                {(item.coAssignees ?? []).map((co) => <div key={co.userId} className="co-assignee-row"><span className="mini-avatar">{co.displayName.slice(0,1)}</span>{co.displayName}<button type="button" aria-label={`Remove ${co.displayName} as co-assignee`} onClick={() => removeCoAssignee(co.userId)}><Icon name="close" size={13}/></button></div>)}
+                {!(item.coAssignees ?? []).length && <span className="muted">No co-assignees yet.</span>}
+                <div className="co-assignee-add-row"><UiSelect value="" onChange={(e) => { if (e.target.value) addCoAssignee(e.target.value); }}><option value="">Add a co-assignee…</option>{directory.filter((m) => m.id !== item.primaryOwnerUserId && !(item.coAssignees ?? []).some((c) => c.userId === m.id)).map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</UiSelect></div>
+              </div></div>}
+              {securityLevels.length > 0 && <label className="task-meta-row"><span><Icon name="lock" size={16}/>Security level</span><UiSelect value={item.securityLevelId ?? ""} onChange={(e) => setSecurityLevel(e.target.value || null)}><option value="">No restriction</option>{securityLevels.map((lvl) => <option key={lvl.id} value={lvl.id}>{lvl.name}</option>)}</UiSelect></label>}
               <label className="task-meta-row"><span><Icon name="calendar" size={16}/>Due date</span><UiInput type="date" value={item.dueDate ?? ""} onChange={(e)=>patch({dueDate:e.target.value||null})}/></label>
               <label className="task-meta-row"><span><Icon name="calendar" size={16}/>Start date</span><UiInput type="date" value={item.startDate ?? ""} onChange={(e)=>patch({startDate:e.target.value||null})}/></label>
               <div className="task-meta-row project-field-row"><span><Icon name="projects" size={16}/>Projects</span><div className="task-project-stack">{context.placements.map((placement)=><span className="task-project-pill" key={placement.id}><RuntimeStyle as="i" className="runtime-bg" vars={{ "--runtime-bg": placement.color || "var(--ui-action)" }} />{placement.projectName}{!placement.isOwning&&<button onClick={()=>unlinkPlacement(placement.id)} aria-label={`Remove from ${placement.projectName}`}>×</button>}</span>)}<div className="task-project-picker"><UiInput className="project-picker-input" value={projectQuery} onChange={(e)=>setProjectQuery(e.target.value)} placeholder="Add to project"/>{projectQuery&&<div className="task-picker-results">{projects.filter((p)=>!context.placements.some((x)=>x.projectId===p.id)&&p.name.toLowerCase().includes(projectQuery.toLowerCase())).slice(0,7).map((p)=><button key={p.id} onClick={()=>addToProject(p.id)}><RuntimeStyle as="span" className="project-glyph runtime-bg" vars={{ "--runtime-bg": p.color }}>{p.name.slice(0,1)}</RuntimeStyle>{p.name}</button>)}</div>}</div></div></div>
@@ -557,7 +610,7 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
 
             {customFields.length > 0 && <section className="drawer-section compact-detail-section">
               <div className="drawer-section-head"><h3><Icon name="sliders" size={17} />Custom fields</h3><span>{customFields.length}</span></div>
-              <div className="custom-field-grid asana-custom-field-grid">{customFields.map((field) => <label key={field.key}><span>{field.name}{field.required ? <em>Required</em> : null}</span>{field.type === "formula" ? <span className="formula-value" title="Computed automatically">{field.value == null ? "—" : String(field.value)} <em>ƒ</em></span> : field.type === "checkbox" ? <input type="checkbox" checked={Boolean(field.value)} onChange={(e)=>updateCustomField(field,e.target.checked)}/> : field.type === "number" ? <UiInput type="number" defaultValue={field.value == null ? "" : String(field.value)} onBlur={(e)=>updateCustomField(field,e.target.value === "" ? null : Number(e.target.value))}/> : field.type === "date" ? <UiInput type="date" defaultValue={String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/> : field.type === "select" ? <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">None</option>{(field.options ?? []).map((option)=><option key={option.id} value={option.id}>{option.label}</option>)}</UiSelect> : field.type === "user" ? <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">No one</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</UiSelect> : <UiInput type={field.type === "url" ? "url" : "text"} defaultValue={Array.isArray(field.value) ? field.value.join(", ") : String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/>}</label>)}</div>
+              <div className="custom-field-grid asana-custom-field-grid">{customFields.map((field) => <label key={field.key}><span>{field.name}{field.required ? <em>Required</em> : null}</span>{field.masked && !(field.id in revealedFields) ? <span className="masked-field-value"><Icon name="lock" size={13}/>••••••••<button type="button" className="text-button" onClick={() => revealField(field)}>Reveal</button></span> : field.masked && field.id in revealedFields ? <span className="revealed-field-value"><Icon name="lock" size={13}/>{String(revealedFields[field.id] ?? "—")}</span> : field.type === "formula" ? <span className="formula-value" title="Computed automatically">{field.value == null ? "—" : String(field.value)} <em>ƒ</em></span> : field.type === "checkbox" ? <input type="checkbox" checked={Boolean(field.value)} onChange={(e)=>updateCustomField(field,e.target.checked)}/> : field.type === "number" ? <UiInput type="number" defaultValue={field.value == null ? "" : String(field.value)} onBlur={(e)=>updateCustomField(field,e.target.value === "" ? null : Number(e.target.value))}/> : field.type === "date" ? <UiInput type="date" defaultValue={String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/> : field.type === "select" ? (field.cascadeParentFieldId && !(field.options ?? []).length ? <span className="muted cascade-hint">Choose {customFields.find((cf) => cf.id === field.cascadeParentFieldId)?.name ?? "the parent field"} first</span> : <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">None</option>{(field.options ?? []).map((option)=><option key={option.id} value={option.id}>{option.label}</option>)}</UiSelect>) : field.type === "user" ? <UiSelect value={String(field.value ?? "")} onChange={(e)=>updateCustomField(field,e.target.value || null)}><option value="">No one</option>{directory.map((member)=><option key={member.id} value={member.id}>{member.displayName}</option>)}</UiSelect> : <UiInput type={field.type === "url" ? "url" : "text"} defaultValue={Array.isArray(field.value) ? field.value.join(", ") : String(field.value ?? "")} onBlur={(e)=>updateCustomField(field,e.target.value || null)}/>}</label>)}</div>
             </section>}
 
             <nav className="drawer-tabs" aria-label="Task collaboration tabs">
@@ -575,14 +628,14 @@ export function TaskDrawer({ id, onClose, onSaved }: { id: string; onClose: () =
                   {comments.map((comment) => (
                     <article key={comment.id} className="comment modern-comment">
                       <span className="comment-avatar">{comment.authorUserId.slice(0, 1).toUpperCase()}</span>
-                      <div><div className="meta"><strong>{comment.authorUserId.slice(0, 8)}</strong><span>{new Date(comment.createdAt).toLocaleString()}</span></div><div className="body">{comment.body}</div></div>
+                      <div><div className="meta"><strong>{comment.authorUserId.slice(0, 8)}</strong><span>{new Date(comment.createdAt).toLocaleString()}</span>{comment.visibility === "internal" && <span className="comment-visibility-badge"><Icon name="lock" size={11} />Internal only</span>}</div><div className="body">{comment.body}</div></div>
                     </article>
                   ))}
                   <div className="comment-box modern-comment-box">
                     <UiTextarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Write a comment…" onKeyDown={(e) => {
                       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") addComment();
                     }} />
-                    <div><span><kbd>⌘</kbd> + <kbd>Enter</kbd> to send</span><UiButton variant="primary" size="compact"  onClick={addComment} disabled={!commentDraft.trim()}>Comment</UiButton></div>
+                    <div><button type="button" className={`comment-visibility-toggle ${commentVisibility === "internal" ? "on" : ""}`} onClick={() => setCommentVisibility(commentVisibility === "all" ? "internal" : "all")} title="Internal comments are hidden from guests"><Icon name="lock" size={13} />{commentVisibility === "internal" ? "Internal only" : "Everyone"}</button><span><kbd>⌘</kbd> + <kbd>Enter</kbd> to send</span><UiButton variant="primary" size="compact"  onClick={addComment} disabled={!commentDraft.trim()}>Comment</UiButton></div>
                   </div>
                 </>
               )}

@@ -13,6 +13,7 @@ import { CAPABILITIES } from "../authz/capabilities.js";
 import { MaintenanceModeService } from "./maintenance-mode.service.js";
 import { BackupScheduleService } from "./backup-schedule.service.js";
 import { RestoreOrchestrator } from "./restore.orchestrator.js";
+import { IntegrityService } from "./integrity.service.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
 const enterDto = z.object({ reason: z.string().min(1) });
@@ -27,6 +28,7 @@ export class MaintenanceController {
     private readonly maintenance: MaintenanceModeService,
     private readonly schedules: BackupScheduleService,
     private readonly restore: RestoreOrchestrator,
+    private readonly integrity: IntegrityService,
   ) {}
 
   @Get("status") @RequirePermission(CAPABILITIES.BACKUP_MANAGE)
@@ -69,5 +71,17 @@ export class MaintenanceController {
   async restoreStatus(@Param("id") id: string) {
     const [rr] = await this.db.select().from(schema.restoreRuns).where(eq(schema.restoreRuns.id, id)).limit(1);
     return rr ?? null;
+  }
+
+  // ---- X04.2/X04.3 data integrity + repair ----
+  @Get("integrity/scan") @RequirePermission(CAPABILITIES.BACKUP_MANAGE)
+  integrityScan(@Req() r: Ctx) { return this.integrity.scan(r.organizationId); }
+
+  @Post("integrity/:checkId/preview") @RequirePermission(CAPABILITIES.BACKUP_MANAGE)
+  integrityPreview(@Req() r: Ctx, @Param("checkId") checkId: string) { return this.integrity.previewRepair(r.organizationId, checkId); }
+
+  @Post("integrity/:checkId/repair") @RequirePermission(CAPABILITIES.BACKUP_MANAGE)
+  integrityRepair(@Req() r: Ctx, @Param("checkId") checkId: string, @Body(new ZodPipe(z.object({ reason: z.string().trim().min(5).max(500) }))) b: { reason: string }) {
+    return this.integrity.applyRepair(r.organizationId, r.userId, checkId, b.reason);
   }
 }

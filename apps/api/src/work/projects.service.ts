@@ -63,7 +63,7 @@ export class ProjectsService {
   }
 
   /** Optimistic update on status/health/dates. */
-  async update(organizationId: string, id: string, userId: string, patch: Partial<{ status: string; health: string; startDate: string | null; dueDate: string | null; name: string; description: string | null; color: string; privacy: string; icon: string }>, expectedVersion: number) {
+  async update(organizationId: string, id: string, userId: string, patch: Partial<{ status: string; health: string; startDate: string | null; dueDate: string | null; name: string; description: string | null; color: string; privacy: string; icon: string; wipLimits: Record<string, { limit: number; warnOnly: boolean }> | null }>, expectedVersion: number) {
     const [row] = await this.db.update(schema.projects)
       .set({ ...patch, updatedBy: userId, updatedAt: new Date(), version: sql`${schema.projects.version} + 1` })
       .where(and(eq(schema.projects.id, id), eq(schema.projects.organizationId, organizationId), eq(schema.projects.version, expectedVersion)))

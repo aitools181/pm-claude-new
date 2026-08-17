@@ -2,8 +2,9 @@ import { Module } from "@nestjs/common";
 import { AiModule } from "../ai/ai.module.js";
 import { WorkModule } from "../work/work.module.js";
 import { ModulesService } from "../modules/modules.service.js";
+import { ModuleEnabledGuard } from "../modules/module-enabled.guard.js";
 import { AiAgentsController } from "./ai-agents.controller.js";
 import { AiAgentsService } from "./ai-agents.service.js";
 
-@Module({ imports: [AiModule, WorkModule], controllers: [AiAgentsController], providers: [AiAgentsService, ModulesService], exports: [AiAgentsService] })
+@Module({ imports: [AiModule, WorkModule], controllers: [AiAgentsController], providers: [AiAgentsService, ModulesService, ModuleEnabledGuard], exports: [AiAgentsService] })
 export class AiAgentsModule {}

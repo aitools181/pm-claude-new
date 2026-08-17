@@ -29,6 +29,10 @@ export const timeEntries = pgTable("time_entries", {
   description: text("description"),
   source: text("source").default("manual").notNull(),   // manual | timer
   billable: boolean("billable").default(true).notNull(),
+  // TIME.D2 — partial-line approval: an approver can approve/reject individual
+  // lines within a submitted timesheet rather than only the whole week.
+  approvalStatus: text("approval_status").default("pending").notNull(), // pending|approved|rejected
+  rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({

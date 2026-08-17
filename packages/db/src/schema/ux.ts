@@ -41,7 +41,7 @@ export const userHomeWidgets = pgTable("user_home_widgets", {
 export const savedUiViews = pgTable("saved_ui_views", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
-  userId: uuid("user_id").notNull().references(() => users.id),
+  userId: uuid("user_id").notNull().references(() => users.id), // creator, always retained
   scopeType: text("scope_type").notNull(), // inbox|my_tasks|project
   scopeId: uuid("scope_id"),
   name: text("name").notNull(),
@@ -51,6 +51,11 @@ export const savedUiViews = pgTable("saved_ui_views", {
   sortSpec: jsonb("sort_spec").default({}).notNull(),
   groupBy: text("group_by"),
   isDefault: boolean("is_default").default(false).notNull(),
+  // VIEW.D1 — ownership tier: personal (creator only), team (creator's team),
+  // org (everyone in the organization). Editing a shared view stays restricted
+  // to the creator at the service layer; this column only controls visibility.
+  ownershipTier: text("ownership_tier").default("personal").notNull(), // personal|team|org
+  teamId: uuid("team_id"), // set when ownershipTier = "team"
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({ byScope: index("saved_ui_views_scope_idx").on(t.organizationId, t.userId, t.scopeType, t.scopeId) }));

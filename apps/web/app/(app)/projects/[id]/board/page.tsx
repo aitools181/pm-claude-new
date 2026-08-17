@@ -15,7 +15,7 @@ import { ProjectChrome } from "../../../../../components/project/ProjectChrome";
 
 type Item = { id: string; key: string; title: string; priority: string; version: number; linked?: boolean; primaryOwnerUserId?: string | null; dueDate?: string | null; parentId?: string | null };
 type Board = { todo: Item[]; in_progress: Item[]; done: Item[] };
-type Project = { id:string; name:string; keyPrefix:string; color?:string; health:string; status:string; privacy:string; version:number; description?:string|null; startDate?:string|null; dueDate?:string|null };
+type Project = { id:string; name:string; keyPrefix:string; color?:string; health:string; status:string; privacy:string; version:number; description?:string|null; startDate?:string|null; dueDate?:string|null; wipLimits?: Record<string,{limit:number;warnOnly:boolean}>|null };
 const COLUMNS: { cat: keyof Board; status: string; label: string; tone: string }[] = [
   { cat: "todo", status: "To Do", label: "To do", tone: "neutral" },
   { cat: "in_progress", status: "In Progress", label: "In progress", tone: "primary" },
@@ -42,6 +42,8 @@ export default function BoardPage() {
   const [draft, setDraft] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wipEditFor, setWipEditFor] = useState<string | null>(null);
+  const [wipDraft, setWipDraft] = useState<{ limit: string; warnOnly: boolean }>({ limit: "", warnOnly: true });
   const [allItems, setAllItems] = useState<{ id: string; title: string; parentId: string | null; statusCategory: string }[]>([]);
   const [directory, setDirectory] = useState<{ id: string; displayName: string }[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -78,12 +80,24 @@ export default function BoardPage() {
     const expectedVersion = drag.version;
     setDrag(null); setOver(null); setError(null);
     try {
-      const response = await api<{ previous: { status: string; rank: string | null }; version: number }>(`/projects/${id}/board/move`, {
+      const response = await api<{ previous: { status: string; rank: string | null }; version: number; wipWarning: { statusCategory: string; limit: number; count: number } | null }>(`/projects/${id}/board/move`, {
         method: "POST", org: true, body: JSON.stringify({ workItemId, toStatus: status, beforeId, expectedVersion }),
       });
       await load();
+      if (response.wipWarning) toast({ message: `That column is over its WIP limit (${response.wipWarning.count + 1}/${response.wipWarning.limit})`, tone: "error" });
       toast({ message: "Task moved", action: { label: "Undo", run: async () => { await api(`/projects/${id}/board/undo`, { method: "POST", org: true, body: JSON.stringify({ workItemId, previous: response.previous, expectedVersion: response.version }) }); await load(); } } });
     } catch (e) { setError(message(e, "Could not move the task")); await load(); }
+  }
+
+  async function saveWipLimit(statusCategory: string, rule: { limit: number; warnOnly: boolean } | null) {
+    if (!project) return;
+    const nextLimits = { ...(project.wipLimits ?? {}) };
+    if (rule) nextLimits[statusCategory] = rule; else delete nextLimits[statusCategory];
+    try {
+      await api(`/projects/${id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: project.version, patch: { wipLimits: Object.keys(nextLimits).length ? nextLimits : null } }) });
+      setProject({ ...project, wipLimits: Object.keys(nextLimits).length ? nextLimits : null, version: project.version + 1 });
+      setWipEditFor(null); setWipDraft({ limit: "", warnOnly: true });
+    } catch (e) { setError(message(e, "Could not save the WIP limit")); }
   }
 
   function visibleCards(rows: Item[]) {
@@ -98,7 +112,9 @@ export default function BoardPage() {
   async function saveView() {
     const name = await appPrompt("View name", "Board view");
     if (!name) return;
-    await api("/ui/saved-views", { method: "POST", org: true, body: JSON.stringify({ scopeType: "project", scopeId: id, name, viewType: "board", filters: { priorityFilter, search, hideDone }, sortSpec: { sortBy }, groupBy: "status" }) });
+    const share = await appPrompt('Share with the whole organization? Type "org" to share, or leave blank to keep it just for you.', "");
+    const ownershipTier = (share || "").trim().toLowerCase() === "org" ? "org" : "personal";
+    await api("/ui/saved-views", { method: "POST", org: true, body: JSON.stringify({ scopeType: "project", scopeId: id, name, viewType: "board", filters: { priorityFilter, search, hideDone }, sortSpec: { sortBy }, groupBy: "status", ownershipTier }) });
     toast({ message: "Board view saved" });
   }
 
@@ -120,12 +136,24 @@ export default function BoardPage() {
       {error && <div className="callout callout-danger project-error"><span>{error}</span><button className="icon-btn" onClick={() => setError(null)} aria-label="Dismiss error"><Icon name="close" size={15} /></button></div>}
 
       <div className="asana-board">
-        {COLUMNS.filter((column) => !(hideDone && column.cat === "done")).map((column) => (
-          <section key={column.cat} className="asana-board-column" data-over={over === column.cat} data-tone={column.tone}
+        {COLUMNS.filter((column) => !(hideDone && column.cat === "done")).map((column) => {
+          const wipRule = project?.wipLimits?.[column.cat];
+          const columnCount = visibleCards(board[column.cat]).length;
+          const atOrOverLimit = Boolean(wipRule && columnCount >= wipRule.limit);
+          return (
+          <section key={column.cat} className="asana-board-column" data-over={over === column.cat} data-tone={column.tone} data-wip-exceeded={atOrOverLimit || undefined}
             onDragOver={(event) => { event.preventDefault(); setOver(column.cat); }}
             onDragLeave={() => setOver((current) => current === column.cat ? null : current)}
             onDrop={() => drop(column.status)}>
-            <header className="asana-column-head"><div><span className="column-status-dot" /><strong>{column.label}</strong><span className="column-count">{visibleCards(board[column.cat]).length}</span></div><button className="icon-btn" aria-label={`Add task to ${column.label}`} onClick={() => { setAddingTo(column.cat); setDraft(""); }}><Icon name="plus" size={17} /></button></header>
+            <header className="asana-column-head"><div><span className="column-status-dot" /><strong>{column.label}</strong><button type="button" className="column-count column-count-button" onClick={() => { const opening = wipEditFor !== column.cat; setWipEditFor(opening ? column.cat : null); if (opening) setWipDraft({ limit: wipRule ? String(wipRule.limit) : "", warnOnly: wipRule?.warnOnly ?? true }); }} aria-haspopup="dialog" title="Set WIP limit">{columnCount}{wipRule && `/${wipRule.limit}`}</button>{atOrOverLimit && <span className={`wip-badge ${wipRule?.warnOnly ? "warn" : "block"}`} title={wipRule?.warnOnly ? "Over the WIP limit (warning only)" : "At the WIP limit — moving more cards here is blocked"}><Icon name="flag" size={11}/></span>}</div><button className="icon-btn" aria-label={`Add task to ${column.label}`} onClick={() => { setAddingTo(column.cat); setDraft(""); }}><Icon name="plus" size={17} /></button></header>
+            {wipEditFor === column.cat && <div className="wip-limit-popover" role="dialog" aria-label={`WIP limit for ${column.label}`}>
+              <label>Limit<UiInput type="number" min={1} max={999} value={wipDraft.limit} onChange={(e) => setWipDraft({ ...wipDraft, limit: e.target.value })} placeholder="No limit" /></label>
+              <label className="wip-warn-only-row"><input type="checkbox" checked={wipDraft.warnOnly} onChange={(e) => setWipDraft({ ...wipDraft, warnOnly: e.target.checked })} /> Warn only (don&rsquo;t block)</label>
+              <div className="button-row">
+                {wipRule && <UiButton variant="tertiary" size="compact" onClick={() => saveWipLimit(column.cat, null)}>Remove limit</UiButton>}
+                <UiButton variant="primary" size="compact" disabled={!wipDraft.limit} onClick={() => saveWipLimit(column.cat, { limit: Number(wipDraft.limit), warnOnly: wipDraft.warnOnly })}>Save</UiButton>
+              </div>
+            </div>}
 
             {addingTo === column.cat && <form className="board-quick-card" onSubmit={(event) => { event.preventDefault(); createInColumn(column); }}>
               <UiTextarea autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a task name…" onKeyDown={(event) => {
@@ -165,7 +193,8 @@ export default function BoardPage() {
             </div>
             <button className="board-add-bottom" onClick={() => { setAddingTo(column.cat); setDraft(""); }}><Icon name="plus" size={15} />Add task</button>
           </section>
-        ))}
+          );
+        })}
       </div>
 
       {openId && <TaskDrawer id={openId} onClose={() => setOpenId(null)} onSaved={load} />}

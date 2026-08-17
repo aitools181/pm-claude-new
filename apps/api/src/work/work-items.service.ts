@@ -209,17 +209,30 @@ export class WorkItemsService {
     });
   }
 
+  /** Resolves a human-readable key (e.g. "ENG-42") to its id — used by workflow simulation's test-item lookup. */
+  async getByKey(organizationId: string, key: string) {
+    const [item] = await this.db.select({ id: schema.workItems.id }).from(schema.workItems)
+      .where(and(eq(schema.workItems.organizationId, organizationId), eq(schema.workItems.key, key.trim().toUpperCase()), isNull(schema.workItems.deletedAt))).limit(1);
+    if (!item) throw new AppError("NOT_FOUND", `No work item with key "${key}"`);
+    return item;
+  }
+
   async get(organizationId: string, id: string) {
     const [item] = await this.db.select().from(schema.workItems)
       .where(and(eq(schema.workItems.id, id), eq(schema.workItems.organizationId, organizationId), isNull(schema.workItems.deletedAt))).limit(1);
     if (!item) throw new AppError("NOT_FOUND", "Work item not found");
-    const [[type], [children]] = await Promise.all([
+    const [[type], [children], coAssignees] = await Promise.all([
       this.db.select({ key: schema.workItemTypes.key, name: schema.workItemTypes.name }).from(schema.workItemTypes)
         .where(and(eq(schema.workItemTypes.organizationId, organizationId), eq(schema.workItemTypes.id, item.typeId))).limit(1),
       this.db.select({ count: count() }).from(schema.workItems)
         .where(and(eq(schema.workItems.organizationId, organizationId), eq(schema.workItems.parentId, id), isNull(schema.workItems.deletedAt))),
+      // ASN.D1/D2 — co-assignees are secondary to the Primary Owner; My Work
+      // surfaces them separately and workload counts only explicit effort split.
+      this.db.select({ userId: schema.workItemAssignees.userId, displayName: schema.users.displayName })
+        .from(schema.workItemAssignees).innerJoin(schema.users, eq(schema.users.id, schema.workItemAssignees.userId))
+        .where(and(eq(schema.workItemAssignees.organizationId, organizationId), eq(schema.workItemAssignees.workItemId, id))),
     ]);
-    return { ...item, typeKey: type?.key ?? "task", typeName: type?.name ?? "Task", subtaskCount: Number(children?.count ?? 0) };
+    return { ...item, typeKey: type?.key ?? "task", typeName: type?.name ?? "Task", subtaskCount: Number(children?.count ?? 0), coAssignees };
   }
 
   listByProject(organizationId: string, projectId: string, opts: { limit?: number; offset?: number } = {}) {
@@ -311,8 +324,43 @@ export class WorkItemsService {
     return row;
   }
 
+  /** ASN.D4 — race-safe first-writer-wins claim of an unassigned (queue) item. */
+  async claim(organizationId: string, workItemId: string, userId: string) {
+    await this.assertAccess(organizationId, workItemId, userId);
+    const [settings] = await this.db.select({ maxOpenClaimsPerUser: schema.organizationSettings.maxOpenClaimsPerUser }).from(schema.organizationSettings)
+      .where(eq(schema.organizationSettings.organizationId, organizationId)).limit(1);
+    if (settings?.maxOpenClaimsPerUser != null) {
+      const [{ n }] = await this.db.select({ n: count() }).from(schema.workItems)
+        .where(and(eq(schema.workItems.organizationId, organizationId), eq(schema.workItems.primaryOwnerUserId, userId), sql`${schema.workItems.statusCategory} <> 'done'`, isNull(schema.workItems.deletedAt)));
+      if (Number(n) >= settings.maxOpenClaimsPerUser) throw new AppError("VALIDATION", `You already have ${settings.maxOpenClaimsPerUser} open claimed item(s), the organization's limit`, { code: "claim_limit_reached" });
+    }
+    // First-writer-wins: the WHERE clause only matches while the item is still unclaimed.
+    const [row] = await this.db.update(schema.workItems)
+      .set({ primaryOwnerUserId: userId, version: sql`${schema.workItems.version} + 1`, updatedBy: userId, updatedAt: new Date() })
+      .where(and(eq(schema.workItems.id, workItemId), eq(schema.workItems.organizationId, organizationId), isNull(schema.workItems.primaryOwnerUserId), isNull(schema.workItems.deletedAt)))
+      .returning({ id: schema.workItems.id, version: schema.workItems.version });
+    if (!row) throw new AppError("CONFLICT", "Someone else already claimed this item", { code: "already_claimed" });
+    await this.db.insert(schema.activityEvents).values({ organizationId, workItemId, actorUserId: userId, action: "work_item.claimed" });
+    return row;
+  }
+
+  /** Release a claimed item back to the queue. Only the current claimant (or someone with edit access) can do this. */
+  async unclaim(organizationId: string, workItemId: string, userId: string) {
+    await this.assertAccess(organizationId, workItemId, userId);
+    const [row] = await this.db.update(schema.workItems)
+      .set({ primaryOwnerUserId: null, version: sql`${schema.workItems.version} + 1`, updatedBy: userId, updatedAt: new Date() })
+      .where(and(eq(schema.workItems.id, workItemId), eq(schema.workItems.organizationId, organizationId), eq(schema.workItems.primaryOwnerUserId, userId), isNull(schema.workItems.deletedAt)))
+      .returning({ id: schema.workItems.id });
+    if (!row) throw new AppError("VALIDATION", "You are not the current claimant of this item");
+    await this.db.insert(schema.activityEvents).values({ organizationId, workItemId, actorUserId: userId, action: "work_item.unclaimed" });
+    return { ok: true };
+  }
+
   async assign(organizationId: string, workItemId: string, userId: string, assigneeUserId: string) {
     await this.assertAccess(organizationId, workItemId, userId);
+    const [settings] = await this.db.select({ coAssigneesEnabled: schema.organizationSettings.coAssigneesEnabled }).from(schema.organizationSettings)
+      .where(eq(schema.organizationSettings.organizationId, organizationId)).limit(1);
+    if (!settings?.coAssigneesEnabled) throw new AppError("FORBIDDEN", "Co-assignees are not enabled for this organization", { code: "co_assignees_disabled" });
     await this.assertEligibleAssignee(this.db, organizationId, assigneeUserId);
     await this.db.insert(schema.workItemAssignees)
       .values({ organizationId, workItemId, userId: assigneeUserId }).onConflictDoNothing();

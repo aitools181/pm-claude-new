@@ -1,5 +1,5 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { and, eq, asc, inArray } from "drizzle-orm";
+import { and, eq, asc, desc, inArray } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
@@ -57,6 +57,44 @@ export class AutomationService {
     if (!rule) throw new AppError("NOT_FOUND", "Rule not found");
     if (!rule.enabled) throw new AppError("VALIDATION", "Rule is disabled");
     return this.runRule(organizationId, rule, crypto.randomUUID(), payload, actorUserId, 0, dryRun);
+  }
+
+  /**
+   * AUTO.D5 — dry-run a rule against recent matching events instead of a
+   * hand-built payload: finds the last N activity events whose action
+   * matches the rule's configured eventName, replays each through the
+   * conditions/actions engine in dry-run mode, and returns a per-event
+   * decision path. No side effects — every action executor short-circuits
+   * on ctx.dryRun before it would mutate anything.
+   */
+  async dryRunAgainstRecentEvents(organizationId: string, ruleId: string, limit = 10) {
+    const [rule] = await this.db.select().from(schema.automationRules).where(and(eq(schema.automationRules.id, ruleId), eq(schema.automationRules.organizationId, organizationId))).limit(1);
+    if (!rule) throw new AppError("NOT_FOUND", "Rule not found");
+    if (rule.triggerType !== "event") throw new AppError("VALIDATION", "Only event-triggered rules can be dry-run against recent events");
+    const eventName = (rule.triggerConfig as { eventName?: string } | null)?.eventName;
+    if (!eventName) throw new AppError("VALIDATION", "This rule has no configured event name");
+
+    const recent = await this.db.select().from(schema.activityEvents)
+      .where(and(eq(schema.activityEvents.organizationId, organizationId), eq(schema.activityEvents.action, eventName)))
+      .orderBy(desc(schema.activityEvents.createdAt)).limit(Math.min(limit, 50));
+
+    const results: { eventId: string; occurredAt: Date; workItemId: string | null; runId: string | null; conditionsMatched: boolean; steps: { kind: string; status: string; output: unknown; error: string | null }[] }[] = [];
+    for (const event of recent) {
+      const payload = { workItemId: event.workItemId, projectId: event.projectId, actorUserId: event.actorUserId, data: event.data };
+      // event.id has never been used as a live dispatch eventId, so this dry-run
+      // dedupe key can never collide with a real prior execution of this rule.
+      const runId = await this.runRule(organizationId, rule, event.id, payload, event.actorUserId, 0, true);
+      let conditionsMatched = true;
+      const steps: { kind: string; status: string; output: unknown; error: string | null }[] = [];
+      if (runId) {
+        const [run] = await this.db.select({ status: schema.automationRuns.status }).from(schema.automationRuns).where(eq(schema.automationRuns.id, runId)).limit(1);
+        conditionsMatched = run?.status !== "skipped";
+        const runSteps = await this.db.select().from(schema.automationRunSteps).where(eq(schema.automationRunSteps.runId, runId)).orderBy(asc(schema.automationRunSteps.rank));
+        for (const s of runSteps) steps.push({ kind: s.kind, status: s.status, output: s.output, error: s.error });
+      }
+      results.push({ eventId: event.id, occurredAt: event.createdAt, workItemId: event.workItemId, runId, conditionsMatched, steps });
+    }
+    return { eventName, sampledEvents: recent.length, results };
   }
 
   private async runRule(organizationId: string, rule: any, eventId: string, payload: any, actorUserId: string | null, depth: number, dryRun: boolean): Promise<string | null> {

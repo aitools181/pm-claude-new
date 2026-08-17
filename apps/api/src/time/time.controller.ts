@@ -42,6 +42,9 @@ export class TimeController {
 
   // ---- Timesheet (owner) ----
   @Get("timesheet") mine(@Req() r: Ctx, @Query("week") week?: string) { return this.sheets.summary(r.organizationId, r.userId, week ?? today()); }
+
+  @Get("timesheets/review") @RequirePermission(CAPABILITIES.TIMESHEET_APPROVE)
+  review(@Req() r: Ctx, @Query("userId") userId: string, @Query("week") week: string) { return this.sheets.summary(r.organizationId, userId, week); }
   @Post("timesheet/submit") @RequirePermission(CAPABILITIES.TIME_LOG)
   submit(@Req() r: Ctx, @Body() b: { week?: string }) { return this.sheets.submit(r.organizationId, r.userId, b.week ?? today()); }
 
@@ -56,6 +59,16 @@ export class TimeController {
   lock(@Req() r: Ctx, @Body(new ZodPipe(decideDto)) b: z.infer<typeof decideDto>) { return this.sheets.lock(r.organizationId, r.userId, b.userId, b.week); }
   @Post("timesheets/reopen") @RequirePermission(CAPABILITIES.TIMESHEET_APPROVE)
   reopen(@Req() r: Ctx, @Body(new ZodPipe(decideDto)) b: z.infer<typeof decideDto>) { return this.sheets.reopen(r.organizationId, r.userId, b.userId, b.week, b.note); }
+
+  @Post("timesheets/decide-lines") @RequirePermission(CAPABILITIES.TIMESHEET_APPROVE)
+  decideLines(@Req() r: Ctx, @Body(new ZodPipe(z.object({
+    userId: z.string().uuid(), week: z.string(),
+    approveIds: z.array(z.string().uuid()).max(200).optional(),
+    rejectIds: z.array(z.string().uuid()).max(200).optional(),
+    rejectionReason: z.string().trim().max(500).optional(),
+  }))) b: { userId: string; week: string; approveIds?: string[]; rejectIds?: string[]; rejectionReason?: string }) {
+    return this.sheets.decideLines(r.organizationId, r.userId, b.userId, b.week, b);
+  }
 
   // ---- Reports ----
   @Get("time-reports") @RequirePermission(CAPABILITIES.TIMESHEET_APPROVE)

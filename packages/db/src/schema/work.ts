@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, text, timestamp, integer, boolean, date, uniqueIndex, index, check,
+  pgTable, uuid, text, timestamp, integer, boolean, date, jsonb, uniqueIndex, index, check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { auditColumns } from "./_common.js";
@@ -48,6 +48,12 @@ export const projects = pgTable("projects", {
   privacy: text("privacy").default("workspace").notNull(), // workspace|private
   startDate: date("start_date"),
   dueDate: date("due_date"),
+  // X02.1.3 — sample projects are explicitly flagged, excluded from real analytics/reports, one-click removable.
+  isSample: boolean("is_sample").default(false).notNull(),
+  // VIEW.D3 — board WIP limits, keyed by status category (todo|in_progress|done)
+  // since the Board view is a fixed 3-column board, not the "sections" table
+  // (sections back List-view grouping instead). null = no limit configured.
+  wipLimits: jsonb("wip_limits"), // { [statusCategory]: { limit: number; warnOnly: boolean } }
   ...auditColumns,
 }, (t) => ({
   orgPrefixUnique: uniqueIndex("projects_org_prefix_unique").on(t.organizationId, t.keyPrefix),
@@ -112,6 +118,12 @@ export const workItems = pgTable("work_items", {
   backlogRank: text("backlog_rank"),
   progress: integer("progress").default(0).notNull(),
   publicToOrganization: boolean("public_to_organization").default(false).notNull(),
+  // X01: delete capture — reason/source/cascade root for trash-scope and cascade-restore semantics.
+  deleteReason: text("delete_reason"),
+  deleteSource: text("delete_source"), // ui|bulk|automation|api|cascade
+  cascadeRootId: uuid("cascade_root_id"), // the item whose delete triggered this one, if cascaded
+  // SEC.D1 — null = no restriction beyond normal project access.
+  securityLevelId: uuid("security_level_id"),
   ...auditColumns,
 }, (t) => ({
   orgKeyUnique: uniqueIndex("work_items_org_key_unique").on(t.organizationId, t.key),
@@ -196,3 +208,14 @@ export const activityEvents = pgTable("activity_events", {
   data: text("data"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({ byItem: index("activity_events_item_idx").on(t.workItemId, t.createdAt) }));
+
+/** ASN.D3 — round-robin auto-assignment cursor, one per project. Stores only
+ *  the last assignee so the next call can pick the following candidate in a
+ *  stable (userId-sorted) rotation; if that assignee isn't in the current
+ *  candidate list, rotation restarts from the beginning. */
+export const autoAssignmentCursors = pgTable("auto_assignment_cursors", {
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  projectId: uuid("project_id").notNull().references(() => projects.id),
+  lastAssignedUserId: uuid("last_assigned_user_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ pk: uniqueIndex("auto_assignment_cursor_pk").on(t.organizationId, t.projectId) }));

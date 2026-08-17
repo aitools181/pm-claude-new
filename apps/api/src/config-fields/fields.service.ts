@@ -1,5 +1,5 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
@@ -49,15 +49,25 @@ export class FieldsService {
 
   async defineField(organizationId: string, userId: string, input: {
     key: string; name: string; fieldType: string; required?: boolean; visibility?: "all" | "restricted";
-    config?: unknown; options?: { value: string; label: string }[]; visibleToRoles?: string[];
+    sensitivity?: "normal" | "sensitive" | "pii" | "financial";
+    cascadeParentFieldId?: string | null;
+    config?: unknown; options?: { value: string; label: string; parentOptionId?: string | null }[]; visibleToRoles?: string[];
   }) {
+    if (input.cascadeParentFieldId) {
+      if (input.fieldType !== "select") throw new AppError("VALIDATION", "Only a select field can cascade from a parent field");
+      const [parent] = await this.db.select({ id: schema.customFieldDefinitions.id, fieldType: schema.customFieldDefinitions.fieldType }).from(schema.customFieldDefinitions)
+        .where(and(eq(schema.customFieldDefinitions.id, input.cascadeParentFieldId), eq(schema.customFieldDefinitions.organizationId, organizationId))).limit(1);
+      if (!parent) throw new AppError("NOT_FOUND", "Cascade parent field not found");
+      if (parent.fieldType !== "select") throw new AppError("VALIDATION", "A cascading field's parent must also be a select field");
+    }
     return this.db.transaction(async (tx) => {
       const [def] = await tx.insert(schema.customFieldDefinitions).values({
         organizationId, key: input.key, name: input.name, fieldType: input.fieldType,
-        required: input.required ?? false, visibility: input.visibility ?? "all", config: input.config, createdBy: userId,
+        required: input.required ?? false, visibility: input.visibility ?? "all", sensitivity: input.sensitivity ?? "normal",
+        cascadeParentFieldId: input.cascadeParentFieldId ?? null, config: input.config, createdBy: userId,
       }).returning();
       if (input.fieldType === "select" && input.options) {
-        await tx.insert(schema.customFieldOptions).values(input.options.map((o, i) => ({ organizationId, fieldId: def.id, value: o.value, label: o.label, rank: `r${i}` })));
+        await tx.insert(schema.customFieldOptions).values(input.options.map((o, i) => ({ organizationId, fieldId: def.id, value: o.value, label: o.label, rank: `r${i}`, parentOptionId: o.parentOptionId ?? null })));
       }
       if (input.visibility === "restricted" && input.visibleToRoles?.length) {
         await tx.insert(schema.customFieldVisibility).values(input.visibleToRoles.map((roleKey) => ({ organizationId, fieldId: def.id, roleKey })));
@@ -71,6 +81,13 @@ export class FieldsService {
       .where(and(eq(schema.customFieldDefinitions.organizationId, organizationId), isNull(schema.customFieldDefinitions.archivedAt)));
   }
 
+  /** A select field's own options — used by the field builder to let an admin pick which parent option a cascading child option belongs under. */
+  optionsForField(organizationId: string, fieldId: string) {
+    return this.db.select().from(schema.customFieldOptions)
+      .where(and(eq(schema.customFieldOptions.organizationId, organizationId), eq(schema.customFieldOptions.fieldId, fieldId)))
+      .orderBy(asc(schema.customFieldOptions.rank));
+  }
+
   private async loadDef(organizationId: string, fieldId: string): Promise<FieldDef & { fieldType: string }> {
     const [d] = await this.db.select().from(schema.customFieldDefinitions)
       .where(and(eq(schema.customFieldDefinitions.id, fieldId), eq(schema.customFieldDefinitions.organizationId, organizationId))).limit(1);
@@ -82,14 +99,42 @@ export class FieldsService {
   async setValue(organizationId: string, userId: string, workItemId: string, fieldId: string, raw: unknown) {
     if (!(await canAccessWorkItem(this.db, organizationId, workItemId, userId))) throw new AppError("FORBIDDEN", "No access to this work item");
     const def = await this.loadDef(organizationId, fieldId);
-    const optionIds = def.fieldType === "select"
+    let optionIds = def.fieldType === "select"
       ? new Set((await this.db.select({ id: schema.customFieldOptions.id }).from(schema.customFieldOptions).where(eq(schema.customFieldOptions.fieldId, fieldId))).map((o) => o.id))
       : new Set<string>();
+
+    // FIELD.D2 — a cascading child field can only be set to an option that's
+    // valid under the parent field's *current* value on this same work item.
+    if (def.fieldType === "select" && def.cascadeParentFieldId) {
+      const [parentValue] = await this.db.select({ valueOptionId: schema.customFieldValues.valueOptionId }).from(schema.customFieldValues)
+        .where(and(eq(schema.customFieldValues.organizationId, organizationId), eq(schema.customFieldValues.workItemId, workItemId), eq(schema.customFieldValues.fieldId, def.cascadeParentFieldId))).limit(1);
+      const allOptions = await this.db.select({ id: schema.customFieldOptions.id, parentOptionId: schema.customFieldOptions.parentOptionId }).from(schema.customFieldOptions).where(eq(schema.customFieldOptions.fieldId, fieldId));
+      const allowedIds = new Set(allOptions.filter((o) => o.parentOptionId === null || o.parentOptionId === (parentValue?.valueOptionId ?? null)).map((o) => o.id));
+      optionIds = new Set([...optionIds].filter((id) => allowedIds.has(id)));
+    }
+
     const coerced = coerceFieldValue(def, raw, optionIds);
 
     await this.db.insert(schema.customFieldValues)
       .values({ organizationId, workItemId, fieldId, ...coerced, createdBy: userId })
       .onConflictDoUpdate({ target: [schema.customFieldValues.workItemId, schema.customFieldValues.fieldId], set: { ...coerced, updatedBy: userId, updatedAt: new Date() } });
+
+    // If this field is itself a cascade *parent*, any child field whose
+    // currently-stored value no longer fits under the new parent value is
+    // cleared, so the item never retains a stale/invalid child selection.
+    if (def.fieldType === "select") {
+      const children = await this.db.select().from(schema.customFieldDefinitions)
+        .where(and(eq(schema.customFieldDefinitions.organizationId, organizationId), eq(schema.customFieldDefinitions.cascadeParentFieldId, fieldId), isNull(schema.customFieldDefinitions.archivedAt)));
+      const newParentOptionId = (coerced as { valueOptionId?: string | null }).valueOptionId ?? null;
+      for (const child of children) {
+        const [childValue] = await this.db.select().from(schema.customFieldValues)
+          .where(and(eq(schema.customFieldValues.organizationId, organizationId), eq(schema.customFieldValues.workItemId, workItemId), eq(schema.customFieldValues.fieldId, child.id))).limit(1);
+        if (!childValue?.valueOptionId) continue;
+        const [childOption] = await this.db.select({ parentOptionId: schema.customFieldOptions.parentOptionId }).from(schema.customFieldOptions).where(eq(schema.customFieldOptions.id, childValue.valueOptionId)).limit(1);
+        const stillValid = childOption && (childOption.parentOptionId === null || childOption.parentOptionId === newParentOptionId);
+        if (!stillValid) await this.db.delete(schema.customFieldValues).where(eq(schema.customFieldValues.id, childValue.id));
+      }
+    }
   }
 
   /** Values and available definitions for a work item, with hidden fields removed for this user.
@@ -111,10 +156,10 @@ export class FieldsService {
         .where(eq(schema.customFieldOptions.organizationId, organizationId)).orderBy(asc(schema.customFieldOptions.rank)),
     ]);
     const byField = new Map(values.map((row) => [row.fieldId, row]));
-    const optionsByField = new Map<string, { id: string; value: string; label: string }[]>();
+    const optionsByField = new Map<string, { id: string; value: string; label: string; parentOptionId: string | null }[]>();
     for (const option of options) {
       const list = optionsByField.get(option.fieldId) ?? [];
-      list.push({ id: option.id, value: option.value, label: option.label });
+      list.push({ id: option.id, value: option.value, label: option.label, parentOptionId: option.parentOptionId ?? null });
       optionsByField.set(option.fieldId, list);
     }
 
@@ -123,10 +168,22 @@ export class FieldsService {
       .filter((def) => def.scopeType === "organization" || (def.scopeType === "project" && def.scopeId === item.projectId) || (def.scopeType === "type" && def.scopeId === item.typeId))
       .map((def) => {
         const value = byField.get(def.id);
+        const rawValue = value ? serializeValue(def, value as any) : (def.fieldType === "checkbox" ? false : null);
+        // SEC.D2 — anything above "normal" sensitivity is masked by default;
+        // the caller must hit the reveal endpoint (audited) to see it.
+        const masked = def.sensitivity !== "normal" && rawValue != null && rawValue !== "";
+        // FIELD.D2 — a cascading field only offers options valid under the
+        // parent field's current value (plus ungrouped, parent-less options).
+        let options = optionsByField.get(def.id) ?? [];
+        if (def.fieldType === "select" && def.cascadeParentFieldId) {
+          const parentValue = byField.get(def.cascadeParentFieldId)?.valueOptionId ?? null;
+          options = options.filter((o) => o.parentOptionId === null || o.parentOptionId === parentValue);
+        }
         return {
           id: def.id, key: def.key, name: def.name, type: def.fieldType, required: def.required,
-          value: value ? serializeValue(def, value as any) : (def.fieldType === "checkbox" ? false : null),
-          options: optionsByField.get(def.id) ?? [],
+          sensitivity: def.sensitivity, masked, cascadeParentFieldId: def.cascadeParentFieldId ?? null,
+          value: masked ? null : rawValue,
+          options,
         };
       });
     // Second pass: formula fields compute from intrinsics + sibling numeric values.
@@ -146,6 +203,34 @@ export class FieldsService {
 
   /** Export (visible) custom values — same projection used by API/search/activity. */
   export(organizationId: string, userId: string, workItemId: string) { return this.valuesForItem(organizationId, userId, workItemId); }
+
+  /**
+   * SEC.D2 — the only way to see a masked (sensitive/pii/financial) field
+   * value: checks the same visibility/access rules valuesForItem uses, then
+   * writes an audit row before returning the real value. Never skip the
+   * audit write, even on a repeat reveal within the same session — each
+   * reveal is a distinct event.
+   */
+  async revealValue(organizationId: string, userId: string, workItemId: string, fieldId: string) {
+    if (!(await canAccessWorkItem(this.db, organizationId, workItemId, userId))) throw new AppError("FORBIDDEN", "No access to this work item");
+    const visible = await this.security.visibleFieldIds(organizationId, userId);
+    if (!visible.has(fieldId)) throw new AppError("FORBIDDEN", "You do not have access to this field");
+    const [def] = await this.db.select().from(schema.customFieldDefinitions)
+      .where(and(eq(schema.customFieldDefinitions.id, fieldId), eq(schema.customFieldDefinitions.organizationId, organizationId), isNull(schema.customFieldDefinitions.archivedAt))).limit(1);
+    if (!def) throw new AppError("NOT_FOUND", "Field not found");
+    const [row] = await this.db.select().from(schema.customFieldValues)
+      .where(and(eq(schema.customFieldValues.organizationId, organizationId), eq(schema.customFieldValues.workItemId, workItemId), eq(schema.customFieldValues.fieldId, fieldId))).limit(1);
+    await this.db.insert(schema.fieldRevealAudit).values({ organizationId, fieldId, workItemId, userId });
+    return { value: row ? serializeValue(def, row as any) : null, sensitivity: def.sensitivity };
+  }
+
+  /** Reveal history for a field on a work item — visible to anyone who could reveal it, for accountability. */
+  revealHistory(organizationId: string, fieldId: string, workItemId: string) {
+    return this.db.select({ userId: schema.fieldRevealAudit.userId, revealedAt: schema.fieldRevealAudit.revealedAt })
+      .from(schema.fieldRevealAudit)
+      .where(and(eq(schema.fieldRevealAudit.organizationId, organizationId), eq(schema.fieldRevealAudit.fieldId, fieldId), eq(schema.fieldRevealAudit.workItemId, workItemId)))
+      .orderBy(desc(schema.fieldRevealAudit.revealedAt)).limit(50);
+  }
 
   // ---- Custom Work Item Types ----
   async defineType(organizationId: string, userId: string, input: { key: string; name: string; icon?: string; parentTypeId?: string; fields?: { fieldId: string; required?: boolean }[] }) {

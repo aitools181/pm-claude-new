@@ -7,11 +7,12 @@ import { appPrompt } from "../../../components/ui/AppDialog";
 import { useEffect, useState, useCallback } from "react";
 import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
+import { Icon } from "../../../components/ui/Icon";
 
 type Node = { id: string; parentId: string | null; title: string };
 type Block = { type: string; text?: string; refKind?: string; refId?: string };
 type Embed = { refKind: string; refId: string; allowed: boolean; redacted: boolean; label: string; statusCategory?: string };
-type Detail = { document: { id: string; title: string; version: number }; blocks: Block[]; embeds: Embed[]; backlinks: { id: string; title: string }[] };
+type Detail = { document: { id: string; title: string; version: number; stale?: boolean; daysSinceReview?: number; reviewedAt?: string | null }; blocks: Block[]; embeds: Embed[]; backlinks: { id: string; title: string }[] };
 type Version = { version: number; restoredFrom: number | null; createdAt: string };
 type Project = { id: string; name: string };
 
@@ -37,6 +38,7 @@ export default function DocsPage() {
 
   async function create() { const t = await appPrompt("Document title"); if (!t) return; const d = await api<{ id: string }>("/documents", { method: "POST", org: true, body: JSON.stringify({ title: t, blocks: [{ type: "text", text: "" }] }) }); await loadTree(); open(d.id); }
   async function save() { if (!sel) return; await api(`/documents/${sel}`, { method: "PUT", org: true, body: JSON.stringify({ title, blocks }) }); toast({ message: "Saved new version" }); loadTree(); open(sel); }
+  async function markReviewed() { if (!sel) return; try { await api(`/documents/${sel}/mark-reviewed`, { method: "POST", org: true }); toast({ message: "Marked as reviewed" }); open(sel); } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not mark reviewed" }); } }
   async function restore(v: number) { if (!sel) return; await api(`/documents/${sel}/restore`, { method: "POST", org: true, body: JSON.stringify({ version: v }) }); toast({ message: `Restored v${v}` }); open(sel); }
   async function toTask() {
     if (!sel || !proj) { toast({ message: "Pick a project first" }); return; }
@@ -63,6 +65,12 @@ export default function DocsPage() {
           {detail && (
             <>
               <UiInput className="input ui-static-0f45719b" value={title} onChange={(e) => setTitle(e.target.value)}  />
+              <div className="doc-review-row">
+                {detail.document.stale
+                  ? <span className="doc-stale-badge"><Icon name="flag" size={13} />Stale{detail.document.reviewedAt ? ` — last reviewed ${detail.document.daysSinceReview}d ago` : " — never reviewed"}</span>
+                  : detail.document.reviewedAt && <span className="doc-fresh-badge"><Icon name="check" size={13} />Reviewed {detail.document.daysSinceReview}d ago</span>}
+                <UiButton variant="tertiary" size="compact" onClick={markReviewed}>Mark reviewed</UiButton>
+              </div>
               {blocks.map((b, i) => (
                 <div key={i} className="ui-static-fdf33f23">
                   {b.type === "embed" ? (

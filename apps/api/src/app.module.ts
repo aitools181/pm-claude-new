@@ -42,6 +42,9 @@ import { WebhooksModule } from "./webhooks/webhooks.module.js";
 import { IntegrationsModule } from "./integrations/integrations.module.js";
 import { DrModule } from "./dr/dr.module.js";
 import { DataOpsModule } from "./data-ops/data-ops.module.js";
+import { PrivacyModule } from "./privacy/privacy.module.js";
+import { OnboardingModule } from "./onboarding/onboarding.module.js";
+import { SecurityLevelsModule } from "./security-levels/security-levels.module.js";
 import { SecurityModule } from "./security/security.module.js";
 import { ReleaseModule } from "./release/release.module.js";
 import { ChatModule } from "./chat/chat.module.js";
@@ -79,7 +82,7 @@ import { BackgroundJobsModule } from "./background-jobs/background-jobs.module.j
       },
     }),
     ConfigModule, DbModule, MailModule, AuditModule, OpsModule,
-    HealthModule, AuthModule, OrgContextModule, AuthzModule, InvitationsModule, WorkModule, CollabModule, FilesModule, ViewsModule, RealtimeModule, FieldsModule, WorkflowModule, RolesModule, ConfigExportModule, AutomationModule, TemplatesModule, PortabilityModule, MaintenanceOpsModule, PlanningModule, SchedulingModule, TimeModule, ResourceModule, FormsModule, ApprovalsModule, AgileModule, GoalsModule, PortfoliosModule, DashboardsModule, ReportsModule, DocsModule, MeetingsModule, ProofingModule, ApiModule, WebhooksModule, IntegrationsModule, DrModule, DataOpsModule, SecurityModule, ReleaseModule, ChatModule, WhiteboardModule, AiModule, WqlModule, EnterpriseIdentityModule, CalculationsModule, ScenariosModule, MigrationAssistantsModule, DevOpsModule, ConnectedSearchModule, SandboxModule, ServiceManagementModule, DiscoveryModule, CommunicationsModule, ProductivityModule, AiAgentsModule, UxModule,
+    HealthModule, AuthModule, OrgContextModule, AuthzModule, InvitationsModule, WorkModule, CollabModule, FilesModule, ViewsModule, RealtimeModule, FieldsModule, WorkflowModule, RolesModule, ConfigExportModule, AutomationModule, TemplatesModule, PortabilityModule, MaintenanceOpsModule, PlanningModule, SchedulingModule, TimeModule, ResourceModule, FormsModule, ApprovalsModule, AgileModule, GoalsModule, PortfoliosModule, DashboardsModule, ReportsModule, DocsModule, MeetingsModule, ProofingModule, ApiModule, WebhooksModule, IntegrationsModule, DrModule, DataOpsModule, PrivacyModule, OnboardingModule, SecurityLevelsModule, SecurityModule, ReleaseModule, ChatModule, WhiteboardModule, AiModule, WqlModule, EnterpriseIdentityModule, CalculationsModule, ScenariosModule, MigrationAssistantsModule, DevOpsModule, ConnectedSearchModule, SandboxModule, ServiceManagementModule, DiscoveryModule, CommunicationsModule, ProductivityModule, AiAgentsModule, UxModule,
   ],
 })
 export class AppModule {}

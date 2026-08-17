@@ -8,6 +8,7 @@ import { RequirePermission } from "../authz/require-permission.decorator.js";
 import { CAPABILITIES } from "../authz/capabilities.js";
 import { ZodPipe } from "../common/zod.pipe.js";
 import { AiAgentsService } from "./ai-agents.service.js";
+import { RequiresModule, ModuleEnabledGuard } from "../modules/module-enabled.guard.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
 const policy = z.object({ allowedActions: z.array(z.string()).optional(), destructiveActions: z.array(z.string()).optional(), externalSendRequiresCheckpoint: z.boolean().optional(), massMutationLimit: z.number().int().positive().optional(), maxRunTokens: z.number().int().positive().optional(), maxDailyTokens: z.number().int().positive().optional(), retentionDays: z.number().int().positive().optional() });
@@ -18,7 +19,8 @@ const decision = z.object({ decision: z.enum(["approve", "reject"]), reason: z.s
 const memory = z.object({ workspaceId: z.string().uuid().optional(), projectId: z.string().uuid().optional(), scopeType: z.string().optional(), memoryKey: z.string().min(1), content: z.string().min(1), sourceRefs: z.array(z.unknown()).optional(), retentionDays: z.number().int().positive().optional() });
 
 @Controller("ai-agents")
-@UseGuards(SessionGuard, OrgContextGuard, AuthzGuard)
+@UseGuards(SessionGuard, OrgContextGuard, AuthzGuard, ModuleEnabledGuard)
+@RequiresModule("ai_agents")
 export class AiAgentsController {
   constructor(private readonly service: AiAgentsService) {}
   @Get() overview(@Req() r: Ctx) { return this.service.overview(r.organizationId); }

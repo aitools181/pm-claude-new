@@ -1,4 +1,4 @@
-import { primaryKey, integer, pgTable, uuid, text, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { primaryKey, integer, pgTable, uuid, text, timestamp, date, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { auditColumns } from "./_common.js";
 import { organizations, users } from "./identity.js";
 import { workItems } from "./work.js";
@@ -14,11 +14,22 @@ export const comments = pgTable("comments", {
   authorUserId: uuid("author_user_id").notNull().references(() => users.id),
   body: text("body").notNull(),
   assignedToUserId: uuid("assigned_to_user_id").references(() => users.id), // action item
+  // SEC.D4 — comment visibility scoping. A reply with visibility "inherit"
+  // (the default) takes its effective scope from the parent at read time.
+  visibility: text("visibility").default("all").notNull(), // all|internal|role_group|specific|inherit
+  visibilityRoleKey: text("visibility_role_key"),           // set when visibility = role_group
   ...auditColumns,
 }, (t) => ({
   byItem: index("comments_item_idx").on(t.workItemId, t.createdAt),
   byParent: index("comments_parent_idx").on(t.parentCommentId),
 }));
+
+/** SEC.D4 — explicit viewer list when visibility = "specific". */
+export const commentVisibleToUsers = pgTable("comment_visible_to_users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  commentId: uuid("comment_id").notNull().references(() => comments.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+}, (t) => ({ unique: uniqueIndex("comment_visible_to_unique").on(t.commentId, t.userId) }));
 
 export const commentMentions = pgTable("comment_mentions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -76,6 +87,11 @@ export const notificationDeliverySettings = pgTable("notification_delivery_setti
   digestHour: integer("digest_hour").default(9).notNull(),
   quietFrom: integer("quiet_from"),
   quietTo: integer("quiet_to"),
+  // NOTIF.D2 — vacation mode: hold ALL non-critical notifications for a date
+  // range and release one consolidated summary on return. Security/on-call
+  // overrides bypass this at the call site, never here.
+  vacationFrom: date("vacation_from"),
+  vacationTo: date("vacation_to"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({ pk: primaryKey({ columns: [t.organizationId, t.userId] }) }));
 

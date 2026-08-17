@@ -8,8 +8,9 @@ import { api, ApiError } from "../../../lib/api";
 import { useToast } from "../../../components/ui/Toast";
 
 type Timer = { id: string; startedAt: string; description: string | null } | null;
-type Entry = { id: string; date: string; minutes: number; description: string | null; source: string };
+type Entry = { id: string; date: string; minutes: number; description: string | null; source: string; approvalStatus?: string; rejectionReason?: string | null };
 type Sheet = { sheet: { status: string }; weekStart: string; weekEnd: string; totalMinutes: number; byDay: Record<string, number>; entries: Entry[] };
+type QueueSheet = { id: string; userId: string; weekStart: string; status: string; submittedAt: string | null };
 
 const hm = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 const mondayOf = (d: Date) => { const x = new Date(d); const dow = x.getUTCDay(); x.setUTCDate(x.getUTCDate() + (dow === 0 ? -6 : 1 - dow)); return x.toISOString().slice(0, 10); };
@@ -25,6 +26,42 @@ export default function TimePage() {
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [form, setForm] = useState({ date: "", minutes: "", description: "" });
   const tick = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ---- TIME.D2 partial-line approval (Approvals tab) ----
+  const [tab, setTab] = useState<"mine" | "approvals">("mine");
+  const [queue, setQueue] = useState<QueueSheet[]>([]);
+  const [queueAvailable, setQueueAvailable] = useState(true);
+  const [reviewFor, setReviewFor] = useState<QueueSheet | null>(null);
+  const [reviewSheet, setReviewSheet] = useState<Sheet | null>(null);
+  const [selectedApprove, setSelectedApprove] = useState<Set<string>>(new Set());
+  const [selectedReject, setSelectedReject] = useState<Set<string>>(new Set());
+  const [rejectReason, setRejectReason] = useState("");
+
+  const loadQueue = useCallback(async () => {
+    try { setQueue(await api<QueueSheet[]>("/timesheets/queue", { org: true })); setQueueAvailable(true); }
+    catch { setQueueAvailable(false); }
+  }, []);
+  useEffect(() => { if (tab === "approvals") loadQueue(); }, [tab, loadQueue]);
+
+  async function openReview(q: QueueSheet) {
+    setReviewFor(q); setSelectedApprove(new Set()); setSelectedReject(new Set()); setRejectReason("");
+    try { setReviewSheet(await api<Sheet>(`/timesheets/review?userId=${q.userId}&week=${q.weekStart}`, { org: true })); }
+    catch { setReviewSheet(null); }
+  }
+  function toggleApprove(id: string) { setSelectedApprove((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); selectedReject.delete(id); return n; }); }
+  function toggleReject(id: string) { setSelectedReject((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); selectedApprove.delete(id); return n; }); }
+  async function submitDecision() {
+    if (!reviewFor) return;
+    if (selectedReject.size && !rejectReason.trim()) { toast({ message: "A rejection reason is required for rejected lines" }); return; }
+    try {
+      const r = await api<{ sheetStatus: string; approved: number; rejected: number; pending: number }>("/timesheets/decide-lines", {
+        method: "POST", org: true,
+        body: JSON.stringify({ userId: reviewFor.userId, week: reviewFor.weekStart, approveIds: [...selectedApprove], rejectIds: [...selectedReject], rejectionReason: rejectReason.trim() || undefined }),
+      });
+      toast({ message: `Sheet is now ${r.sheetStatus} — ${r.approved} approved, ${r.rejected} rejected, ${r.pending} still pending` });
+      setReviewFor(null); setReviewSheet(null); loadQueue();
+    } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not save the decision" }); }
+  }
 
   const loadTimer = useCallback(async () => { try { setTimer(await api<Timer>("/timer", { org: true })); } catch { setTimer(null); } }, []);
   const loadSheet = useCallback(async () => { try { setSheet(await api<Sheet>(`/timesheet?week=${week}`, { org: true })); } catch (e) { if (e instanceof ApiError) toast({ message: e.message }); } }, [week, toast]);
@@ -55,7 +92,12 @@ export default function TimePage() {
   return (
     <>
       <h1 className="page-title">Time</h1>
+      <div className="time-page-tabs" role="tablist">
+        <button role="tab" aria-selected={tab === "mine"} data-on={tab === "mine"} onClick={() => setTab("mine")}>My time</button>
+        <button role="tab" aria-selected={tab === "approvals"} data-on={tab === "approvals"} onClick={() => setTab("approvals")}>Approvals</button>
+      </div>
 
+      {tab === "mine" && <>
       <div className="timer-card">
         <span className={`timer-dot ${timer ? "on" : ""}`} />
         {timer ? (
@@ -112,6 +154,66 @@ export default function TimePage() {
           ))}
         </tbody>
       </table>
+      </>}
+
+      {tab === "approvals" && (
+        <div className="timesheet-approvals">
+          {!queueAvailable && <div className="empty">You don&rsquo;t have permission to approve timesheets.</div>}
+          {queueAvailable && queue.length === 0 && <div className="empty">No submitted timesheets waiting for review.</div>}
+          {queueAvailable && queue.length > 0 && !reviewFor && (
+            <table className="ts-grid">
+              <thead><tr><th>Week</th><th>Submitted</th><th></th></tr></thead>
+              <tbody>
+                {queue.map((q) => (
+                  <tr key={q.id}>
+                    <td className="mono">{q.weekStart}</td>
+                    <td className="muted">{q.submittedAt ? new Date(q.submittedAt).toLocaleString() : "—"}</td>
+                    <td><UiButton variant="secondary" size="compact" onClick={() => openReview(q)}>Review</UiButton></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {reviewFor && (
+            <div className="timesheet-review-panel">
+              <div className="timesheet-review-head">
+                <strong>Reviewing week of {reviewFor.weekStart}</strong>
+                <UiButton variant="tertiary" size="compact" onClick={() => { setReviewFor(null); setReviewSheet(null); }}>Back to queue</UiButton>
+              </div>
+              {!reviewSheet && <div className="muted">Loading…</div>}
+              {reviewSheet && (
+                <>
+                  <table className="ts-grid">
+                    <thead><tr><th></th><th>Date</th><th>Duration</th><th>Description</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {reviewSheet.entries.length === 0 && <tr><td colSpan={5} className="muted">No entries this week.</td></tr>}
+                      {reviewSheet.entries.map((e) => (
+                        <tr key={e.id}>
+                          <td className="timesheet-line-checks">
+                            <label title="Approve this line"><input type="checkbox" checked={selectedApprove.has(e.id)} onChange={() => toggleApprove(e.id)} disabled={e.approvalStatus === "approved"} /></label>
+                            <label title="Reject this line"><input type="checkbox" checked={selectedReject.has(e.id)} onChange={() => toggleReject(e.id)} disabled={e.approvalStatus === "approved"} /></label>
+                          </td>
+                          <td className="mono">{e.date}</td><td>{hm(e.minutes)}</td><td>{e.description || "—"}</td>
+                          <td><span className={`pill ${e.approvalStatus === "approved" ? "open" : e.approvalStatus === "rejected" ? "danger" : "submitted"}`}>{e.approvalStatus ?? "pending"}</span>{e.rejectionReason && <div className="muted timesheet-reject-reason">{e.rejectionReason}</div>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {selectedReject.size > 0 && (
+                    <div className="timesheet-reject-reason-input">
+                      <UiInput className="input" placeholder="Reason for rejected line(s) — required" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+                    </div>
+                  )}
+                  <div className="button-row">
+                    <UiButton variant="primary" disabled={!selectedApprove.size && !selectedReject.size} onClick={submitDecision}>Save decision</UiButton>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

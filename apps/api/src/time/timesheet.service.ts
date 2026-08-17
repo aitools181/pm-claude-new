@@ -1,5 +1,5 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql, inArray } from "drizzle-orm";
 import { schema, type Database } from "@pm/db";
 import { AppError } from "@pm/shared";
 import { DB } from "../db/db.module.js";
@@ -46,6 +46,11 @@ export class TimesheetService {
     if (to === "submitted") {
       const total = await this.entries.weekTotal(organizationId, userId, sheet.weekStart);
       if (total <= 0) throw new AppError("VALIDATION", "Cannot submit an empty timesheet");
+      const rows = await this.entries.listWeek(organizationId, userId, sheet.weekStart);
+      if (rows.length) {
+        await this.db.update(schema.timeEntries).set({ approvalStatus: "pending", rejectionReason: null })
+          .where(and(eq(schema.timeEntries.organizationId, organizationId), inArray(schema.timeEntries.id, rows.map((r) => r.id))));
+      }
     }
     const patch: Record<string, unknown> = { status: to };
     if (to === "submitted") { patch.submittedAt = new Date(); patch.decidedByUserId = null; patch.decidedAt = null; patch.note = null; }
@@ -74,6 +79,41 @@ export class TimesheetService {
   }
   reopen(organizationId: string, approverId: string, targetUserId: string, anyDateInWeek: string, note?: string) {
     return this.transition(organizationId, targetUserId, anyDateInWeek, "open", { actorId: approverId, approver: true, note });
+  }
+
+  /**
+   * TIME.D2 — partial-line approval: an approver acts on individual entries
+   * within a submitted timesheet rather than only the whole week. Approved
+   * lines lock immediately (TimeEntriesService blocks edits to them even if
+   * the sheet later reopens). The overall sheet status is then derived:
+   * all lines approved -> sheet approved; any line rejected -> sheet
+   * rejected (so the owner sees it needs attention); otherwise it stays
+   * submitted while the rest of the review continues.
+   */
+  async decideLines(organizationId: string, approverId: string, targetUserId: string, anyDateInWeek: string, input: { approveIds?: string[]; rejectIds?: string[]; rejectionReason?: string }) {
+    const sheet = await this.getOrCreate(organizationId, targetUserId, anyDateInWeek);
+    if (sheet.status !== "submitted") throw new AppError("CONFLICT", "Only a submitted timesheet can have lines decided", { code: "invalid_transition" });
+    const approveIds = input.approveIds ?? [];
+    const rejectIds = input.rejectIds ?? [];
+    if (rejectIds.length && !input.rejectionReason?.trim()) throw new AppError("VALIDATION", "A rejection reason is required for rejected lines");
+
+    if (approveIds.length) await this.db.update(schema.timeEntries).set({ approvalStatus: "approved", rejectionReason: null })
+      .where(and(eq(schema.timeEntries.organizationId, organizationId), eq(schema.timeEntries.userId, targetUserId), inArray(schema.timeEntries.id, approveIds)));
+    if (rejectIds.length) await this.db.update(schema.timeEntries).set({ approvalStatus: "rejected", rejectionReason: input.rejectionReason?.trim() ?? null })
+      .where(and(eq(schema.timeEntries.organizationId, organizationId), eq(schema.timeEntries.userId, targetUserId), inArray(schema.timeEntries.id, rejectIds)));
+
+    const rows = await this.entries.listWeek(organizationId, targetUserId, sheet.weekStart);
+    const anyRejected = rows.some((r) => r.approvalStatus === "rejected");
+    const allApproved = rows.length > 0 && rows.every((r) => r.approvalStatus === "approved");
+
+    let sheetStatus = sheet.status;
+    if (anyRejected) sheetStatus = "rejected";
+    else if (allApproved) sheetStatus = "approved";
+    if (sheetStatus !== sheet.status) {
+      await this.db.update(schema.timesheets).set({ status: sheetStatus, decidedByUserId: approverId, decidedAt: new Date() })
+        .where(and(eq(schema.timesheets.id, sheet.id), eq(schema.timesheets.status, sheet.status)));
+    }
+    return { sheetStatus, approved: approveIds.length, rejected: rejectIds.length, pending: rows.filter((r) => r.approvalStatus === "pending").length };
   }
 
   /** Approval queue: all submitted timesheets in the org. */

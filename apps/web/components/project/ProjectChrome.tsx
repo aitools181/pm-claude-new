@@ -284,6 +284,7 @@ function CustomizeDrawer({ project, onClose, onChanged }: { project: Project; on
     ["Emails", "Project email and task routing", "/communications"], ["Apps", "Integrations for this project", "/admin/integrations"],
     ["Task types and templates", "Task, approval and milestone layouts", "/admin/configure"], ["Bundles", "Reusable field/workflow/screen bundles", "/admin/configure"],
     ["Status templates", "Reusable project status updates", `/projects/${project.id}/overview`], ["Rules", "Automation and AI Studio rules", "/admin/configure"],
+    ["Security levels", "Restrict who can see specific tasks", `/projects/${project.id}/security`],
   ];
   return <><button className="drawer-overlay" onClick={onClose} aria-label="Close customize" /><aside ref={drawerRef} tabIndex={-1} className="customize-drawer" role="dialog" aria-modal="true" aria-labelledby="customize-project-title">
     <div className="drawer-head"><h2 id="customize-project-title">Customize</h2><button className="icon-btn" aria-label="Close customize project panel" onClick={onClose}><Icon name="close" /></button></div>

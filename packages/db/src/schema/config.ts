@@ -16,6 +16,13 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   scopeId: uuid("scope_id"),
   required: boolean("required").default(false).notNull(),
   visibility: text("visibility").default("all").notNull(),// all|restricted
+  // SEC.D2 — sensitivity classification; anything above "normal" is masked by
+  // default in valuesForItem and requires an explicit, audited reveal.
+  sensitivity: text("sensitivity").default("normal").notNull(), // normal|sensitive|pii|financial
+  // FIELD.D2 — cascading select: this field's offered options depend on the
+  // current value of another select field (cascadeParentFieldId) on the same
+  // work item. Only meaningful when fieldType = "select".
+  cascadeParentFieldId: uuid("cascade_parent_field_id"),
   config: jsonb("config"),                                // { min,max,maxLength,pattern }
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   ...auditColumns,
@@ -28,6 +35,10 @@ export const customFieldOptions = pgTable("custom_field_options", {
   value: text("value").notNull(),
   label: text("label").notNull(),
   rank: text("rank").notNull(),
+  // FIELD.D2 — for a cascading child field's options, which parent option
+  // (on cascadeParentFieldId) this option is available under. Null on a
+  // non-cascading field's options, or means "no parent-value restriction".
+  parentOptionId: uuid("parent_option_id"),
 }, (t) => ({ fieldValueUnique: uniqueIndex("custom_field_option_unique").on(t.fieldId, t.value) }));
 
 // Typed value storage — one row per (work item, field); only the matching column is set.
@@ -71,3 +82,13 @@ export const userRoleAssignments = pgTable("user_role_assignments", {
   scopeType: text("scope_type").default("organization").notNull(), // organization|project
   scopeId: uuid("scope_id"),
 }, (t) => ({ byUser: index("user_role_assignments_user_idx").on(t.organizationId, t.userId) }));
+
+/** SEC.D2 — every time a masked (sensitive/pii/financial) field value is revealed, it's audited here. */
+export const fieldRevealAudit = pgTable("field_reveal_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  fieldId: uuid("field_id").notNull().references(() => customFieldDefinitions.id),
+  workItemId: uuid("work_item_id").notNull().references(() => workItems.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  revealedAt: timestamp("revealed_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ byField: index("field_reveal_audit_field_idx").on(t.fieldId, t.revealedAt) }));

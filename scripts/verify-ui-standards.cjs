@@ -130,6 +130,15 @@ let rawButtonCount = 0;
 let rawInputCount = 0;
 
 const allowedRawInputTypes = new Set(['checkbox','radio','range','color','file','hidden']);
+/**
+ * Next.js renders app/global-error.tsx with its OWN <html>/<body>, replacing the
+ * root layout — which means globals.css is never loaded when it displays. Class
+ * names would be inert there, so inline styles are the only styling that works
+ * and are deliberately exempt from the inline-style and hex-colour rules. Kept
+ * as an explicit single-file allow-list so no other file can quietly opt out.
+ */
+const inlineStyleExemptFiles = new Set(['apps/web/app/global-error.tsx']);
+const isInlineStyleExempt = (file) => inlineStyleExemptFiles.has(rel(file).replace(/\\/g, '/'));
 const isLiteral = (node) => ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isNumericLiteral(node) || node.kind === ts.SyntaxKind.TrueKeyword || node.kind === ts.SyntaxKind.FalseKeyword || node.kind === ts.SyntaxKind.NullKeyword;
 const styleObjectIsStatic = (obj) => obj.properties.every((prop) => ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) && isLiteral(prop.initializer));
 const attr = (node, name) => node.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.text === name);
@@ -141,7 +150,14 @@ const attrString = (a, sf) => {
 };
 
 for (const { file, text } of sourceRows) {
-  hardCodedHexInTsx += (text.match(/#[0-9A-Fa-f]{3,8}\b/g) || []).length;
+  // Count hex colours only where they're used as colours. A bare /#[0-9a-f]{3,8}/
+  // also matches ordinary copy like "case #1234" (a case number, not a colour),
+  // so require a CSS colour-ish context: a style/colour property, or a 6/8-digit
+  // hex which no reference number realistically looks like.
+  if (!isInlineStyleExempt(file)) {
+    const hexMatches = text.match(/(?:color|background|border|fill|stroke|shadow)[^;\n]{0,40}?#[0-9A-Fa-f]{3,8}\b|#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?\b/gi) || [];
+    hardCodedHexInTsx += hexMatches.length;
+  }
   const clean = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
   browserPrompts += (clean.match(/(?:window\.)?\bprompt\s*\(/g) || []).length;
   browserConfirms += (clean.match(/window\.confirm\s*\(/g) || []).length;
@@ -155,7 +171,8 @@ for (const { file, text } of sourceRows) {
       if (/^[a-z]/.test(tag)) {
         const style = attr(node, 'style');
         if (style && style.initializer && ts.isJsxExpression(style.initializer) && style.initializer.expression) {
-          if (ts.isObjectLiteralExpression(style.initializer.expression) && styleObjectIsStatic(style.initializer.expression)) staticInlineStyles++;
+          if (isInlineStyleExempt(file)) { /* exempt: renders without globals.css */ }
+          else if (ts.isObjectLiteralExpression(style.initializer.expression) && styleObjectIsStatic(style.initializer.expression)) staticInlineStyles++;
           else dynamicInlineStyles++;
         }
         if (tag === 'button') rawButtonCount++;

@@ -38,6 +38,7 @@ export class TimeEntriesService {
   async update(organizationId: string, userId: string, id: string, patch: { minutes?: number; date?: string; description?: string; billable?: boolean }) {
     const e = await this.load(organizationId, id);
     if (e.userId !== userId) throw new AppError("FORBIDDEN", "Not your time entry");
+    if (e.approvalStatus === "approved") throw new AppError("CONFLICT", "This line was individually approved and is locked — ask your approver to reopen it", { code: "line_locked" });
     await this.assertWeekMutable(organizationId, userId, e.date);               // current week
     if (patch.date) await this.assertWeekMutable(organizationId, userId, patch.date); // target week
     if (patch.minutes != null && patch.minutes <= 0) throw new AppError("VALIDATION", "minutes must be positive");
@@ -50,6 +51,7 @@ export class TimeEntriesService {
   async remove(organizationId: string, userId: string, id: string) {
     const e = await this.load(organizationId, id);
     if (e.userId !== userId) throw new AppError("FORBIDDEN", "Not your time entry");
+    if (e.approvalStatus === "approved") throw new AppError("CONFLICT", "This line was individually approved and is locked — ask your approver to reopen it", { code: "line_locked" });
     await this.assertWeekMutable(organizationId, userId, e.date);
     await this.db.delete(schema.timeEntries).where(and(eq(schema.timeEntries.id, id), eq(schema.timeEntries.organizationId, organizationId)));
     return { deleted: true };

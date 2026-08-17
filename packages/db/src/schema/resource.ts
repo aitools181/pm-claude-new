@@ -8,13 +8,23 @@ import { projects } from "./work.js";
  * ============================================================ */
 
 /** Per-user working-hours profile. workingDays overrides the org calendar when set. */
+/**
+ * CAP.D1 — effective-dated capacity profiles: a person's hours/working-days
+ * can change over time (e.g. going part-time from a date, a temporary
+ * reduced-hours period). Multiple rows per user, one per period.
+ * effectiveFrom null = has always applied since before any recorded history;
+ * effectiveTo null = open-ended, currently in effect.
+ */
 export const capacityProfiles = pgTable("capacity_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   hoursPerDay: integer("hours_per_day").default(8).notNull(),
   workingDays: jsonb("working_days"),   // number[] (1..7) or null = use calendar default
-}, (t) => ({ perUser: uniqueIndex("capacity_profile_user_unique").on(t.organizationId, t.userId) }));
+  effectiveFrom: date("effective_from"),
+  effectiveTo: date("effective_to"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({ byUser: index("capacity_profile_user_idx").on(t.organizationId, t.userId, t.effectiveFrom) }));
 
 /** Leave / time off. Reduces capacity on overlapping working days. */
 export const leaves = pgTable("leaves", {

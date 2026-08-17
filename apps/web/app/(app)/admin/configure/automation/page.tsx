@@ -16,6 +16,7 @@ export default function AutomationBuilder() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [nr, setNr] = useState({ name: "", triggerType: "event", eventName: "" });
   const [sel, setSel] = useState<Rule | null>(null);
+  const [recentDryRun, setRecentDryRun] = useState<{ eventName: string; sampledEvents: number; results: { eventId: string; conditionsMatched: boolean; steps: { kind: string; status: string }[] }[] } | null>(null);
   const [act, setAct] = useState({ kind: "add_comment", body: "" });
   const [runs, setRuns] = useState<Run[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -35,6 +36,14 @@ export default function AutomationBuilder() {
     toast({ message: "Action added" }); setAct({ kind: "add_comment", body: "" });
   }
   async function dryRun() { if (!sel) return; await api(`/automation/rules/${sel.id}/run`, { method: "POST", org: true, body: JSON.stringify({ dryRun: true }) }); toast({ message: "Dry run recorded — no side effects" }); refreshRuns(); }
+  async function dryRunRecent() {
+    if (!sel) return;
+    try {
+      const r = await api<{ eventName: string; sampledEvents: number; results: { eventId: string; conditionsMatched: boolean; steps: { kind: string; status: string }[] }[] }>(`/automation/rules/${sel.id}/dry-run-recent`, { method: "POST", org: true, body: JSON.stringify({ limit: 10 }) });
+      setRecentDryRun(r);
+      toast({ message: `Tested against ${r.sampledEvents} recent "${r.eventName}" event(s) — no side effects` });
+    } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not dry-run against recent events", tone: "error" }); }
+  }
   async function toggle(rule: Rule) { await api(`/automation/rules/${rule.id}/enable`, { method: "POST", org: true, body: JSON.stringify({ enabled: !rule.enabled }) }); load(); }
   async function replay(runId: string) { await api(`/automation/runs/${runId}/replay`, { method: "POST", org: true }); toast({ message: "Replayed" }); refreshRuns(); }
   function refreshRuns() { if (sel) api<Run[]>(`/automation/rules/${sel.id}/runs`, { org: true }).then(setRuns).catch(() => {}); }
@@ -81,6 +90,15 @@ export default function AutomationBuilder() {
                 <UiButton variant="secondary" className="ui-static-87c136df"  onClick={addAction}>Add action</UiButton>
               </div>
               <UiButton variant="tertiary"  onClick={dryRun}>Dry run</UiButton>
+              {sel.triggerType === "event" && <UiButton variant="tertiary" onClick={dryRunRecent}>Dry-run against recent events</UiButton>}
+              {recentDryRun && <div className="automation-recent-dryrun">
+                <div className="automation-recent-dryrun-head"><strong>Tested against &ldquo;{recentDryRun.eventName}&rdquo;</strong><span className="muted">{recentDryRun.sampledEvents} recent event(s)</span><button className="icon-btn" aria-label="Dismiss" onClick={() => setRecentDryRun(null)}>✕</button></div>
+                {recentDryRun.results.length === 0 && <p className="muted">No recent matching events found for this trigger.</p>}
+                {recentDryRun.results.map((r) => <div key={r.eventId} className="automation-recent-dryrun-row">
+                  <span className={`pill ${r.conditionsMatched ? "open" : "danger"}`}>{r.conditionsMatched ? "would run" : "skipped"}</span>
+                  <div className="automation-recent-dryrun-steps">{r.steps.map((s, i) => <span key={i} className="mono">{s.kind}: {s.status}</span>)}</div>
+                </div>)}
+              </div>}
               <div className="ui-static-dae7b464">Run logs</div>
               {runs.length === 0 && <div className="ui-static-c3d3e812">No runs yet.</div>}
               {runs.map((run) => (

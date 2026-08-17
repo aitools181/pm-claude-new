@@ -15,6 +15,11 @@ export const documents = pgTable("documents", {
   ownerUserId: uuid("owner_user_id").references(() => users.id),
   visibility: text("visibility").default("inherit").notNull(), // inherit|workspace|private
   currentVersionId: uuid("current_version_id"),
+  // DOC.D1 — last time someone confirmed this doc is still accurate, and
+  // after how many days (org default if null) it should surface as stale.
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id),
+  staleAfterDays: integer("stale_after_days"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({ byTree: index("documents_tree_idx").on(t.organizationId, t.parentId) }));

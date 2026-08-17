@@ -92,7 +92,35 @@ export class DocumentService {
     const incoming = await this.db.select().from(schema.documentLinks).where(and(eq(schema.documentLinks.organizationId, organizationId), eq(schema.documentLinks.targetKind, "document"), eq(schema.documentLinks.targetId, documentId)));
     const backlinkDocs = incoming.length ? await this.db.select({ id: schema.documents.id, title: schema.documents.title }).from(schema.documents).where(inArray(schema.documents.id, incoming.map((l) => l.sourceDocumentId))) : [];
     const outgoing = await this.db.select().from(schema.documentLinks).where(eq(schema.documentLinks.sourceDocumentId, documentId));
-    return { document: { id: doc.id, title: doc.title, parentId: doc.parentId, version: ver?.version }, blocks, embeds, backlinks: backlinkDocs, outgoingLinks: outgoing.map((l) => ({ targetKind: l.targetKind, targetId: l.targetId, kind: l.kind })) };
+    // DOC.D1 — stale if never reviewed and older than the threshold, or last
+    // reviewed longer ago than the threshold. Org default 90 days if the doc
+    // doesn't set its own staleAfterDays.
+    const [orgSettings] = await this.db.select({ docStaleDefaultDays: schema.organizationSettings.docStaleDefaultDays }).from(schema.organizationSettings)
+      .where(eq(schema.organizationSettings.organizationId, organizationId)).limit(1).catch(() => [] as { docStaleDefaultDays: number | null }[]);
+    const staleAfterDays = doc.staleAfterDays ?? orgSettings?.docStaleDefaultDays ?? 90;
+    const lastConfirmed = doc.reviewedAt ?? doc.createdAt;
+    const daysSince = Math.floor((Date.now() - new Date(lastConfirmed).getTime()) / 86_400_000);
+    const stale = daysSince > staleAfterDays;
+    return {
+      document: { id: doc.id, title: doc.title, parentId: doc.parentId, version: ver?.version, reviewedAt: doc.reviewedAt, reviewedByUserId: doc.reviewedByUserId, staleAfterDays, stale, daysSinceReview: daysSince },
+      blocks, embeds, backlinks: backlinkDocs, outgoingLinks: outgoing.map((l) => ({ targetKind: l.targetKind, targetId: l.targetId, kind: l.kind })),
+    };
+  }
+
+  /** DOC.D1 — mark this document confirmed accurate as of now, resetting the stale clock. */
+  async markReviewed(organizationId: string, userId: string, documentId: string) {
+    const [row] = await this.db.update(schema.documents).set({ reviewedAt: new Date(), reviewedByUserId: userId })
+      .where(and(eq(schema.documents.id, documentId), eq(schema.documents.organizationId, organizationId))).returning({ id: schema.documents.id, reviewedAt: schema.documents.reviewedAt });
+    if (!row) throw new AppError("NOT_FOUND", "Document not found");
+    return row;
+  }
+
+  /** DOC.D1 — set a per-document staleness threshold, overriding the org default. Pass null to fall back to the org default. */
+  async setStaleThreshold(organizationId: string, documentId: string, staleAfterDays: number | null) {
+    const [row] = await this.db.update(schema.documents).set({ staleAfterDays })
+      .where(and(eq(schema.documents.id, documentId), eq(schema.documents.organizationId, organizationId))).returning({ id: schema.documents.id, staleAfterDays: schema.documents.staleAfterDays });
+    if (!row) throw new AppError("NOT_FOUND", "Document not found");
+    return row;
   }
 
   /** Backlinks for any target (e.g. "which docs reference this work item"). */

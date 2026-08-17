@@ -9,7 +9,7 @@ import { WatchersService } from "./watchers.service.js";
 import { NotificationsService } from "./notifications.service.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
-const createComment = z.object({ body: z.string().min(1), parentCommentId: z.string().uuid().optional(), mentionUserIds: z.array(z.string().uuid()).optional(), assignedToUserId: z.string().uuid().optional() });
+const createComment = z.object({ body: z.string().min(1), parentCommentId: z.string().uuid().optional(), mentionUserIds: z.array(z.string().uuid()).optional(), assignedToUserId: z.string().uuid().optional(), visibility: z.enum(["all", "internal", "role_group", "specific", "inherit"]).optional(), visibilityRoleKey: z.string().max(80).optional(), visibleToUserIds: z.array(z.string().uuid()).max(50).optional() });
 const reactDto = z.object({ emoji: z.string().min(1).max(16) });
 
 @Controller()
@@ -51,7 +51,7 @@ export class CollabController {
   @Get("notifications/delivery-settings")
   deliverySettings(@Req() r: Ctx) { return this.notifications.deliverySettings(r.organizationId, r.userId); }
   @Put("notifications/delivery-settings")
-  setDeliverySettings(@Req() r: Ctx, @Body(new ZodPipe(z.object({ digestFrequency: z.enum(["off","daily","weekly"]), digestHour: z.number().int().min(0).max(23), quietFrom: z.number().int().min(0).max(23).nullable(), quietTo: z.number().int().min(0).max(23).nullable() }))) b: { digestFrequency: "off"|"daily"|"weekly"; digestHour: number; quietFrom: number | null; quietTo: number | null }) { return this.notifications.setDeliverySettings(r.organizationId, r.userId, b); }
+  setDeliverySettings(@Req() r: Ctx, @Body(new ZodPipe(z.object({ digestFrequency: z.enum(["off","daily","weekly"]), digestHour: z.number().int().min(0).max(23), quietFrom: z.number().int().min(0).max(23).nullable(), quietTo: z.number().int().min(0).max(23).nullable(), vacationFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(), vacationTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional() }))) b: { digestFrequency: "off"|"daily"|"weekly"; digestHour: number; quietFrom: number | null; quietTo: number | null; vacationFrom?: string | null; vacationTo?: string | null }) { return this.notifications.setDeliverySettings(r.organizationId, r.userId, b); }
   @Post("notifications/:id/read")
   read(@Req() r: Ctx, @Param("id") id: string) { return this.notifications.markRead(r.organizationId, r.userId, id).then(() => ({ ok: true })); }
 

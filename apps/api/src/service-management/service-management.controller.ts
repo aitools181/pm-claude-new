@@ -8,6 +8,7 @@ import { RequirePermission } from "../authz/require-permission.decorator.js";
 import { CAPABILITIES } from "../authz/capabilities.js";
 import { ZodPipe } from "../common/zod.pipe.js";
 import { ServiceManagementService } from "./service-management.service.js";
+import { RequiresModule, ModuleEnabledGuard } from "../modules/module-enabled.guard.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
 const serviceProjectDto = z.object({ projectId: z.string().uuid(), key: z.string().min(1), name: z.string().min(1), portalEnabled: z.boolean().optional(), customerAccess: z.string().optional() });
@@ -27,7 +28,8 @@ const assetDto = z.object({ schemaId: z.string().uuid(), objectType: z.string().
 const relationDto = z.object({ fromItemId: z.string().uuid(), toItemId: z.string().uuid(), relationType: z.string().min(1) });
 
 @Controller("service-management")
-@UseGuards(SessionGuard, OrgContextGuard, AuthzGuard)
+@UseGuards(SessionGuard, OrgContextGuard, AuthzGuard, ModuleEnabledGuard)
+@RequiresModule("service_management")
 export class ServiceManagementController {
   constructor(private readonly service: ServiceManagementService) {}
   @Get() overview(@Req() r: Ctx) { return this.service.overview(r.organizationId, r.userId); }

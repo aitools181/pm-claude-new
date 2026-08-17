@@ -8,6 +8,7 @@ import { RequirePermission } from "../authz/require-permission.decorator.js";
 import { CAPABILITIES } from "../authz/capabilities.js";
 import { ZodPipe } from "../common/zod.pipe.js";
 import { SandboxService } from "./sandbox.service.js";
+import { RequiresModule, ModuleEnabledGuard } from "../modules/module-enabled.guard.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
 const envDto = z.object({ name: z.string().min(1), mode: z.enum(["configuration_only", "masked_sample"]).optional(), label: z.string().optional() });
@@ -16,7 +17,8 @@ const diffDto = z.object({ targetOrganizationId: z.string().uuid().optional() })
 const promotionDto = z.object({ packageVersionId: z.string().uuid(), targetOrganizationId: z.string().uuid().optional(), scheduledFor: z.string().datetime().optional() });
 
 @Controller("sandbox")
-@UseGuards(SessionGuard, OrgContextGuard, AuthzGuard)
+@UseGuards(SessionGuard, OrgContextGuard, AuthzGuard, ModuleEnabledGuard)
+@RequiresModule("sandbox")
 @RequirePermission(CAPABILITIES.SANDBOX_MANAGE)
 export class SandboxController {
   constructor(private readonly service: SandboxService) {}
