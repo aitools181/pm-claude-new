@@ -10,10 +10,11 @@ import { WorkController } from "./work.controller.js";
 import { BoardController } from "./board.controller.js";
 import { IdempotencyInterceptor } from "../api/idempotency.interceptor.js";
 import { WorkItemDetailsService } from "./work-item-details.service.js";
+import { AutoAssignService } from "./auto-assign.service.js";
 
 @Module({
   controllers: [MobilityController, WorkController, BoardController],
-  providers: [WorkspacesService, ProjectsService, WorkItemsService, WorkItemDetailsService, WorkItemMobilityService, BoardService, PlacementsService, IdempotencyInterceptor],
-  exports: [WorkItemMobilityService, ProjectsService, WorkItemsService, WorkItemDetailsService, BoardService, PlacementsService],
+  providers: [WorkspacesService, ProjectsService, WorkItemsService, WorkItemDetailsService, WorkItemMobilityService, BoardService, PlacementsService, IdempotencyInterceptor, AutoAssignService],
+  exports: [WorkItemMobilityService, ProjectsService, WorkItemsService, WorkItemDetailsService, BoardService, PlacementsService, AutoAssignService],
 })
 export class WorkModule {}

@@ -201,6 +201,44 @@ export class WorkflowService {
     });
   }
 
+  /**
+   * WF.D3 — workflow simulation. Dry-runs one transition against a real
+   * work item and explains each condition/validator/post-action's outcome,
+   * without mutating anything. Never opens a write transaction.
+   */
+  async simulate(organizationId: string, userId: string, workItemId: string, transitionId: string) {
+    const state = await this.state(organizationId, workItemId);
+    const [t] = await this.db.select().from(schema.workflowTransitions).where(and(eq(schema.workflowTransitions.id, transitionId), eq(schema.workflowTransitions.versionId, state.versionId))).limit(1);
+    if (!t) throw new AppError("VALIDATION", "That transition is not part of this item's workflow");
+
+    const steps: { stage: "condition" | "validator" | "post_action"; kind: string; passed: boolean; detail: string }[] = [];
+    let wouldSucceed = t.fromStatusId === null || t.fromStatusId === state.currentStatusId;
+    if (!wouldSucceed) steps.push({ stage: "condition", kind: "source_status", passed: false, detail: "Not available from the item's current status" });
+
+    for (const c of await this.rules(t.id, "condition")) {
+      const ok = await conditionPasses(this.db, organizationId, userId, workItemId, c);
+      if (!ok) wouldSucceed = false;
+      steps.push({ stage: "condition", kind: c.kind, passed: ok, detail: ok ? "Offered — condition met" : (c.kind === "role" ? `Requires role "${(c.config as { roleKey?: string })?.roleKey}"` : "Condition not met — transition would not be offered") });
+    }
+    for (const v of await this.rules(t.id, "validator")) {
+      const reason = await validatorReason(this.db, organizationId, workItemId, v);
+      if (reason) wouldSucceed = false;
+      steps.push({ stage: "validator", kind: v.kind, passed: !reason, detail: reason ?? "Would pass" });
+    }
+    // Built-in open-subtasks guard on completion, explained the same way the real transition() enforces it.
+    const [targetStatus] = await this.db.select().from(schema.workflowStatuses).where(and(eq(schema.workflowStatuses.id, t.toStatusId), eq(schema.workflowStatuses.versionId, state.versionId))).limit(1);
+    if (targetStatus?.category === "done") {
+      const [openChildren] = await this.db.select({ count: count() }).from(schema.workItems).where(and(eq(schema.workItems.organizationId, organizationId), eq(schema.workItems.parentId, workItemId), isNull(schema.workItems.deletedAt), sql`${schema.workItems.statusCategory} <> 'done'`));
+      const hasOpen = Number(openChildren?.count ?? 0) > 0;
+      if (hasOpen) wouldSucceed = false;
+      steps.push({ stage: "validator", kind: "open_subtasks", passed: !hasOpen, detail: hasOpen ? "Open subtasks must be completed first" : "No open subtasks blocking completion" });
+    }
+    for (const a of await this.rules(t.id, "post_action")) {
+      steps.push({ stage: "post_action", kind: a.kind, passed: wouldSucceed, detail: wouldSucceed ? `Would run on success: ${a.kind}` : "Would not run — transition would not succeed" });
+    }
+    return { transitionName: t.name, fromStatusId: state.currentStatusId, toStatusId: t.toStatusId, wouldSucceed, steps };
+  }
+
   // ---------- helpers ----------
   private async state(organizationId: string, workItemId: string) {
     const [s] = await this.db.select().from(schema.workItemWorkflowState).where(and(eq(schema.workItemWorkflowState.organizationId, organizationId), eq(schema.workItemWorkflowState.workItemId, workItemId))).limit(1);

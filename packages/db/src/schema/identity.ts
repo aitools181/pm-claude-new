@@ -96,6 +96,12 @@ export const organizationSettings = pgTable("organization_settings", {
   fiscalYearStartMonth: integer("fiscal_year_start_month").default(4).notNull(), // 1-12
   retentionDays: integer("retention_days"),                           // null = keep forever
   passwordPolicy: jsonb("password_policy"),                           // { minLength, requireUppercase, requireDigit, requireSymbol }
+  // ASN.D1 — co-assignees are a secondary-assignment feature, default OFF.
+  coAssigneesEnabled: boolean("co_assignees_enabled").default(false).notNull(),
+  // ASN.D4 — queue/claim limit policy; null = unlimited open claims per user.
+  maxOpenClaimsPerUser: integer("max_open_claims_per_user"),
+  // DOC.D1 — org default staleness threshold (days) for docs with no per-doc override.
+  docStaleDefaultDays: integer("doc_stale_default_days").default(90).notNull(),
   branding: jsonb("branding"),
   ...auditColumns,
 });

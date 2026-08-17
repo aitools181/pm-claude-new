@@ -14,8 +14,10 @@ const defineField = z.object({
   key: z.string().min(1), name: z.string().min(1),
   fieldType: z.enum(["text", "number", "date", "checkbox", "select", "user", "url"]),
   required: z.boolean().optional(), visibility: z.enum(["all", "restricted"]).optional(),
+  sensitivity: z.enum(["normal", "sensitive", "pii", "financial"]).optional(),
+  cascadeParentFieldId: z.string().uuid().nullable().optional(),
   config: z.record(z.any()).optional(),
-  options: z.array(z.object({ value: z.string(), label: z.string() })).optional(),
+  options: z.array(z.object({ value: z.string(), label: z.string(), parentOptionId: z.string().uuid().nullable().optional() })).optional(),
   visibleToRoles: z.array(z.string()).optional(),
 });
 const setValue = z.object({ fieldId: z.string().uuid(), value: z.any() });
@@ -32,6 +34,9 @@ export class FieldsController {
   @Get("custom-fields") @RequirePermission(CAPABILITIES.FIELDS_MANAGE)
   list(@Req() r: Ctx) { return this.fields.list(r.organizationId); }
 
+  @Get("custom-fields/:fieldId/options") @RequirePermission(CAPABILITIES.FIELDS_MANAGE)
+  optionsForField(@Req() r: Ctx, @Param("fieldId") fieldId: string) { return this.fields.optionsForField(r.organizationId, fieldId); }
+
   @Put("work-items/:id/custom-fields")
   setValue(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(setValue)) b: { fieldId: string; value: unknown }) {
     return this.fields.setValue(r.organizationId, r.userId, id, b.fieldId, b.value).then(() => ({ ok: true }));
@@ -39,6 +44,16 @@ export class FieldsController {
 
   @Get("work-items/:id/custom-fields")
   values(@Req() r: Ctx, @Param("id") id: string) { return this.fields.valuesForItem(r.organizationId, r.userId, id); }
+
+  @Post("work-items/:id/custom-fields/:fieldId/reveal")
+  reveal(@Req() r: Ctx, @Param("id") id: string, @Param("fieldId") fieldId: string) {
+    return this.fields.revealValue(r.organizationId, r.userId, id, fieldId);
+  }
+
+  @Get("work-items/:id/custom-fields/:fieldId/reveal-history")
+  revealHistory(@Req() r: Ctx, @Param("id") id: string, @Param("fieldId") fieldId: string) {
+    return this.fields.revealHistory(r.organizationId, fieldId, id);
+  }
 
   @Post("work-item-types") @RequirePermission(CAPABILITIES.TYPES_MANAGE)
   defineType(@Req() r: Ctx, @Body(new ZodPipe(defineType)) b: z.infer<typeof defineType>) { return this.fields.defineType(r.organizationId, r.userId, b); }

@@ -26,6 +26,20 @@ export default function WorkflowEditor() {
   const [gateFor, setGateFor] = useState<string | null>(null);
   const [gateKind, setGateKind] = useState("approval_required");
   const [gateConfig, setGateConfig] = useState("");
+  const [simulateFor, setSimulateFor] = useState<string | null>(null);
+  const [simulateItemKey, setSimulateItemKey] = useState("");
+  const [simulating, setSimulating] = useState(false);
+  const [simulateResult, setSimulateResult] = useState<{ wouldSucceed: boolean; steps: { stage: string; kind: string; passed: boolean; detail: string }[] } | null>(null);
+  async function runSimulate(transitionId: string) {
+    if (!simulateItemKey.trim()) return;
+    setSimulating(true); setSimulateResult(null);
+    try {
+      const found = await api<{ id: string }>(`/work-items/by-key/${encodeURIComponent(simulateItemKey.trim())}`, { org: true });
+      const result = await api<{ wouldSucceed: boolean; steps: { stage: string; kind: string; passed: boolean; detail: string }[] }>(`/workflows/items/${found.id}/transition/${transitionId}/simulate`, { method: "POST", org: true });
+      setSimulateResult(result);
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : "Could not find that work item or run the simulation"); }
+    finally { setSimulating(false); }
+  }
   const [issues, setIssues] = useState<string[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -126,6 +140,16 @@ export default function WorkflowEditor() {
                     {gateKind === "set_progress" && <Input type="number" value={gateConfig} onChange={(e) => setGateConfig(e.target.value)} placeholder="100" />}
                     {gateKind === "approval_required" && <Input value={gateConfig} onChange={(e) => setGateConfig(e.target.value)} placeholder="Approval definition id (optional)" />}
                     <UiButton variant="primary" size="compact" onClick={() => addGate(t.id)}>Add</UiButton>
+                  </div>}
+                  <button type="button" className="wf-gate-btn" onClick={() => { setSimulateFor(simulateFor === t.id ? null : t.id); setSimulateResult(null); }}>Simulate</button>
+                  {simulateFor === t.id && <div className="wf-gate-form wf-simulate-form">
+                    <Input value={simulateItemKey} onChange={(e) => setSimulateItemKey(e.target.value)} placeholder="Work item key, e.g. ENG-42" />
+                    <UiButton variant="secondary" size="compact" disabled={!simulateItemKey.trim() || simulating} onClick={() => runSimulate(t.id)}>{simulating ? "Testing…" : "Run"}</UiButton>
+                  </div>}
+                  {simulateFor === t.id && simulateResult && <div className="wf-simulate-result">
+                    <strong className={simulateResult.wouldSucceed ? "wf-sim-ok" : "wf-sim-fail"}>{simulateResult.wouldSucceed ? "Would succeed" : "Would not succeed"}</strong>
+                    {simulateResult.steps.map((step, i) => <div key={i} className="wf-simulate-step"><span className={`pill ${step.passed ? "open" : "danger"}`}>{step.stage}</span><span className="mono">{step.kind}</span><span className="muted">{step.detail}</span></div>)}
+                    {simulateResult.steps.length === 0 && <p className="muted">No conditions, validators or post-actions on this transition — it would always succeed from the right status.</p>}
                   </div>}
                 </div>
               ))}

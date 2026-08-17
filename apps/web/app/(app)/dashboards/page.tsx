@@ -25,10 +25,32 @@ export default function DashboardsPage() {
   const [add, setAdd] = useState({ source: "", title: "", projectId: "" });
   const [drill, setDrill] = useState<{ title: string; records: { key: string; title: string }[] } | null>(null);
   const drillDialogRef = useModalDialog<HTMLDivElement>(Boolean(drill), () => setDrill(null));
+  const [shareWidgetIds, setShareWidgetIds] = useState<Set<string>>(new Set());
+  const [shares, setShares] = useState<{ id: string; widgetIds: unknown; active: boolean; expiresAt: string | null; viewCount: number }[]>([]);
+  const [newShareUrl, setNewShareUrl] = useState("");
 
   const loadList = useCallback(async () => setList(await api<Dashboard[]>("/dashboards", { org: true }).catch(() => [])), []);
   useEffect(() => { loadList(); api<Cat[]>("/metric-catalogue", { org: true }).then(setCat).catch(() => {}); api<Project[]>("/projects", { org: true }).then(setProjects).catch(() => {}); }, [loadList]);
-  const open = useCallback(async (id: string) => { setSel(id); setRendered(await api<Rendered>(`/dashboards/${id}/render`, { org: true }).catch(() => null)); }, []);
+  const open = useCallback(async (id: string) => {
+    setSel(id); setNewShareUrl(""); setShareWidgetIds(new Set());
+    setRendered(await api<Rendered>(`/dashboards/${id}/render`, { org: true }).catch(() => null));
+    setShares(await api<{ id: string; widgetIds: unknown; active: boolean; expiresAt: string | null; viewCount: number }[]>(`/dashboards/${id}/shares`, { org: true }).catch(() => []));
+  }, []);
+  function toggleShareWidget(id: string) { setShareWidgetIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
+  async function createShare() {
+    if (!sel || !shareWidgetIds.size) return;
+    try {
+      const r = await api<{ token: string }>(`/dashboards/${sel}/shares`, { method: "POST", org: true, body: JSON.stringify({ widgetIds: [...shareWidgetIds] }) });
+      setNewShareUrl(`${window.location.origin}/public-dashboard/${r.token}`);
+      setShares(await api<{ id: string; widgetIds: unknown; active: boolean; expiresAt: string | null; viewCount: number }[]>(`/dashboards/${sel}/shares`, { org: true }).catch(() => []));
+      toast({ message: "Share link created — copy it now, it won't be shown again" });
+    } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not create share link" }); }
+  }
+  async function revokeShare(shareId: string) {
+    await api(`/dashboards/shares/${shareId}`, { method: "DELETE", org: true });
+    if (sel) setShares(await api<{ id: string; widgetIds: unknown; active: boolean; expiresAt: string | null; viewCount: number }[]>(`/dashboards/${sel}/shares`, { org: true }).catch(() => []));
+    toast({ message: "Share link revoked" });
+  }
 
   async function create() { const name = await appPrompt("Dashboard name"); if (!name) return; await api("/dashboards", { method: "POST", org: true, body: JSON.stringify({ name, visibility: "org", widgets: [] }) }); loadList(); }
   async function addWidget() {
@@ -83,6 +105,20 @@ export default function DashboardsPage() {
                 )}
                 <UiInput className="input ui-static-f09611ef" placeholder="Title (optional)" value={add.title} onChange={(e) => setAdd({ ...add, title: e.target.value })}  />
                 <UiButton variant="secondary"  onClick={addWidget} disabled={!add.source}>Add widget</UiButton>
+              </div>
+
+              <div className="dashboard-share-panel">
+                <strong>Share externally</strong>
+                <p className="muted">Choose which widgets to expose on a read-only public link. Only the selected widgets are ever shown.</p>
+                <div className="dashboard-share-picker">
+                  {rendered.widgets.map((w) => <label key={w.id} className="dashboard-share-checkbox"><input type="checkbox" checked={shareWidgetIds.has(w.id)} onChange={() => toggleShareWidget(w.id)} />{w.title}</label>)}
+                  <UiButton variant="secondary" size="compact" disabled={!shareWidgetIds.size} onClick={createShare}>Create share link</UiButton>
+                </div>
+                {newShareUrl && <div className="dashboard-share-url"><code>{newShareUrl}</code><UiButton variant="tertiary" size="compact" onClick={() => { navigator.clipboard.writeText(newShareUrl); }}>Copy</UiButton></div>}
+                {shares.length > 0 && <table className="table">
+                  <thead><tr><th>Widgets</th><th>Views</th><th>Expires</th><th></th></tr></thead>
+                  <tbody>{shares.map((s) => <tr key={s.id}><td>{(s.widgetIds as string[]).length}</td><td>{s.viewCount}</td><td className="muted">{s.expiresAt ? new Date(s.expiresAt).toLocaleDateString() : "Never"}</td><td><UiButton variant="tertiary" size="compact" onClick={() => revokeShare(s.id)}>Revoke</UiButton></td></tr>)}</tbody>
+                </table>}
               </div>
             </>
           )}

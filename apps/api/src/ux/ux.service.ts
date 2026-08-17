@@ -53,7 +53,7 @@ export class UxService {
     return { organization, settings };
   }
 
-  async updateWorkspaceSettings(org: string, userId: string, input: { name?: string; timezone?: string; weekStart?: number; dateFormat?: string; timeFormat?: string; numberFormat?: string; workingDays?: number[] | null; fiscalYearStartMonth?: number; retentionDays?: number | null; passwordPolicy?: Record<string, unknown> | null; branding?: Record<string, unknown> }) {
+  async updateWorkspaceSettings(org: string, userId: string, input: { name?: string; timezone?: string; weekStart?: number; dateFormat?: string; timeFormat?: string; numberFormat?: string; workingDays?: number[] | null; fiscalYearStartMonth?: number; retentionDays?: number | null; passwordPolicy?: Record<string, unknown> | null; coAssigneesEnabled?: boolean; branding?: Record<string, unknown> }) {
     return this.db.transaction(async (tx) => {
       if (input.name) await tx.update(schema.organizations).set({ name: input.name, updatedBy: userId, updatedAt: new Date(), version: sql`${schema.organizations.version}+1` }).where(eq(schema.organizations.id, org));
       const settingsPatch: Record<string, unknown> = {};
@@ -65,6 +65,7 @@ export class UxService {
       if (input.workingDays !== undefined) settingsPatch.workingDays = input.workingDays;
       if (input.fiscalYearStartMonth !== undefined) settingsPatch.fiscalYearStartMonth = input.fiscalYearStartMonth;
       if (input.retentionDays !== undefined) settingsPatch.retentionDays = input.retentionDays;
+      if (input.coAssigneesEnabled !== undefined) settingsPatch.coAssigneesEnabled = input.coAssigneesEnabled;
       if (input.passwordPolicy !== undefined) settingsPatch.passwordPolicy = input.passwordPolicy;
       if (input.branding !== undefined) settingsPatch.branding = input.branding;
       if (Object.keys(settingsPatch).length) {
@@ -241,20 +242,35 @@ export class UxService {
     });
   }
 
-  listSavedViews(org: string, userId: string, scopeType: string, scopeId?: string) {
-    const conds = [eq(schema.savedUiViews.organizationId, org), eq(schema.savedUiViews.userId, userId), eq(schema.savedUiViews.scopeType, scopeType)];
-    if (scopeId) conds.push(eq(schema.savedUiViews.scopeId, scopeId)); else conds.push(isNull(schema.savedUiViews.scopeId));
-    return this.db.select().from(schema.savedUiViews).where(and(...conds)).orderBy(asc(schema.savedUiViews.createdAt));
+  async listSavedViews(org: string, userId: string, scopeType: string, scopeId?: string) {
+    const myTeamIds = (await this.db.select({ teamId: schema.teamMembers.teamId }).from(schema.teamMembers)
+      .where(and(eq(schema.teamMembers.organizationId, org), eq(schema.teamMembers.userId, userId), isNull(schema.teamMembers.deletedAt)))).map((r) => r.teamId);
+    const scopeCond = scopeId ? eq(schema.savedUiViews.scopeId, scopeId) : isNull(schema.savedUiViews.scopeId);
+    const visibility = or(
+      eq(schema.savedUiViews.userId, userId),                       // mine, any tier
+      eq(schema.savedUiViews.ownershipTier, "org"),                 // shared with the whole org
+      myTeamIds.length ? and(eq(schema.savedUiViews.ownershipTier, "team"), inArray(schema.savedUiViews.teamId, myTeamIds)) : sql`false`,
+    );
+    return this.db.select().from(schema.savedUiViews)
+      .where(and(eq(schema.savedUiViews.organizationId, org), eq(schema.savedUiViews.scopeType, scopeType), scopeCond, visibility))
+      .orderBy(asc(schema.savedUiViews.createdAt));
   }
 
-  async createSavedView(org: string, userId: string, input: { scopeType: string; scopeId?: string; name: string; viewType?: string; filters?: Record<string, unknown>; columns?: unknown[]; sortSpec?: Record<string, unknown>; groupBy?: string | null; isDefault?: boolean }) {
+  async createSavedView(org: string, userId: string, input: { scopeType: string; scopeId?: string; name: string; viewType?: string; filters?: Record<string, unknown>; columns?: unknown[]; sortSpec?: Record<string, unknown>; groupBy?: string | null; isDefault?: boolean; ownershipTier?: string; teamId?: string }) {
+    const ownershipTier = input.ownershipTier ?? "personal";
+    if (ownershipTier === "team") {
+      if (!input.teamId) throw new AppError("VALIDATION", "A team-shared view requires a teamId");
+      const [membership] = await this.db.select({ id: schema.teamMembers.id }).from(schema.teamMembers)
+        .where(and(eq(schema.teamMembers.organizationId, org), eq(schema.teamMembers.userId, userId), eq(schema.teamMembers.teamId, input.teamId), isNull(schema.teamMembers.deletedAt))).limit(1);
+      if (!membership) throw new AppError("FORBIDDEN", "You can only share a view with a team you belong to");
+    }
     return this.db.transaction(async (tx) => {
       if (input.isDefault) {
         const conds = [eq(schema.savedUiViews.organizationId, org), eq(schema.savedUiViews.userId, userId), eq(schema.savedUiViews.scopeType, input.scopeType)];
         if (input.scopeId) conds.push(eq(schema.savedUiViews.scopeId, input.scopeId)); else conds.push(isNull(schema.savedUiViews.scopeId));
         await tx.update(schema.savedUiViews).set({ isDefault: false, updatedAt: new Date() }).where(and(...conds));
       }
-      const [row] = await tx.insert(schema.savedUiViews).values({ organizationId: org, userId, scopeType: input.scopeType, scopeId: input.scopeId, name: input.name, viewType: input.viewType ?? "list", filters: input.filters ?? {}, columns: input.columns ?? [], sortSpec: input.sortSpec ?? {}, groupBy: input.groupBy, isDefault: input.isDefault ?? false }).returning();
+      const [row] = await tx.insert(schema.savedUiViews).values({ organizationId: org, userId, scopeType: input.scopeType, scopeId: input.scopeId, name: input.name, viewType: input.viewType ?? "list", filters: input.filters ?? {}, columns: input.columns ?? [], sortSpec: input.sortSpec ?? {}, groupBy: input.groupBy, isDefault: input.isDefault ?? false, ownershipTier, teamId: ownershipTier === "team" ? input.teamId : null }).returning();
       return row;
     });
   }

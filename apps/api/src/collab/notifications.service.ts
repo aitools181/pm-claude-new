@@ -36,6 +36,9 @@ export class NotificationsService {
   }
 
   /** F23: honour the email channel preference, then route through quiet hours / digest. */
+  // Types that must always break through quiet hours / vacation mode.
+  private readonly OVERRIDE_TYPES = new Set(["security_alert", "on_call_page", "suspicious_login"]);
+
   private async deliverEmail(input: { organizationId: string; recipientUserId: string; type: string; data?: string }) {
     if (!this.mail) return;
     const [pref] = await this.db.select({ enabled: schema.notificationPreferences.enabled }).from(schema.notificationPreferences)
@@ -48,22 +51,31 @@ export class NotificationsService {
 
     const subject = `[PM] ${input.type.replace(/_/g, " ")}`;
     const body = input.data || `You have a new ${input.type.replace(/_/g, " ")} notification. Open your inbox to review it.`;
+    const isOverride = this.OVERRIDE_TYPES.has(input.type);
 
     const [settings] = await this.db.select().from(schema.notificationDeliverySettings)
       .where(and(eq(schema.notificationDeliverySettings.organizationId, input.organizationId), eq(schema.notificationDeliverySettings.userId, input.recipientUserId))).limit(1);
     const hour = await this.orgLocalHour(input.organizationId);
-    const inQuiet = settings?.quietFrom != null && settings?.quietTo != null && this.hourInWindow(hour, settings.quietFrom, settings.quietTo);
-    const wantsDigest = settings?.digestFrequency === "daily" || settings?.digestFrequency === "weekly";
+    const inQuiet = !isOverride && settings?.quietFrom != null && settings?.quietTo != null && this.hourInWindow(hour, settings.quietFrom, settings.quietTo);
+    const inVacation = !isOverride && this.inVacationWindow(settings?.vacationFrom, settings?.vacationTo);
+    const wantsDigest = !isOverride && (settings?.digestFrequency === "daily" || settings?.digestFrequency === "weekly");
 
-    if (inQuiet || wantsDigest) {
+    if (inQuiet || inVacation || wantsDigest) {
       await this.db.insert(schema.notificationDigestQueue).values({
         organizationId: input.organizationId, userId: input.recipientUserId,
-        subject, body, queuedReason: wantsDigest ? "digest" : "quiet_hours",
+        subject, body, queuedReason: inVacation ? "quiet_hours" : wantsDigest ? "digest" : "quiet_hours",
       });
       return;
     }
     const [user] = await this.db.select({ email: schema.users.email }).from(schema.users).where(eq(schema.users.id, input.recipientUserId)).limit(1);
     if (user) await this.mail.send(user.email, subject, body);
+  }
+
+  /** NOTIF.D2 — vacation mode: today falls within [vacationFrom, vacationTo] (org-local date). */
+  private inVacationWindow(from?: string | null, to?: string | null) {
+    if (!from || !to) return false;
+    const today = new Date().toISOString().slice(0, 10);
+    return today >= from && today <= to;
   }
 
   private hourInWindow(hour: number, from: number, to: number) {
@@ -125,11 +137,12 @@ export class NotificationsService {
   async deliverySettings(organizationId: string, userId: string) {
     const [row] = await this.db.select().from(schema.notificationDeliverySettings)
       .where(and(eq(schema.notificationDeliverySettings.organizationId, organizationId), eq(schema.notificationDeliverySettings.userId, userId))).limit(1);
-    return row ?? { organizationId, userId, digestFrequency: "off", digestHour: 9, quietFrom: null, quietTo: null };
+    return row ?? { organizationId, userId, digestFrequency: "off", digestHour: 9, quietFrom: null, quietTo: null, vacationFrom: null, vacationTo: null };
   }
 
-  async setDeliverySettings(organizationId: string, userId: string, input: { digestFrequency: "off" | "daily" | "weekly"; digestHour: number; quietFrom: number | null; quietTo: number | null }) {
+  async setDeliverySettings(organizationId: string, userId: string, input: { digestFrequency: "off" | "daily" | "weekly"; digestHour: number; quietFrom: number | null; quietTo: number | null; vacationFrom?: string | null; vacationTo?: string | null }) {
     if ((input.quietFrom == null) !== (input.quietTo == null)) throw new AppError("VALIDATION", "Quiet hours need both a start and an end");
+    if ((input.vacationFrom == null) !== (input.vacationTo == null)) throw new AppError("VALIDATION", "Vacation mode needs both a start and an end date");
     const values = { organizationId, userId, ...input, updatedAt: new Date() };
     const [row] = await this.db.insert(schema.notificationDeliverySettings).values(values)
       .onConflictDoUpdate({ target: [schema.notificationDeliverySettings.organizationId, schema.notificationDeliverySettings.userId], set: { ...input, updatedAt: new Date() } })

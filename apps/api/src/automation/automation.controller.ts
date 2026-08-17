@@ -41,6 +41,12 @@ export class AutomationController {
     return this.auto.manualTrigger(r.organizationId, id, b.payload ?? {}, r.userId, b.dryRun ?? false);
   }
 
+  /** AUTO.D5 — dry-run against the last N real matching events; no side effects. */
+  @Post("rules/:id/dry-run-recent") @RequirePermission(CAPABILITIES.AUTOMATION_MANAGE)
+  dryRunRecent(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(z.object({ limit: z.number().int().min(1).max(50).optional() }))) b: { limit?: number }) {
+    return this.auto.dryRunAgainstRecentEvents(r.organizationId, id, b.limit ?? 10);
+  }
+
   /** Fire an internal domain event (test-event / integration point). */
   @Post("events") @RequirePermission(CAPABILITIES.AUTOMATION_MANAGE)
   fire(@Req() r: Ctx, @Body(new ZodPipe(fireDto)) b: z.infer<typeof fireDto>) {

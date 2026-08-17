@@ -8,6 +8,8 @@ import { RequirePermission } from "../authz/require-permission.decorator.js";
 import { CAPABILITIES } from "../authz/capabilities.js";
 import { ZodPipe } from "../common/zod.pipe.js";
 import { DiscoveryService } from "./discovery.service.js";
+import { RequiresModule } from "../modules/module-enabled.guard.js";
+import { ModuleEnabledGuard } from "../modules/module-enabled.guard.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
 const customerDto = z.object({ name: z.string().min(1), externalRef: z.string().optional(), segment: z.string().optional(), weight: z.number().optional(), consentStatus: z.string().optional(), retentionUntil: z.string().datetime().optional(), metadata: z.record(z.unknown()).optional() });
@@ -21,7 +23,8 @@ const deliveryDto = z.object({ projectId: z.string().uuid().optional(), workItem
 const publishDto = z.object({ name: z.string().min(1), fields: z.array(z.string()).optional(), filters: z.record(z.unknown()).optional(), expiresAt: z.string().datetime().optional() });
 
 @Controller("discovery")
-@UseGuards(SessionGuard, OrgContextGuard, AuthzGuard)
+@UseGuards(SessionGuard, OrgContextGuard, AuthzGuard, ModuleEnabledGuard)
+@RequiresModule("discovery")
 export class DiscoveryController {
   constructor(private readonly service: DiscoveryService) {}
   @Get() overview(@Req() r: Ctx) { return this.service.overview(r.organizationId); }

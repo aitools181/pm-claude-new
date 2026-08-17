@@ -64,6 +64,29 @@ export class BoardService {
     const nextCategory = input.toStatus ? (CATEGORY[input.toStatus] ?? item.statusCategory) : item.statusCategory;
     const statusChanged = Boolean(input.toStatus && (input.toStatus !== item.status || nextCategory !== item.statusCategory));
 
+    // VIEW.D3 — WIP limit check: only relevant when the card is entering a
+    // *different* column with a configured limit; moving within the same
+    // column (reorder) never trips it.
+    let wipWarning: { statusCategory: string; limit: number; count: number } | null = null;
+    if (statusChanged && nextCategory !== item.statusCategory) {
+      const [proj] = await this.db.select({ wipLimits: schema.projects.wipLimits }).from(schema.projects).where(eq(schema.projects.id, projectId)).limit(1);
+      const limits = (proj?.wipLimits ?? {}) as Record<string, { limit: number; warnOnly: boolean }>;
+      const rule = limits[nextCategory];
+      if (rule) {
+        const [{ n }] = await this.db.select({ n: count() }).from(schema.workItemPlacements)
+          .innerJoin(schema.workItems, eq(schema.workItems.id, schema.workItemPlacements.workItemId))
+          .where(and(
+            eq(schema.workItemPlacements.organizationId, organizationId), eq(schema.workItemPlacements.projectId, projectId),
+            isNull(schema.workItemPlacements.deletedAt), eq(schema.workItems.statusCategory, nextCategory), isNull(schema.workItems.deletedAt),
+          ));
+        const currentCount = Number(n ?? 0);
+        if (currentCount >= rule.limit) {
+          if (!rule.warnOnly) throw new AppError("VALIDATION", `The "${input.toStatus}" column is at its WIP limit of ${rule.limit}`, { code: "wip_limit_exceeded" });
+          wipWarning = { statusCategory: nextCategory, limit: rule.limit, count: currentCount };
+        }
+      }
+    }
+
     let resultingVersion = item.version;
     await this.db.transaction(async (tx) => {
       if (statusChanged && input.toStatus) {
@@ -113,7 +136,7 @@ export class BoardService {
       });
     });
 
-    return { newRank, previous, version: resultingVersion };
+    return { newRank, previous, version: resultingVersion, wipWarning };
   }
 
   /** Re-apply a captured prior state — this is how undo works. */

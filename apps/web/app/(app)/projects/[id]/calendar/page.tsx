@@ -61,7 +61,9 @@ export default function ProjectCalendar() {
   async function saveView() {
     const name = await appPrompt("View name", "Calendar view");
     if (!name) return;
-    await api("/ui/saved-views", { method: "POST", org: true, body: JSON.stringify({ scopeType: "project", scopeId: id, name, viewType: "calendar", filters: { search, hideDone, weeks } }) });
+    const share = await appPrompt('Share with the whole organization? Type "org" to share, or leave blank to keep it just for you.', "");
+    const ownershipTier = (share || "").trim().toLowerCase() === "org" ? "org" : "personal";
+    await api("/ui/saved-views", { method: "POST", org: true, body: JSON.stringify({ scopeType: "project", scopeId: id, name, viewType: "calendar", filters: { search, hideDone, weeks }, ownershipTier }) });
   }
 
   return <>

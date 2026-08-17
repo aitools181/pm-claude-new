@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { Request } from "express";
 import { z } from "zod";
 import { ZodPipe } from "../common/zod.pipe.js";
@@ -11,9 +11,10 @@ import { DashboardService } from "./dashboard.service.js";
 import { MetricService } from "./metric.service.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
-const createDto = z.object({ name: z.string().min(1), visibility: z.enum(["private", "org"]).optional(), widgets: z.array(z.any()).optional() });
-const patchDto = z.object({ name: z.string().optional(), visibility: z.enum(["private", "org"]).optional(), widgets: z.array(z.any()).optional() });
+const createDto = z.object({ name: z.string().min(1), visibility: z.enum(["private", "team", "project", "org"]).optional(), scopeId: z.string().uuid().optional(), widgets: z.array(z.any()).optional() });
+const patchDto = z.object({ name: z.string().optional(), visibility: z.enum(["private", "team", "project", "org"]).optional(), widgets: z.array(z.any()).optional() });
 const defDto = z.object({ key: z.string().min(1), name: z.string().min(1), source: z.string().min(1), params: z.record(z.any()).optional(), unit: z.string().optional() });
+const shareDto = z.object({ widgetIds: z.array(z.string()).min(1), expiresInDays: z.number().int().min(1).max(365).nullable().optional() });
 
 @Controller()
 @UseGuards(SessionGuard, OrgContextGuard, AuthzGuard)
@@ -35,4 +36,19 @@ export class DashboardsController {
   update(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(patchDto)) b: z.infer<typeof patchDto>) { return this.dashboards.update(r.organizationId, r.userId, id, b as any); }
   @Get("dashboards/:id/render") render(@Req() r: Ctx, @Param("id") id: string) { return this.dashboards.render(r.organizationId, r.userId, id); }
   @Get("dashboards/:id/widgets/:widgetId/drill") drill(@Req() r: Ctx, @Param("id") id: string, @Param("widgetId") w: string) { return this.dashboards.drill(r.organizationId, r.userId, id, w); }
+
+  // ---- F21 external share links ----
+  @Post("dashboards/:id/shares") @RequirePermission(CAPABILITIES.DASHBOARD_MANAGE)
+  createShare(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(shareDto)) b: z.infer<typeof shareDto>) { return this.dashboards.createShare(r.organizationId, r.userId, id, b); }
+  @Get("dashboards/:id/shares") @RequirePermission(CAPABILITIES.DASHBOARD_MANAGE)
+  listShares(@Req() r: Ctx, @Param("id") id: string) { return this.dashboards.listShares(r.organizationId, id); }
+  @Delete("dashboards/shares/:shareId") @RequirePermission(CAPABILITIES.DASHBOARD_MANAGE)
+  revokeShare(@Req() r: Ctx, @Param("shareId") shareId: string) { return this.dashboards.revokeShare(r.organizationId, shareId); }
+}
+
+/** Unauthenticated — the only data ever returned is the widget allow-list on the share record. */
+@Controller("public/dashboards")
+export class PublicDashboardsController {
+  constructor(private dashboards: DashboardService) {}
+  @Get(":token") view(@Param("token") token: string) { return this.dashboards.publicView(token); }
 }

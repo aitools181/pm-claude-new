@@ -65,4 +65,7 @@ export class WorkflowController {
 
   @Post("items/:workItemId/transition/:transitionId")
   transition(@Req() r: Ctx, @Param("workItemId") wi: string, @Param("transitionId") t: string) { return this.wf.transition(r.organizationId, r.userId, wi, t); }
+
+  @Post("items/:workItemId/transition/:transitionId/simulate")
+  simulate(@Req() r: Ctx, @Param("workItemId") wi: string, @Param("transitionId") t: string) { return this.wf.simulate(r.organizationId, r.userId, wi, t); }
 }

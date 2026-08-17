@@ -7,6 +7,7 @@ import { SessionGuard } from "../auth/guards/session.guard.js";
 import { PlatformAdminGuard } from "./platform-admin.guard.js";
 import { PlatformAdminService } from "./platform-admin.service.js";
 import { DataOpsService } from "../data-ops/data-ops.service.js";
+import { BackgroundJobsService } from "../background-jobs/background-jobs.service.js";
 
 type Ctx = Request & { userId: string };
 const grantDto = z.object({ email: z.string().email(), note: z.string().max(300).optional() });
@@ -17,7 +18,7 @@ const flagDto = z.object({ key: z.string().min(1).max(120), enabled: z.boolean()
 @Controller("superadmin")
 @UseGuards(SessionGuard)
 export class PlatformAdminController {
-  constructor(private readonly platform: PlatformAdminService, private readonly dataOps: DataOpsService) {}
+  constructor(private readonly platform: PlatformAdminService, private readonly dataOps: DataOpsService, private readonly jobs: BackgroundJobsService) {}
 
   /** Session-guarded only: lets the UI decide whether to show the console. */
   @Get("me")
@@ -70,4 +71,25 @@ export class PlatformAdminController {
 
   @Get("organizations/:id/storage") @UseGuards(PlatformAdminGuard)
   storage(@Param("id") id: string) { return this.platform.storageUsage(id); }
+
+  // ---- X04.4 Job / Queue Administration ----
+  @Get("jobs/stats") @UseGuards(PlatformAdminGuard)
+  jobStats() { return this.jobs.queueStats(); }
+  @Get("jobs") @UseGuards(PlatformAdminGuard)
+  jobList(@Query("status") status?: string) {
+    const s = (["waiting", "active", "completed", "failed", "delayed"] as const).includes(status as never) ? (status as "waiting" | "active" | "completed" | "failed" | "delayed") : "failed";
+    return this.jobs.listJobs(s);
+  }
+  @Post("jobs/:id/retry") @UseGuards(PlatformAdminGuard)
+  jobRetry(@Param("id") id: string) { return this.jobs.retryJob(id); }
+  @Delete("jobs/:id") @UseGuards(PlatformAdminGuard)
+  jobCancel(@Param("id") id: string) { return this.jobs.cancelJob(id); }
+  @Get("jobs/dead-letter") @UseGuards(PlatformAdminGuard)
+  deadLetterList() { return this.jobs.listDeadLetter(); }
+  @Post("jobs/dead-letter/:id/redrive") @UseGuards(PlatformAdminGuard)
+  deadLetterRedrive(@Param("id") id: string) { return this.jobs.redriveDeadLetter(id); }
+  @Delete("jobs/dead-letter/:id") @UseGuards(PlatformAdminGuard)
+  deadLetterDiscard(@Param("id") id: string, @Body(new ZodPipe(z.object({ reason: z.string().trim().min(5).max(500) }))) b: { reason: string }) {
+    return this.jobs.discardDeadLetter(id);
+  }
 }

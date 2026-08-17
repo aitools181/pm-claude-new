@@ -13,6 +13,7 @@ import { ProjectsService } from "./projects.service.js";
 import { WorkItemsService } from "./work-items.service.js";
 import { createWorkspaceDto, createProjectDto, createWorkItemDto, createSubtaskDto, updateWorkItemDto } from "./dto.js";
 import { WorkItemDetailsService } from "./work-item-details.service.js";
+import { AutoAssignService, type AutoAssignStrategy } from "./auto-assign.service.js";
 
 type Ctx = Request & { userId: string; organizationId: string };
 
@@ -24,6 +25,7 @@ export class WorkController {
     private readonly projects: ProjectsService,
     private readonly items: WorkItemsService,
     private readonly details: WorkItemDetailsService,
+    private readonly autoAssign: AutoAssignService,
   ) {}
 
   // ---- Workspaces ----
@@ -60,6 +62,7 @@ export class WorkController {
       health: z.enum(["on_track","at_risk","off_track"]).optional(), privacy: z.enum(["workspace","private"]).optional(),
       description: z.string().nullable().optional(), color: z.string().max(40).optional(), icon: z.string().trim().min(1).max(40).optional(),
       startDate: z.string().nullable().optional(), dueDate: z.string().nullable().optional(),
+      wipLimits: z.record(z.object({ limit: z.number().int().min(1).max(999), warnOnly: z.boolean() })).nullable().optional(),
     }),
   }))) b: { version: number; patch: any }) {
     await this.projects.assertAccess(r.organizationId, id, r.userId);
@@ -107,6 +110,13 @@ export class WorkController {
     return this.items.listChildren(r.organizationId, id);
   }
 
+  @Get("work-items/by-key/:key")
+  async getItemByKey(@Req() r: Ctx, @Param("key") key: string) {
+    const found = await this.items.getByKey(r.organizationId, key);
+    await this.items.assertAccess(r.organizationId, found.id, r.userId);
+    return found;
+  }
+
   @Get("work-items/:id")
   async getItem(@Req() r: Ctx, @Param("id") id: string) {
     await this.items.assertAccess(r.organizationId, id, r.userId);
@@ -116,6 +126,21 @@ export class WorkController {
   @Patch("work-items/:id") @RequirePermission(CAPABILITIES.WORKITEM_EDIT)
   updateItem(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(updateWorkItemDto)) b: z.infer<typeof updateWorkItemDto>) {
     return this.items.update(r.organizationId, id, r.userId, b.version, b.patch);
+  }
+
+  @Post("work-items/:id/claim") @RequirePermission(CAPABILITIES.WORKITEM_EDIT)
+  claim(@Req() r: Ctx, @Param("id") id: string) { return this.items.claim(r.organizationId, id, r.userId); }
+  @Post("work-items/:id/unclaim") @RequirePermission(CAPABILITIES.WORKITEM_EDIT)
+  unclaim(@Req() r: Ctx, @Param("id") id: string) { return this.items.unclaim(r.organizationId, id, r.userId); }
+
+  @Post("projects/:id/auto-assign/suggest") @RequirePermission(CAPABILITIES.WORKITEM_EDIT)
+  suggestAutoAssign(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(z.object({
+    strategy: z.enum(["round_robin", "least_load", "skill_match", "weighted"]),
+    candidateUserIds: z.array(z.string().uuid()).min(1).max(100),
+    skill: z.string().max(80).optional(),
+    weights: z.record(z.number().min(0)).optional(),
+  }))) b: { strategy: AutoAssignStrategy; candidateUserIds: string[]; skill?: string; weights?: Record<string, number> }) {
+    return this.autoAssign.suggest(r.organizationId, id, b.strategy, b.candidateUserIds, { skill: b.skill, weights: b.weights });
   }
 
   @Post("work-items/:id/assignees") @RequirePermission(CAPABILITIES.WORKITEM_EDIT)

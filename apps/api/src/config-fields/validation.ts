@@ -1,6 +1,6 @@
 import { AppError } from "@pm/shared";
 
-export type FieldDef = { id: string; key: string; fieldType: string; required: boolean; config: any };
+export type FieldDef = { id: string; key: string; fieldType: string; required: boolean; config: any; cascadeParentFieldId?: string | null };
 export type Coerced = {
   valueText?: string | null; valueNumber?: number | null; valueDate?: string | null;
   valueBool?: boolean | null; valueUserId?: string | null; valueOptionId?: string | null;

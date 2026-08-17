@@ -24,6 +24,11 @@ export class DocsController {
   @Get("documents/tree") tree(@Req() r: Ctx, @Query("workspaceId") ws?: string) { return this.svc.tree(r.organizationId, ws); }
   @Get("documents/:id") get(@Req() r: Ctx, @Param("id") id: string) { return this.svc.get(r.organizationId, r.userId, id); }
   @Get("documents/:id/versions") versions(@Req() r: Ctx, @Param("id") id: string) { return this.svc.listVersions(r.organizationId, id); }
+  @Post("documents/:id/mark-reviewed") markReviewed(@Req() r: Ctx, @Param("id") id: string) { return this.svc.markReviewed(r.organizationId, r.userId, id); }
+  @Post("documents/:id/stale-threshold")
+  setStaleThreshold(@Req() r: Ctx, @Param("id") id: string, @Body(new ZodPipe(z.object({ staleAfterDays: z.number().int().min(1).max(3650).nullable() }))) b: { staleAfterDays: number | null }) {
+    return this.svc.setStaleThreshold(r.organizationId, id, b.staleAfterDays);
+  }
   @Get("backlinks") backlinks(@Req() r: Ctx, @Query("targetKind") kind: string, @Query("targetId") targetId: string) { return this.svc.backlinksFor(r.organizationId, kind, targetId); }
 
   @Post("documents") @RequirePermission(CAPABILITIES.DOC_MANAGE)
