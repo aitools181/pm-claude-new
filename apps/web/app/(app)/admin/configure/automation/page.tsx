@@ -21,7 +21,8 @@ export default function AutomationBuilder() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = () => api<Rule[]>("/automation/rules", { org: true }).then(setRules).catch(() => {});
+  const [rulesError, setRulesError] = useState("");
+  const load = () => api<Rule[]>("/automation/rules", { org: true }).then((r) => { setRules(r); setRulesError(""); }).catch((e) => setRulesError(e instanceof Error ? e.message : "Could not load automation rules."));
   useEffect(() => { load(); }, []);
   useEffect(() => { if (sel) api<Run[]>(`/automation/rules/${sel.id}/runs`, { org: true }).then(setRuns).catch(() => setRuns([])); }, [sel]);
 
@@ -68,7 +69,9 @@ export default function AutomationBuilder() {
         <div className="card">
           <table className="table"><thead><tr><th>Rule</th><th>Trigger</th><th>State</th></tr></thead>
             <tbody>
-              {rules.map((r) => (
+              {rulesError && <tr><td colSpan={3} className="config-load-error">{rulesError} <button className="text-button" onClick={load}>Retry</button></td></tr>}
+              {!rulesError && rules.length === 0 && <tr><td colSpan={3} className="muted">No automation rules yet.</td></tr>}
+              {!rulesError && rules.map((r) => (
                 <tr key={r.id} className="ui-click-row" data-selected={sel?.id === r.id || undefined}>
                   <td className="ui-static-02a2d333"><button type="button" className="ui-row-link ui-reset-button" aria-pressed={sel?.id === r.id} onClick={() => setSel(r)}>{r.name}</button></td><td className="mono ui-static-6cb285c6">{r.triggerType}</td>
                   <td><button type="button" className="badge ui-static-3b6a3a65 ui-reset-button" aria-pressed={r.enabled} onClick={() => toggle(r)}><span className={`dot ${r.enabled ? "dot-ok" : "dot-off"}`} />{r.enabled ? "on" : (r.disabledReason ?? "off")}</button></td>

@@ -123,6 +123,7 @@ export class WorkItemsService {
     priority?: string;
     status?: string;
     description?: string;
+    dueDate?: string;
   }) {
     const title = input.title.trim();
     if (!title) throw hierarchyError("Work item title is required", "WORK_ITEM_TITLE_REQUIRED");
@@ -181,6 +182,7 @@ export class WorkItemsService {
         status,
         statusCategory: CATEGORY[status],
         priority: input.priority ?? "normal",
+        dueDate: input.dueDate,
         reporterUserId: userId,
         primaryOwnerUserId: input.primaryOwnerUserId ?? userId,
         createdBy: userId,

@@ -20,6 +20,8 @@ export class SetupService {
     if (await this.isCompleted()) throw new AppError("CONFLICT", "Setup already completed");
 
     return this.db.transaction(async (tx) => {
+      const [existing] = await tx.select({ id: schema.users.id }).from(schema.users).where(sql`lower(${schema.users.email}) = ${input.email.toLowerCase()}`).limit(1);
+      if (existing) throw new AppError("CONFLICT", "An account with this email already exists");
       const [user] = await tx.insert(schema.users).values({
         email: input.email.toLowerCase(), displayName: input.displayName, emailVerifiedAt: new Date(),
       }).returning();

@@ -33,7 +33,7 @@ function keyPrefixFrom(name: string) {
   return prefix || "PRJ";
 }
 
-export function GlobalCreateDialog({ open, kind = "task", initialTitle = "", onClose }: { open: boolean; kind?: CreateKind; initialTitle?: string; onClose: () => void }) {
+export function GlobalCreateDialog({ open, kind = "task", initialTitle = "", initialDueDate = "", onClose, onCreated }: { open: boolean; kind?: CreateKind; initialTitle?: string; initialDueDate?: string; onClose: () => void; onCreated?: () => void }) {
   const router = useRouter();
   const toast = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -57,7 +57,7 @@ export function GlobalCreateDialog({ open, kind = "task", initialTitle = "", onC
   useEffect(() => {
     if (!open) return;
     setIdemKey(crypto.randomUUID());
-    setError(null); setTitle(initialTitle); setDescription(""); setEmail(""); setDueDate("");
+    setError(null); setTitle(initialTitle); setDescription(""); setEmail(""); setDueDate(initialDueDate);
     if (kind === "task" || kind === "message") {
       api<Project[]>("/projects", { org: true })
         .then((rows) => { setProjects(rows); setProjectId((current) => current || rows[0]?.id || ""); })
@@ -68,7 +68,7 @@ export function GlobalCreateDialog({ open, kind = "task", initialTitle = "", onC
         .then((rows) => { setWorkspaces(rows); setWorkspaceId((current) => current || rows[0]?.id || ""); })
         .catch((e) => setError(e instanceof Error ? e.message : "Could not load workspaces"));
     }
-  }, [open, kind, initialTitle]);
+  }, [open, kind, initialTitle, initialDueDate]);
 
   const selected = useMemo(() => projects.find((p) => p.id === projectId), [projects, projectId]);
   const canSubmit = kind === "invite" ? /.+@.+\..+/.test(email) : kind === "task" || kind === "message" ? Boolean(projectId && title.trim()) : kind === "project" ? Boolean(workspaceId && title.trim()) : Boolean(title.trim());
@@ -78,9 +78,10 @@ export function GlobalCreateDialog({ open, kind = "task", initialTitle = "", onC
     setSaving(true); setError(null);
     try {
       if (kind === "task") {
-        const created = await api<Created>("/work-items", { method: "POST", org: true, idempotencyKey: idemKey, body: JSON.stringify({ projectId, title: title.trim(), description: description.trim() || undefined, priority, typeKey }) });
+        const created = await api<Created>("/work-items", { method: "POST", org: true, idempotencyKey: idemKey, body: JSON.stringify({ projectId, title: title.trim(), description: description.trim() || undefined, priority, typeKey, dueDate: dueDate || undefined }) });
         toast({ message: `Created in ${selected?.name ?? "project"}` });
         onClose();
+        onCreated?.();
         if (openAfter) router.push(`/projects/${created.owningProjectId}?task=${created.id}`);
       } else if (kind === "project") {
         const created = await api<{ id: string }>("/projects", { method: "POST", org: true, body: JSON.stringify({ workspaceId, name: title.trim(), keyPrefix: keyPrefixFrom(title), privacy }) });
@@ -138,6 +139,7 @@ export function GlobalCreateDialog({ open, kind = "task", initialTitle = "", onC
         {kind === "task" && <div className="create-meta-grid">
           <label><span>Project</span><UiSelect className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.keyPrefix})</option>)}</UiSelect></label>
           <label><span>Priority</span><UiSelect className="input" value={priority} onChange={(e) => setPriority(e.target.value)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></UiSelect></label>
+          <label><span>Due date</span><UiInput className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></label>
         </div>}
         {kind === "message" && <div className="create-meta-grid">
           <label><span>Project</span><UiSelect className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</UiSelect></label>

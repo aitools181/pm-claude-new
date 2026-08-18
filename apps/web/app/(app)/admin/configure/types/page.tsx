@@ -14,7 +14,9 @@ export default function TypesBuilder() {
   const [required, setRequired] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState<string | null>(null);
 
-  useEffect(() => { api<FieldDef[]>("/custom-fields", { org: true }).then(setFields).catch(() => {}); }, []);
+  const [fieldsError, setFieldsError] = useState("");
+  const loadFields = () => api<FieldDef[]>("/custom-fields", { org: true }).then((r) => { setFields(r); setFieldsError(""); }).catch((e) => setFieldsError(e instanceof Error ? e.message : "Could not load fields."));
+  useEffect(() => { loadFields(); }, []);
 
   async function create() {
     setMsg(null);
@@ -40,7 +42,8 @@ export default function TypesBuilder() {
 
         <div className="ui-static-8672e9a0">Attach fields</div>
         <div className="chips ui-static-87c136df" >
-          {fields.length === 0 && <span className="ui-static-c3d3e812">No fields defined yet.</span>}
+          {fieldsError && <span className="ui-static-c3d3e812 config-load-error">{fieldsError} <button className="text-button" onClick={loadFields}>Retry</button></span>}
+          {!fieldsError && fields.length === 0 && <span className="ui-static-c3d3e812">No fields defined yet.</span>}
           {fields.map((fd) => (
             <span key={fd.id} className="ui-chip-choice">
               <button type="button" className="chip ui-reset-button" aria-pressed={!!selected[fd.id]} data-on={!!selected[fd.id]} onClick={() => setSelected({ ...selected, [fd.id]: !selected[fd.id] })}>{fd.name}</button>

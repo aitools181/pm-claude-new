@@ -26,21 +26,25 @@ export default function WorkflowPage() {
   const [rulesDenied, setRulesDenied] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
+  const [loadError, setLoadError] = useState("");
   async function load() {
-    const [p, b] = await Promise.all([
-      api<Project>(`/projects/${id}`, { org: true }),
-      api<Board>(`/projects/${id}/board`, { org: true }).catch(() => ({ todo: [], in_progress: [], done: [] })),
-    ]);
-    setProject(p); setBoard(b);
-    try { setRules(await api<Rule[]>("/automation/rules", { org: true })); }
-    catch { setRules(null); setRulesDenied(true); }
+    try {
+      const [p, b] = await Promise.all([
+        api<Project>(`/projects/${id}`, { org: true }),
+        api<Board>(`/projects/${id}/board`, { org: true }).catch(() => ({ todo: [], in_progress: [], done: [] })),
+      ]);
+      setProject(p); setBoard(b); setLoadError("");
+      try { setRules(await api<Rule[]>("/automation/rules", { org: true })); }
+      catch { setRules(null); setRulesDenied(true); }
+    } catch (err) { setLoadError(err instanceof Error ? err.message : "Could not load this project's workflow."); }
   }
-  useEffect(() => { load().catch(() => {}); }, [id]);
+  useEffect(() => { load(); }, [id]);
 
   const total = useMemo(() => board.todo.length + board.in_progress.length + board.done.length, [board]);
 
+  if (!project) return <div className="project-loading">{loadError || "Loading workflow…"}{loadError && <button className="text-button" onClick={load}>Retry</button>}</div>;
   return <>
-    {project && <ProjectChrome project={project} view="workflow" onProjectChange={load} />}
+    <ProjectChrome project={project} view="workflow" onProjectChange={load} />
     <div className="workflow-page">
       <header className="workflow-head">
         <div><h2>Workflow</h2><p>How work moves through {project?.name ?? "this project"} — {total} tasks across {STAGES.length} stages.</p></div>

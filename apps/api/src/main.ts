@@ -46,7 +46,7 @@ async function bootstrap() {
     if (path.endsWith("/health") || path.endsWith("/ready")) return next();
     const isAuth = /\/auth\/(login|register|password)/.test(path);
     const limit = isAuth ? authLimit : generalLimit;
-    const who = req.cookies?.sid ? `s:${req.cookies.sid.slice(0, 24)}` : `ip:${req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown"}`;
+    const who = req.cookies?.pm_session ? `s:${req.cookies.pm_session.slice(0, 24)}` : `ip:${req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown"}`;
     const key = `${isAuth ? "a" : "g"}:${who}`;
     const now = Date.now();
     const arr = (hits.get(key) ?? []).filter((t) => t > now - WINDOW_MS);

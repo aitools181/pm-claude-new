@@ -26,8 +26,12 @@ export default function DocsPage() {
   const [versions, setVersions] = useState<Version[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [proj, setProj] = useState("");
+  const [treeError, setTreeError] = useState("");
 
-  const loadTree = useCallback(async () => setTree(await api<Node[]>("/documents/tree", { org: true }).catch(() => [])), []);
+  const loadTree = useCallback(async () => {
+    try { setTree(await api<Node[]>("/documents/tree", { org: true })); setTreeError(""); }
+    catch (e) { setTreeError(e instanceof Error ? e.message : "Could not load documents."); }
+  }, []);
   useEffect(() => { loadTree(); api<Project[]>("/projects", { org: true }).then(setProjects).catch(() => {}); }, [loadTree]);
   const open = useCallback(async (id: string) => {
     setSel(id);
@@ -56,7 +60,8 @@ export default function DocsPage() {
       </div>
       <div className="docs-layout">
         <div className="doc-tree gpanel">
-          {tree.length === 0 && <p className="muted ui-static-5e0faad2" >No documents yet.</p>}
+          {treeError && <div className="callout callout-danger docs-tree-error"><span>{treeError}</span><UiButton variant="secondary" size="compact" onClick={loadTree}>Retry</UiButton></div>}
+          {!treeError && tree.length === 0 && <p className="muted ui-static-5e0faad2" >No documents yet.</p>}
           {tree.map((n) => <button key={n.id} data-active={sel === n.id} className="ui-doc-tree-item" data-nested={Boolean(n.parentId) || undefined} onClick={() => open(n.id)}>{n.title}</button>)}
         </div>
 

@@ -40,14 +40,17 @@ export default function ProjectCalendar() {
     return { from: iso(start), to: iso(end), start };
   }, [cursor, weekStart]);
 
+  const [loadError, setLoadError] = useState("");
   async function load() {
-    const [p, e] = await Promise.all([
-      api<Project>(`/projects/${id}`, { org: true }),
-      api<Ev[]>(`/calendar/range?from=${range.from}&to=${range.to}&projectId=${id}`, { org: true }).catch(() => []),
-    ]);
-    setProject(p); setEvents(e);
+    try {
+      const [p, e] = await Promise.all([
+        api<Project>(`/projects/${id}`, { org: true }),
+        api<Ev[]>(`/calendar/range?from=${range.from}&to=${range.to}&projectId=${id}`, { org: true }).catch(() => []),
+      ]);
+      setProject(p); setEvents(e); setLoadError("");
+    } catch (err) { setLoadError(err instanceof Error ? err.message : "Could not load this project's calendar."); }
   }
-  useEffect(() => { load().catch(() => {}); }, [id, range.from, range.to]);
+  useEffect(() => { load(); }, [id, range.from, range.to]);
 
   const filtered = events.filter((e) => `${e.key} ${e.title}`.toLowerCase().includes(search.toLowerCase()) && (!hideDone || e.statusCategory !== "done"));
   const byDay = useMemo(() => {
@@ -66,8 +69,9 @@ export default function ProjectCalendar() {
     await api("/ui/saved-views", { method: "POST", org: true, body: JSON.stringify({ scopeType: "project", scopeId: id, name, viewType: "calendar", filters: { search, hideDone, weeks }, ownershipTier }) });
   }
 
+  if (!project) return <div className="project-loading">{loadError || "Loading calendar…"}{loadError && <button className="text-button" onClick={load}>Retry</button>}</div>;
   return <>
-    {project && <ProjectChrome project={project} view="calendar" onProjectChange={load} />}
+    <ProjectChrome project={project} view="calendar" onProjectChange={load} />
     <div className="view-toolbar project-toolbar">
       <button className="toolbar-button" onClick={() => setCursor(() => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), 1)); })}>Today</button>
       <button className="toolbar-button" aria-label="Previous month" onClick={() => shift(-1)}>←</button>
