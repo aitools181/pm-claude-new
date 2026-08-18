@@ -111,10 +111,10 @@ export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjec
   }, [project.id]);
 
   async function reloadViews(){ setSavedViews(await api<SavedView[]>(`/ui/saved-views?scopeType=project&scopeId=${project.id}`, {org:true})); }
-  async function renameView(row: SavedView){ const name=await appPrompt("Rename view", row.name); if(!name?.trim())return; await api(`/ui/saved-views/${row.id}`,{method:"PATCH",org:true,body:JSON.stringify({name:name.trim()})}); await reloadViews(); }
-  async function setDefaultView(row: SavedView){ await api(`/ui/saved-views/${row.id}`,{method:"PATCH",org:true,body:JSON.stringify({isDefault:true})}); toast({message:`${row.name} is now the default view`}); await reloadViews(); }
-  async function duplicateView(row: SavedView){ await api(`/ui/saved-views/${row.id}/duplicate`,{method:"POST",org:true}); await reloadViews(); }
-  async function removeView(row: SavedView){ await api(`/ui/saved-views/${row.id}`,{method:"DELETE",org:true}); if(searchParams.get("savedView")===row.id) location.href=`/projects/${project.id}`; else await reloadViews(); }
+  async function renameView(row: SavedView){ const name=await appPrompt("Rename view", row.name); if(!name?.trim())return; try{await api(`/ui/saved-views/${row.id}`,{method:"PATCH",org:true,body:JSON.stringify({name:name.trim()})}); await reloadViews();}catch(err){toast({message:err instanceof Error?err.message:"Could not rename the view",tone:"error"});} }
+  async function setDefaultView(row: SavedView){ try{await api(`/ui/saved-views/${row.id}`,{method:"PATCH",org:true,body:JSON.stringify({isDefault:true})}); toast({message:`${row.name} is now the default view`}); await reloadViews();}catch(err){toast({message:err instanceof Error?err.message:"Could not set the default view",tone:"error"});} }
+  async function duplicateView(row: SavedView){ try{await api(`/ui/saved-views/${row.id}/duplicate`,{method:"POST",org:true}); await reloadViews();}catch(err){toast({message:err instanceof Error?err.message:"Could not duplicate the view",tone:"error"});} }
+  async function removeView(row: SavedView){ if(!await appConfirm(`Remove the "${row.name}" view? Anyone using it will lose this saved filter set.`, { confirmLabel: "Remove view" })) return; try{await api(`/ui/saved-views/${row.id}`,{method:"DELETE",org:true}); if(searchParams.get("savedView")===row.id) location.href=`/projects/${project.id}`; else await reloadViews();}catch(err){toast({message:err instanceof Error?err.message:"Could not remove the view",tone:"error"});} }
 
   async function toggleFavorite() {
     const next = !favorite; setFavorite(next);
@@ -127,19 +127,21 @@ export function ProjectChrome({ project, view, onAddTask, onAddSection, onProjec
     const label = typeKey === "approval" ? "approval" : typeKey === "milestone" ? "milestone" : "task";
     const title = await appPrompt(`Name this ${label}`);
     if (!title?.trim()) return;
-    const row = await api<{ id: string; key: string }>("/work-items", {
-      method: "POST", org: true, body: JSON.stringify({ projectId: project.id, title: title.trim(), typeKey }),
-    });
-    toast({ message: `${label[0].toUpperCase() + label.slice(1)} ${row.key} added` });
-    onProjectChange?.();
+    try {
+      const row = await api<{ id: string; key: string }>("/work-items", {
+        method: "POST", org: true, body: JSON.stringify({ projectId: project.id, title: title.trim(), typeKey }),
+      });
+      toast({ message: `${label[0].toUpperCase() + label.slice(1)} ${row.key} added` });
+      onProjectChange?.();
+    } catch (err) { toast({ message: err instanceof Error ? err.message : `Could not add the ${label}`, tone: "error" }); }
   }
 
   async function addSection() {
     if (onAddSection) return onAddSection();
     const name = await appPrompt("Section name");
     if (!name?.trim()) return;
-    await api(`/projects/${project.id}/sections`, { method: "POST", org: true, body: JSON.stringify({ name: name.trim() }) });
-    toast({ message: "Section added" }); onProjectChange?.();
+    try { await api(`/projects/${project.id}/sections`, { method: "POST", org: true, body: JSON.stringify({ name: name.trim() }) }); toast({ message: "Section added" }); onProjectChange?.(); }
+    catch (err) { toast({ message: err instanceof Error ? err.message : "Could not add the section", tone: "error" }); }
   }
 
   return <>
@@ -221,10 +223,12 @@ function StatusModal({ project, onClose, onChanged }: { project: Project; onClos
   useEffect(() => { api<StatusUpdate[]>(`/projects/${project.id}/status-updates`, { org: true }).then(setUpdates).catch(() => {}); }, [project.id]);
   async function publish() {
     if (!headline.trim()) return;
-    await api(`/projects/${project.id}/status-updates`, { method: "POST", org: true, body: JSON.stringify({ health, title: headline.trim(), body: body.trim() || undefined }) });
-    const fresh = await api<Project>(`/projects/${project.id}`, { org: true });
-    if (fresh.health !== health) await api(`/projects/${project.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: fresh.version, patch: { health } }) });
-    toast({ message: "Project status published" }); onChanged?.(); onClose();
+    try {
+      await api(`/projects/${project.id}/status-updates`, { method: "POST", org: true, body: JSON.stringify({ health, title: headline.trim(), body: body.trim() || undefined }) });
+      const fresh = await api<Project>(`/projects/${project.id}`, { org: true });
+      if (fresh.health !== health) await api(`/projects/${project.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: fresh.version, patch: { health } }) });
+      toast({ message: "Project status published" }); onChanged?.(); onClose();
+    } catch (err) { toast({ message: err instanceof Error ? err.message : "Could not publish the status update", tone: "error" }); }
   }
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><div ref={dialogRef} tabIndex={-1} className="asana-status-modal" role="dialog" aria-modal="true" aria-labelledby="project-status-title">
     <div className="modal-title-row"><div><h2 id="project-status-title">Set project status</h2><p>Share a concise health update with project members.</p></div><button className="icon-btn" aria-label="Close project status dialog" onClick={onClose}><Icon name="close" /></button></div>
@@ -251,8 +255,8 @@ function ProjectShareModal({ project, onClose }: { project: Project; onClose: ()
   useEffect(() => { load().catch(() => {}); }, [project.id]);
   const invited = useMemo(() => new Set(members.map((m) => m.userId)), [members]);
   const choices = directory.filter((x) => !invited.has(x.id) && (`${x.displayName} ${x.email}`).toLowerCase().includes(query.toLowerCase())).slice(0, 8);
-  async function add(u: Directory) { await api(`/projects/${project.id}/members`, { method: "POST", org: true, body: JSON.stringify({ userId: u.id, accessLevel: access }) }); setQuery(""); await load(); }
-  async function patch(m: Member, p: Record<string, unknown>) { await api(`/projects/${project.id}/members/${m.id}`, { method: "PATCH", org: true, body: JSON.stringify(p) }); await load(); }
+  async function add(u: Directory) { try { await api(`/projects/${project.id}/members`, { method: "POST", org: true, body: JSON.stringify({ userId: u.id, accessLevel: access }) }); setQuery(""); await load(); } catch (err) { toast({ message: err instanceof Error ? err.message : "Could not add the member", tone: "error" }); } }
+  async function patch(m: Member, p: Record<string, unknown>) { try { await api(`/projects/${project.id}/members/${m.id}`, { method: "PATCH", org: true, body: JSON.stringify(p) }); await load(); } catch (err) { toast({ message: err instanceof Error ? err.message : "Could not update the member", tone: "error" }); } }
   return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><div ref={dialogRef} tabIndex={-1} className="asana-share-modal" role="dialog" aria-modal="true" aria-labelledby="project-share-title">
     <div className="modal-title-row"><h2 id="project-share-title">Share {project.name}</h2><button className="icon-btn" aria-label="Close share project dialog" onClick={onClose}><Icon name="close" /></button></div>
     <div className="share-invite-row"><div className="share-search-wrap"><Icon name="search" size={15} /><UiInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Invite with email or name" />{query && choices.length > 0 && <div className="share-suggestions">{choices.map((u) => <button onClick={() => add(u)} key={u.id}><span className="mini-avatar">{u.displayName.slice(0, 1)}</span><span><strong>{u.displayName}</strong><small>{u.email}</small></span></button>)}</div>}</div><UiSelect value={access} onChange={(e) => setAccess(e.target.value)}><option value="editor">Editor</option><option value="commenter">Commenter</option><option value="viewer">Viewer</option><option value="project_admin">Project admin</option></UiSelect></div>
@@ -275,9 +279,11 @@ function CustomizeDrawer({ project, onClose, onChanged }: { project: Project; on
   const [dueDate, setDueDate] = useState(project.dueDate || "");
   const palette = PROJECT_COLOR_PALETTE;
   async function saveProject() {
-    const fresh = await api<Project>(`/projects/${project.id}`, { org: true });
-    await api(`/projects/${project.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: fresh.version, patch: { description, color, icon, privacy, startDate: startDate || null, dueDate: dueDate || null } }) });
-    toast({ message: "Project settings saved" }); onChanged?.();
+    try {
+      const fresh = await api<Project>(`/projects/${project.id}`, { org: true });
+      await api(`/projects/${project.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: fresh.version, patch: { description, color, icon, privacy, startDate: startDate || null, dueDate: dueDate || null } }) });
+      toast({ message: "Project settings saved" }); onChanged?.();
+    } catch (err) { toast({ message: err instanceof Error ? err.message : "Could not save project settings", tone: "error" }); }
   }
   const items = [
     ["Fields", "Custom fields and calculated fields", "/admin/configure"], ["Forms", "Request intake and routing", "/admin/forms"],

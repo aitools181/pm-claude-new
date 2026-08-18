@@ -17,7 +17,8 @@ export default function CalendarsAdmin() {
   const [calc, setCalc] = useState<Record<string, { start: string; end: string; result?: number }>>({});
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = () => api<Cal[]>("/calendars", { org: true }).then(setCals).catch(() => {});
+  const [calsError, setCalsError] = useState("");
+  const load = () => api<Cal[]>("/calendars", { org: true }).then((r) => { setCals(r); setCalsError(""); }).catch((e) => setCalsError(e instanceof Error ? e.message : "Could not load calendars."));
   useEffect(() => { load(); }, []);
 
   async function create() {
@@ -55,7 +56,9 @@ export default function CalendarsAdmin() {
         <UiButton variant="primary"  disabled={!nc.name} onClick={create}>Create calendar</UiButton>
       </div>
 
-      {cals.map((c) => (
+      {calsError && <div className="callout callout-danger config-load-error"><span>{calsError}</span><UiButton variant="secondary" size="compact" onClick={load}>Retry</UiButton></div>}
+      {!calsError && cals.length === 0 && <p className="muted">No calendars yet.</p>}
+      {!calsError && cals.map((c) => (
         <div key={c.id} className="card card-p ui-static-2b583d73" >
           <div className="ui-static-a3d12b9b"><strong>{c.name}</strong><span className="badge mono">{(c.workingDays as number[]).map((d) => DOW[d][1]).join(" ")}</span></div>
           <div className="ui-static-35c9f583">

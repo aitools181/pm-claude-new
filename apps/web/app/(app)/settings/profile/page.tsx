@@ -4,22 +4,29 @@
 import { Select as UiSelect, Button as UiButton } from "../../../../components/ui";
 import { Input as UiInput } from "../../../../components/ui";
 import { useEffect, useState } from "react";
+import { useToast } from "../../../../components/ui/Toast";
 import { SettingsShell } from "../../../../components/settings/SettingsShell";
 import { api } from "../../../../lib/api";
 type Profile = { id:string; displayName:string; username?:string|null; email:string; emailVerifiedAt:string|null; avatarUrl?:string|null; designation?:string|null; department?:string|null; managerUserId?:string|null; workingHours?:Record<string,{from?:string;to?:string}>|null; contactFields?:{phone?:string;mobile?:string;location?:string}|null };
 type Member = { id:string; displayName:string };
 export default function ProfileSettings(){
+const toast=useToast();
 const [p,setP]=useState<Profile|null>(null);const [saved,setSaved]=useState(false);const [members,setMembers]=useState<Member[]>([]);
 const [f,setF]=useState({displayName:"",username:"",avatarUrl:"",designation:"",department:"",managerUserId:"",phone:"",mobile:"",location:"",workFrom:"",workTo:""});
-useEffect(()=>{api<Profile>("/me/profile",{org:true}).then(r=>{setP(r);const wh=(r.workingHours||{}) as {default?:{from?:string;to?:string}};setF({displayName:r.displayName,username:r.username||"",avatarUrl:r.avatarUrl||"",designation:r.designation||"",department:r.department||"",managerUserId:r.managerUserId||"",phone:r.contactFields?.phone||"",mobile:r.contactFields?.mobile||"",location:r.contactFields?.location||"",workFrom:wh.default?.from||"",workTo:wh.default?.to||""})}).catch(()=>{});api<Member[]>("/directory/members",{org:true}).then(setMembers).catch(()=>{})},[]);
+const [loadError,setLoadError]=useState('');
+useEffect(()=>{api<Profile>("/me/profile",{org:true}).then(r=>{setP(r);const wh=(r.workingHours||{}) as {default?:{from?:string;to?:string}};setF({displayName:r.displayName,username:r.username||"",avatarUrl:r.avatarUrl||"",designation:r.designation||"",department:r.department||"",managerUserId:r.managerUserId||"",phone:r.contactFields?.phone||"",mobile:r.contactFields?.mobile||"",location:r.contactFields?.location||"",workFrom:wh.default?.from||"",workTo:wh.default?.to||""});setLoadError('')}).catch(e=>setLoadError(e instanceof Error?e.message:'Could not load your profile.'));api<Member[]>("/directory/members",{org:true}).then(setMembers).catch(()=>{})},[]);
 async function save(){
   const body={displayName:f.displayName,username:f.username.trim()||null,avatarUrl:f.avatarUrl.trim()||null,designation:f.designation.trim()||null,department:f.department.trim()||null,managerUserId:f.managerUserId||null,
     contactFields:(f.phone||f.mobile||f.location)?{phone:f.phone||undefined,mobile:f.mobile||undefined,location:f.location||undefined}:null,
     workingHours:(f.workFrom&&f.workTo)?{default:{from:f.workFrom,to:f.workTo}}:null};
-  const row=await api<Profile>("/me/profile",{method:"PATCH",org:true,body:JSON.stringify(body)});setP(row);setSaved(true);setTimeout(()=>setSaved(false),1600)}
-async function verify(){await api("/auth/email-verification/request",{method:"POST"});setSaved(true)}
+  try{const row=await api<Profile>("/me/profile",{method:"PATCH",org:true,body:JSON.stringify(body)});setP(row);setSaved(true);setTimeout(()=>setSaved(false),1600)}
+  catch(e){toast({message:e instanceof Error?e.message:"Could not save your profile",tone:"error"})}
+}
+async function verify(){try{await api("/auth/email-verification/request",{method:"POST"});setSaved(true);toast({message:"Verification email sent"})}catch(e){toast({message:e instanceof Error?e.message:"Could not send the verification email",tone:"error"})}}
 return <SettingsShell><div className="settings-section"><h2>Profile</h2><p>Your identity, role details, contact information and working hours shown to collaborators.</p>
-<div className="profile-edit">
+{!p&&loadError&&<div className="callout callout-danger profile-load-error"><span>{loadError}</span></div>}
+{!p&&!loadError&&<p className="muted">Loading your profile…</p>}
+{p&&<div className="profile-edit">
   <div className="avatar-xl">{f.avatarUrl?<img src={f.avatarUrl} alt="" className="avatar-img"/>:(p?.displayName||"PM").split(" ").map(x=>x[0]).slice(0,2).join("")}</div>
   <div className="form-stack">
     <label>Full name<UiInput className="input" value={f.displayName} onChange={e=>setF({...f,displayName:e.target.value})}/></label>
@@ -43,4 +50,5 @@ return <SettingsShell><div className="settings-section"><h2>Profile</h2><p>Your 
     </div>
     <UiButton variant="primary" className="fit" disabled={!f.displayName.trim()} onClick={save}>Save changes</UiButton>{saved&&<span className="save-note">Saved</span>}
   </div>
-</div></div></SettingsShell>}
+</div>}
+</div></SettingsShell>}

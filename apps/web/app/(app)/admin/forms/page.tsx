@@ -26,7 +26,11 @@ export default function FormsAdminPage() {
   const [defaultProjectId, setDefaultProjectId] = useState("");
   const [subs, setSubs] = useState<Sub[]>([]);
 
-  const loadForms = useCallback(async () => { setForms(await api<Form[]>("/forms", { org: true }).catch(() => [])); }, []);
+  const [formsError, setFormsError] = useState("");
+  const loadForms = useCallback(async () => {
+    try { setForms(await api<Form[]>("/forms", { org: true })); setFormsError(""); }
+    catch (e) { setFormsError(e instanceof Error ? e.message : "Could not load forms."); }
+  }, []);
   useEffect(() => { loadForms(); api<Project[]>("/projects", { org: true }).then(setProjects).catch(() => {}); }, [loadForms]);
 
   async function openForm(id: string) {
@@ -148,7 +152,8 @@ export default function FormsAdminPage() {
 
         <div className="gpanel">
           <div className="ui-static-13313b1a"><h3>Forms</h3><UiButton variant="tertiary"  onClick={createForm}>+ New</UiButton></div>
-          {forms.map((f) => (
+          {formsError && <div className="callout callout-danger forms-list-error"><span>{formsError}</span><UiButton variant="secondary" size="compact" onClick={loadForms}>Retry</UiButton></div>}
+          {!formsError && forms.map((f) => (
             <UiButton variant="tertiary" key={f.id} className="ui-selection-row" data-selected={sel?.id === f.id || undefined} onClick={() => openForm(f.id)}>
               {f.name} <span className={[`pill ${f.status === "published" ? "approved" : "open"}`, "ui-static-46cec891"].filter(Boolean).join(" ")} >{f.status}</span>
             </UiButton>

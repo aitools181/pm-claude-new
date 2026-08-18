@@ -45,8 +45,8 @@ export default function ProofingPage() {
   async function addMarkerAt(x: number, y: number) {
     if (!sel) return;
     const comment = await appPrompt("Marker comment"); if (comment === null) return;
-    await api(`/proof-assets/${sel}/markers`, { method: "POST", org: true, body: JSON.stringify({ assetVersion: ver, x, y, comment }) });
-    loadMarkers(sel, ver);
+    try { await api(`/proof-assets/${sel}/markers`, { method: "POST", org: true, body: JSON.stringify({ assetVersion: ver, x, y, comment }) }); loadMarkers(sel, ver); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not add the marker" }); }
   }
   async function clickStage(e: React.MouseEvent<HTMLImageElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -54,11 +54,11 @@ export default function ProofingPage() {
     const y = Math.round(((e.clientY - rect.top) / rect.height) * 1000) / 1000;
     await addMarkerAt(x, y);
   }
-  async function toggleMarker(m: Marker) { await api(`/proof-markers/${m.id}/resolve`, { method: "POST", org: true, body: JSON.stringify({ resolved: !m.resolved }) }); if (sel) loadMarkers(sel, ver); }
+  async function toggleMarker(m: Marker) { try { await api(`/proof-markers/${m.id}/resolve`, { method: "POST", org: true, body: JSON.stringify({ resolved: !m.resolved }) }); if (sel) loadMarkers(sel, ver); } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not update the marker" }); } }
   async function review(status: "approved" | "changes_requested") {
     if (!sel) return; const reason = status === "changes_requested" ? await appPrompt("Reason") || undefined : undefined;
-    await api(`/proof-assets/${sel}/review`, { method: "POST", org: true, body: JSON.stringify({ assetVersion: d?.asset.currentVersion, status, reason }) });
-    toast({ message: `Review: ${status}` }); open(sel);
+    try { await api(`/proof-assets/${sel}/review`, { method: "POST", org: true, body: JSON.stringify({ assetVersion: d?.asset.currentVersion, status, reason }) }); toast({ message: `Review: ${status}` }); open(sel); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not submit the review" }); }
   }
   function switchVer(v: number) { setVer(v); if (sel) loadMarkers(sel, v); }
 

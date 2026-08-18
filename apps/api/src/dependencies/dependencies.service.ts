@@ -100,8 +100,18 @@ export class DependenciesService {
     return { nodes, edges: deps.map((d) => ({ id: d.id, from: d.predecessorId, to: d.successorId, type: d.type })) };
   }
 
-  listForItem(organizationId: string, workItemId: string) {
-    return this.db.select().from(schema.workItemDependencies)
+  async listForItem(organizationId: string, workItemId: string) {
+    const rows = await this.db.select().from(schema.workItemDependencies)
       .where(and(eq(schema.workItemDependencies.organizationId, organizationId), or(eq(schema.workItemDependencies.predecessorId, workItemId), eq(schema.workItemDependencies.successorId, workItemId))));
+    const otherIds = rows.map((r) => (r.predecessorId === workItemId ? r.successorId : r.predecessorId));
+    const others = otherIds.length
+      ? await this.db.select({ id: schema.workItems.id, key: schema.workItems.key, title: schema.workItems.title }).from(schema.workItems).where(inArray(schema.workItems.id, otherIds))
+      : [];
+    const byId = new Map(others.map((o) => [o.id, o]));
+    return rows.map((r) => {
+      const otherId = r.predecessorId === workItemId ? r.successorId : r.predecessorId;
+      const other = byId.get(otherId);
+      return { ...r, otherWorkItemId: otherId, otherKey: other?.key ?? null, otherTitle: other?.title ?? "Deleted task" };
+    });
   }
 }

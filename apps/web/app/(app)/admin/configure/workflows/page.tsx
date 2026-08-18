@@ -14,7 +14,8 @@ export default function WorkflowsList() {
   const [name, setName] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = () => api<Workflow[]>("/workflows", { org: true }).then(setRows).catch(() => {});
+  const [rowsError, setRowsError] = useState("");
+  const load = () => api<Workflow[]>("/workflows", { org: true }).then((r) => { setRows(r); setRowsError(""); }).catch((e) => setRowsError(e instanceof Error ? e.message : "Could not load workflows."));
   useEffect(() => { load(); }, []);
 
   async function create() {
@@ -32,7 +33,8 @@ export default function WorkflowsList() {
         <UiButton variant="primary"  disabled={!name} onClick={create}>Create</UiButton>
       </div>
       <div className="card">
-        {rows.length === 0 && <div className="ui-static-cfad4427">No workflows yet.</div>}
+        {rowsError && <div className="ui-static-cfad4427 config-load-error">{rowsError} <button className="text-button" onClick={load}>Retry</button></div>}
+        {!rowsError && rows.length === 0 && <div className="ui-static-cfad4427">No workflows yet.</div>}
         {rows.map((w) => (
           <a key={w.id} href={`/admin/configure/workflows/${w.id}`} className="wi-row ui-static-b4a3ead0" >
             <span className="wi-title">{w.name}</span>

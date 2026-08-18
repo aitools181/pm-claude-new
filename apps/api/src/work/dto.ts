@@ -19,6 +19,7 @@ export const createWorkItemDto = z.object({
   priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
   status: z.enum(["To Do", "In Progress", "Done"]).optional(),
   description: z.string().optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export const createSubtaskDto = z.object({

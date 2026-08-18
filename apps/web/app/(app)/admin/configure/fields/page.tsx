@@ -22,7 +22,8 @@ export default function FieldsBuilder() {
   const [roles, setRoles] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
-  const load = () => api<FieldDef[]>("/custom-fields", { org: true }).then(setFields).catch(() => {});
+  const [fieldsError, setFieldsError] = useState("");
+  const load = () => api<FieldDef[]>("/custom-fields", { org: true }).then((r) => { setFields(r); setFieldsError(""); }).catch((e) => setFieldsError(e instanceof Error ? e.message : "Could not load fields."));
   useEffect(() => { load(); }, []);
   const selectFields = fields.filter((x) => x.fieldType === "select");
   useEffect(() => {
@@ -81,7 +82,8 @@ export default function FieldsBuilder() {
         <table className="table">
           <thead><tr><th>Key</th><th>Name</th><th>Type</th><th>Required</th><th>Visibility</th></tr></thead>
           <tbody>
-            {fields.length === 0 && <tr><td colSpan={5} className="ui-static-fbeb64b6">No custom fields yet.</td></tr>}
+            {fieldsError && <tr><td colSpan={5} className="ui-static-fbeb64b6 config-load-error">{fieldsError} <button className="text-button" onClick={load}>Retry</button></td></tr>}
+            {!fieldsError && fields.length === 0 && <tr><td colSpan={5} className="ui-static-fbeb64b6">No custom fields yet.</td></tr>}
             {fields.map((x) => (
               <tr key={x.id}><td className="mono">{x.key}</td><td>{x.name}</td><td>{x.fieldType}</td><td>{x.required ? "Yes" : "No"}</td>
                 <td><span className="badge">{x.visibility === "restricted" ? "🔒 restricted" : "everyone"}</span></td></tr>

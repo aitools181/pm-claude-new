@@ -35,11 +35,19 @@ export default function ReleasesPage() {
   async function create() {
     const name = await appPrompt("Release name (e.g. v1.2)"); if (!name) return;
     const version = await appPrompt("Version (optional, e.g. 1.2.0)") || undefined;
-    const r = await api<Release>(`/projects/${id}/releases`, { method: "POST", org: true, body: JSON.stringify({ name, version }) });
-    await loadList(); open(r.id);
+    try { const r = await api<Release>(`/projects/${id}/releases`, { method: "POST", org: true, body: JSON.stringify({ name, version }) }); await loadList(); open(r.id); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not create the release" }); }
   }
-  async function addItem() { if (!sel || !pick) return; await api(`/releases/${sel}/items`, { method: "POST", org: true, body: JSON.stringify({ workItemId: pick }) }); setPick(""); open(sel); }
-  async function removeItem(itemId: string) { if (!sel) return; await api(`/releases/${sel}/items/${itemId}`, { method: "DELETE", org: true }); open(sel); }
+  async function addItem() {
+    if (!sel || !pick) return;
+    try { await api(`/releases/${sel}/items`, { method: "POST", org: true, body: JSON.stringify({ workItemId: pick }) }); setPick(""); open(sel); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not add the item" }); }
+  }
+  async function removeItem(itemId: string) {
+    if (!sel) return;
+    try { await api(`/releases/${sel}/items/${itemId}`, { method: "DELETE", org: true }); open(sel); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not remove the item" }); }
+  }
   async function publish() {
     if (!sel) return;
     try { await api(`/releases/${sel}/publish`, { method: "POST", org: true }); toast({ message: "Release published" }); loadList(); open(sel); }

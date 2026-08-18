@@ -29,26 +29,29 @@ export default function BacklogPage() {
 
   async function setPoints(item: Item, v: string) {
     const storyPoints = v === "" ? null : Number(v);
-    await api(`/work-items/${item.id}/points`, { method: "POST", org: true, body: JSON.stringify({ storyPoints }) });
-    loadBacklog(); if (target) loadDetail(target);
+    try { await api(`/work-items/${item.id}/points`, { method: "POST", org: true, body: JSON.stringify({ storyPoints }) }); loadBacklog(); if (target) loadDetail(target); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not update story points" }); }
   }
   async function move(i: number, dir: -1 | 1) {
     const j = i + dir; if (j < 0 || j >= backlog.length) return;
     const beforeId = dir === -1 ? backlog[i - 2]?.id ?? null : backlog[i + 1]?.id ?? null;
     const afterId = dir === -1 ? backlog[i - 1]?.id ?? null : backlog[i + 2]?.id ?? null;
-    await api(`/work-items/${backlog[i].id}/backlog-rank`, { method: "POST", org: true, body: JSON.stringify({ beforeId, afterId }) });
-    loadBacklog();
+    try { await api(`/work-items/${backlog[i].id}/backlog-rank`, { method: "POST", org: true, body: JSON.stringify({ beforeId, afterId }) }); loadBacklog(); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not reorder the backlog" }); }
   }
   async function addToSprint(item: Item) {
     if (!target) { toast({ message: "Select or create a sprint first" }); return; }
-    await api(`/sprints/${target}/items`, { method: "POST", org: true, body: JSON.stringify({ workItemId: item.id }) });
-    loadBacklog(); loadDetail(target);
+    try { await api(`/sprints/${target}/items`, { method: "POST", org: true, body: JSON.stringify({ workItemId: item.id }) }); loadBacklog(); loadDetail(target); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not add to the sprint" }); }
   }
-  async function removeFromSprint(item: Item) { await api(`/sprints/${target}/items/${item.id}`, { method: "DELETE", org: true }); loadBacklog(); loadDetail(target); }
+  async function removeFromSprint(item: Item) {
+    try { await api(`/sprints/${target}/items/${item.id}`, { method: "DELETE", org: true }); loadBacklog(); loadDetail(target); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not remove from the sprint" }); }
+  }
   async function createSprint() {
     const name = await appPrompt("Sprint name", `Sprint ${sprints.length + 1}`); if (!name) return;
-    const s = await api<Sprint>(`/projects/${id}/sprints`, { method: "POST", org: true, body: JSON.stringify({ name }) });
-    await loadSprints(); setTarget(s.id);
+    try { const s = await api<Sprint>(`/projects/${id}/sprints`, { method: "POST", org: true, body: JSON.stringify({ name }) }); await loadSprints(); setTarget(s.id); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not create the sprint" }); }
   }
   async function startSprint(sid: string) {
     try { await api(`/sprints/${sid}/start`, { method: "POST", org: true }); toast({ message: "Sprint started" }); loadSprints(); loadDetail(sid); }

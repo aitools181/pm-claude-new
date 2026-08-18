@@ -24,8 +24,8 @@ export function OnboardingChecklist() {
   useEffect(() => { api<Progress>("/onboarding/progress", { org: true }).then(setProgress).catch(() => {}); }, []);
 
   async function dismiss() {
-    await api("/onboarding/dismiss", { method: "POST", org: true });
-    setProgress((p) => p ? { ...p, dismissed: true } : p);
+    try { await api("/onboarding/dismiss", { method: "POST", org: true }); setProgress((p) => p ? { ...p, dismissed: true } : p); }
+    catch { /* leave the checklist visible; failing to dismiss is low-stakes and self-evident (nothing changes) */ }
   }
 
   if (!progress || progress.dismissed || progress.completedCount === progress.totalCount) return null;

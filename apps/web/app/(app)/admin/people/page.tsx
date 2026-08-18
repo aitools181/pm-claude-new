@@ -45,10 +45,14 @@ function Members() {
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const [deact, setDeact] = useState<{ member: Member; summary: OwnedSummary | null; reassignTo: string; reason: string } | null>(null);
   const deactRef = useModalDialog<HTMLDivElement>(Boolean(deact), () => setDeact(null));
-  const load = () => Promise.all([
-    api<Invitation[]>("/invitations", { org: true }).then(setInvites).catch(() => {}),
-    api<Member[]>("/directory/members", { org: true }).then(setMembers).catch(() => {}),
-  ]);
+  const [loadError, setLoadError] = useState("");
+  const load = () => {
+    setLoadError("");
+    return Promise.all([
+      api<Invitation[]>("/invitations", { org: true }).then(setInvites).catch(() => {}),
+      api<Member[]>("/directory/members", { org: true }).then(setMembers).catch((e) => { setLoadError(e instanceof Error ? e.message : "Could not load members."); }),
+    ]);
+  };
   useEffect(() => { load(); }, []);
 
   async function invite() {
@@ -130,7 +134,8 @@ function Members() {
       <table className="table">
         <thead><tr><th>Name</th><th>Email</th><th>Designation</th><th>Department</th><th></th></tr></thead>
         <tbody>
-          {members.map((m) => <tr key={m.id}>
+          {loadError && <tr><td colSpan={5} className="callout callout-danger people-load-error"><span>{loadError}</span> <UiButton variant="secondary" size="compact" onClick={load}>Retry</UiButton></td></tr>}
+          {!loadError && members.map((m) => <tr key={m.id}>
             <td>{m.displayName}{m.accountType === "guest" && <span className="account-type-badge guest">Guest</span>}</td><td className="muted">{m.email}</td><td className="muted">{m.designation || "—"}</td><td className="muted">{m.department || "—"}</td>
             <td className="ui-static-54c2afb7"><UiButton variant="secondary" size="compact" onClick={() => openDeactivate(m)}>Deactivate…</UiButton></td>
           </tr>)}

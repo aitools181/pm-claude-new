@@ -18,7 +18,7 @@ export default function ChatPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [sel, setSel] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [body, setBody] = useState(""); const [reply, setReply] = useState<string | null>(null);
+  const [body, setBody] = useState(""); const [reply, setReply] = useState<string | null>(null); const [sending, setSending] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]); const [proj, setProj] = useState("");
 
   const loadChannels = useCallback(async () => {
@@ -28,9 +28,9 @@ export default function ChatPage() {
   useEffect(() => { loadChannels(); api<Project[]>("/projects", { org: true }).then((p) => { setProjects(p); setProj((x) => x || p[0]?.id || ""); }).catch(() => {}); }, [loadChannels]);
   const open = useCallback(async (id: string) => { setSel(id); setMessages(await api<Message[]>(`/chat/channels/${id}/messages`, { org: true }).catch(() => [])); }, []);
 
-  async function newChannel() { const name = await appPrompt("Channel name"); if (!name) return; await api("/chat/channels", { method: "POST", org: true, body: JSON.stringify({ name }) }); loadChannels(); }
-  async function send() { if (!sel || !body.trim()) return; await api(`/chat/channels/${sel}/messages`, { method: "POST", org: true, body: JSON.stringify({ body, parentMessageId: reply || undefined }) }); setBody(""); setReply(null); open(sel); }
-  async function toTask(m: Message) { if (!proj) { toast({ message: "Pick a project first" }); return; } await api(`/chat/messages/${m.id}/to-task`, { method: "POST", org: true, body: JSON.stringify({ projectId: proj }) }); toast({ message: "Work item created from message" }); open(sel!); }
+  async function newChannel() { const name = await appPrompt("Channel name"); if (!name) return; try { await api("/chat/channels", { method: "POST", org: true, body: JSON.stringify({ name }) }); loadChannels(); } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not create the channel" }); } }
+  async function send() { if (!sel || !body.trim() || sending) return; setSending(true); try { await api(`/chat/channels/${sel}/messages`, { method: "POST", org: true, body: JSON.stringify({ body, parentMessageId: reply || undefined }) }); setBody(""); setReply(null); open(sel); } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not send the message — it has not been lost, try again" }); } finally { setSending(false); } }
+  async function toTask(m: Message) { if (!proj) { toast({ message: "Pick a project first" }); return; } try { await api(`/chat/messages/${m.id}/to-task`, { method: "POST", org: true, body: JSON.stringify({ projectId: proj }) }); toast({ message: "Work item created from message" }); open(sel!); } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not create a task from this message" }); } }
 
   if (disabled) return (<><h1 className="page-title">Chat</h1><div className="module-off">The chat module is disabled. Enable it under <strong>Modules</strong>.</div></>);
 
@@ -64,9 +64,9 @@ export default function ChatPage() {
                 </div>
               ))}
               <div className="ui-static-a7d4afc9">
-                <UiInput className="input ui-static-97445a8d" placeholder={reply ? "Reply in thread…" : "Message…"} value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}  />
+                <UiInput className="input ui-static-97445a8d" placeholder={reply ? "Reply in thread…" : "Message…"} value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !sending && send()} disabled={sending} />
                 {reply && <UiButton variant="tertiary"  onClick={() => setReply(null)}>Cancel reply</UiButton>}
-                <UiButton variant="primary"  onClick={send}>Send</UiButton>
+                <UiButton variant="primary"  onClick={send} disabled={sending}>{sending ? "Sending…" : "Send"}</UiButton>
               </div>
             </>
           )}

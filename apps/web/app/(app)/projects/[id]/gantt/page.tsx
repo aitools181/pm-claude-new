@@ -42,15 +42,18 @@ export default function GanttPage() {
   const [variance, setVariance] = useState<Record<string, Variance>>({});
   const previewDialogRef = useModalDialog<HTMLDivElement>(Boolean(preview), () => setPreview(null));
 
+  const [loadError, setLoadError] = useState("");
   const load = useCallback(async () => {
-    const [p, g, s, dep, bl] = await Promise.all([
-      api<Project>(`/projects/${id}`, { org: true }),
-      api<Row[]>(`/projects/${id}/gantt`, { org: true }).catch(() => []),
-      api<{ items: SchedItem[] }>(`/projects/${id}/schedule`, { org: true }).catch(() => ({ items: [] })),
-      api<{ edges: Edge[] }>(`/projects/${id}/dependency-graph`, { org: true }).catch(() => ({ edges: [] })),
-      api<Baseline[]>(`/projects/${id}/baselines`, { org: true }).catch(() => []),
-    ]);
-    setProject(p); setRows(g); setSched(Object.fromEntries(s.items.map((i) => [i.id, i]))); setEdges(dep.edges); setBaselines(bl);
+    try {
+      const [p, g, s, dep, bl] = await Promise.all([
+        api<Project>(`/projects/${id}`, { org: true }),
+        api<Row[]>(`/projects/${id}/gantt`, { org: true }).catch(() => []),
+        api<{ items: SchedItem[] }>(`/projects/${id}/schedule`, { org: true }).catch(() => ({ items: [] })),
+        api<{ edges: Edge[] }>(`/projects/${id}/dependency-graph`, { org: true }).catch(() => ({ edges: [] })),
+        api<Baseline[]>(`/projects/${id}/baselines`, { org: true }).catch(() => []),
+      ]);
+      setProject(p); setRows(g); setSched(Object.fromEntries(s.items.map((i) => [i.id, i]))); setEdges(dep.edges); setBaselines(bl); setLoadError("");
+    } catch (err) { setLoadError(err instanceof Error ? err.message : "Could not load this project's Gantt chart."); }
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
@@ -66,14 +69,14 @@ export default function GanttPage() {
   }
   async function setMode(mode: string) {
     if (!sel || !selMeta) return;
-    await api(`/work-items/${sel.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: selMeta.version, patch: { scheduleMode: mode } }) });
-    toast({ message: `Schedule mode: ${mode}` }); await load(); selectItem(sel);
+    try { await api(`/work-items/${sel.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: selMeta.version, patch: { scheduleMode: mode } }) }); toast({ message: `Schedule mode: ${mode}` }); await load(); selectItem(sel); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not update the schedule mode" }); }
   }
   async function setDuration(dv: string) {
     if (!sel || !selMeta) return;
     const durationDays = dv ? Number(dv) : null;
-    await api(`/work-items/${sel.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: selMeta.version, patch: { durationDays } }) });
-    await load(); selectItem(sel);
+    try { await api(`/work-items/${sel.id}`, { method: "PATCH", org: true, body: JSON.stringify({ version: selMeta.version, patch: { durationDays } }) }); await load(); selectItem(sel); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not update the duration" }); }
   }
   async function runPreview() {
     if (!sel || !moveTo) return;
@@ -88,12 +91,14 @@ export default function GanttPage() {
   }
   async function undo() {
     if (!lastOp) return;
-    await api(`/reschedule/${lastOp.id}/undo`, { method: "POST", org: true }); toast({ message: "Reschedule undone" }); setLastOp(null); load();
+    try { await api(`/reschedule/${lastOp.id}/undo`, { method: "POST", org: true }); toast({ message: "Reschedule undone" }); setLastOp(null); load(); }
+    catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not undo the reschedule" }); }
   }
   async function captureBaseline() {
     const name = await appPrompt("Baseline name", `Baseline ${new Date().toLocaleDateString()}`); if (!name) return;
-    const b = await api<{ id: string }>(`/projects/${id}/baselines`, { method: "POST", org: true, body: JSON.stringify({ name }) });
-    toast({ message: "Baseline captured" }); const bl = await api<Baseline[]>(`/projects/${id}/baselines`, { org: true }); setBaselines(bl); setBaselineId(b.id);
+    try { const b = await api<{ id: string }>(`/projects/${id}/baselines`, { method: "POST", org: true, body: JSON.stringify({ name }) });
+      toast({ message: "Baseline captured" }); const bl = await api<Baseline[]>(`/projects/${id}/baselines`, { org: true }); setBaselines(bl); setBaselineId(b.id);
+    } catch (e) { toast({ message: e instanceof ApiError ? e.message : "Could not capture the baseline" }); }
   }
 
   const depth = useMemo(() => {
@@ -117,9 +122,10 @@ export default function GanttPage() {
     return { min, max, leftPad, rowH, top, xOf, rowIndex, width, height, months, todayX: xOf(Date.now()) };
   }, [rows, variance, pxPerDay]);
 
+  if (!project) return <div className="project-loading">{loadError || "Loading Gantt chart…"}{loadError && <button className="text-button" onClick={load}>Retry</button>}</div>;
   return (
     <>
-      {project && <ProjectChrome project={project} view="gantt" onProjectChange={load} />}
+      <ProjectChrome project={project} view="gantt" onProjectChange={load} />
       <div className="view-toolbar project-toolbar"><button className="toolbar-button" disabled={!model} onClick={()=>{const el=document.querySelector<HTMLElement>('.gantt-wrap');if(el&&model)el.scrollTo({left:Math.max(0,model.todayX-el.clientWidth/2),behavior:'smooth'})}}>Today</button><UiSelect className="toolbar-select" value={baselineId} onChange={(e) => setBaselineId(e.target.value)}><option value="">No baseline</option>{baselines.map((base)=><option key={base.id} value={base.id}>{base.name}</option>)}</UiSelect><button className="toolbar-button" onClick={captureBaseline}>Capture baseline</button><button className="toolbar-button" aria-label="Zoom out timeline" onClick={() => setPxPerDay((p) => Math.max(6, p - 4))}>−</button><button className="toolbar-button" aria-label="Zoom in timeline" onClick={() => setPxPerDay((p) => Math.min(56, p + 4))}>+</button></div>
 
       {lastOp && <div className="undo-banner"><span>Rescheduled {lastOp.applied} item(s).</span><UiButton variant="tertiary"  onClick={undo}>Undo</UiButton></div>}
